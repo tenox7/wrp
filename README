@@ -1,0 +1,3 @@
+WRP is a HTTP proxy service that renders the web page in to a GIF/JPEG image associated with clickable imagemap of the original web links. It allows to use historical and obsolete web browsers on the modern web. It's still a work in progress but it's quite stable and usable for casual web browsing.
+
+Two versions of WRP exist, Cocoa-Webkit for Mac OS X and QT-Webkit, for Linux, BSD and other platforms. 
