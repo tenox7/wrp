@@ -5,7 +5,7 @@
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 # 
 # This program is based on the software picidae.py from picidae.net
@@ -41,6 +41,7 @@ __version__ = "1.1"
 PORT   = 8080                
 WIDTH  = 1024
 HEIGHT = 768
+ISMAP  = "true"
 
 import re
 import random
@@ -49,6 +50,7 @@ import WebKit
 import AppKit
 import objc
 import os
+import io
 import time
 import string
 import urllib
@@ -62,6 +64,9 @@ import Queue
 REQ = Queue.Queue()
 # Response queue (dummy response objects)
 RESP = Queue.Queue()
+
+# Handle map dictionary (in memory file names go here)
+Handle = {}
 
 #import pdb; pdb.set_trace()
 
@@ -86,15 +91,19 @@ class WebkitLoad (Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
         AppKit.NSApplication.sharedApplication().terminate_(None)
 
     def getURL(self,webview):
-        rurl = REQ.get()
+        req = REQ.get()
+        WebkitLoad.httpout = req[0]
+        WebkitLoad.req_url = req[1]
+        WebkitLoad.req_gif = req[2]
+        WebkitLoad.req_map = req[3]
             
-        if (rurl == "http://wrp.stop/"):
+        if (WebkitLoad.req_url == "http://wrp.stop/"):
             print ">>> Terminate Request Received"
             AppKit.NSApplication.sharedApplication().terminate_(None)
 
-        nsurl = Foundation.NSURL.URLWithString_(rurl)
+        nsurl = Foundation.NSURL.URLWithString_(WebkitLoad.req_url)
         if not (nsurl and nsurl.scheme()):
-                nsurl = Foundation.NSURL.alloc().initFileURLWithPath_(url)
+                nsurl = Foundation.NSURL.alloc().initFileURLWithPath_(WebkitLoad.req_url)
         nsurl = nsurl.absoluteURL()
 
         Foundation.NSURLRequest.setAllowsAnyHTTPSCertificate_forHost_(objc.YES, nsurl.host())
@@ -133,15 +142,29 @@ class WebkitLoad (Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
             view = frame.frameView().documentView()
 
             bitmapdata = self.captureView(view)  
-            bitmapdata.representationUsingType_properties_(AppKit.NSGIFFileType,None).writeToFile_atomically_(GIF,objc.YES)
+            bitmapdata.representationUsingType_properties_(AppKit.NSGIFFileType,None).writeToFile_atomically_(WebkitLoad.req_gif,objc.YES)
 
-            httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n<html>\n<body>\n<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n<map name=\"map\">\n" % (__version__, GIF))
+            # url of the rendered page
+            web_url = frame.dataSource().initialRequest().URL().absoluteString()
+
+            httpout = WebkitLoad.httpout
+
+            httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n" % (__version__))
+            httpout.write("<!-- Request for [%s] frame [%s] -->\n" % (WebkitLoad.req_url, web_url))
+            httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n" % (__version__,web_url))
+            if (ISMAP == "true"):
+                httpout.write("<A HREF=\"http://%s\"><IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
+                mapfile = open(WebkitLoad.req_map, "w+")
+                mapfile.write("default %s\n" % (web_url))
+            else:
+                httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n" % (WebkitLoad.req_gif))
             
             domdocument = frame.DOMDocument()
             domnodelist = domdocument.getElementsByTagName_('A')
             i = 0
             while  i < domnodelist.length():
-                value = domnodelist.item_(i).valueForKey_('href')
+                turl = domnodelist.item_(i).valueForKey_('href')
+                #TODO: crashes? validate url? insert web_url if wrong?
                 myrect = domnodelist.item_(i).boundingBox()
                 
                 xmin = Foundation.NSMinX(myrect)
@@ -149,49 +172,100 @@ class WebkitLoad (Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
                 xmax = Foundation.NSMaxX(myrect)
                 ymax = Foundation.NSMaxY(myrect)
                 
-                httpout.write("<area shape=\"rect\" coords=\"%i,%i,%i,%i\" alt=\"%s\" href=\"%s\">\n" % (xmin, ymin, xmax, ymax, value, value))
+                if (ISMAP == "true"):
+                    mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                else:
+                    httpout.write("<AREA SHAPE=\"RECT\" COORDS=\"%i,%i,%i,%i\" ALT=\"%s\" HREF=\"%s\">\n" % (xmin, ymin, xmax, ymax, turl, turl))
+                
                 i += 1
             
-            httpout.write("</map>\n</body>\n</html>\n")
+            if (ISMAP != "true"):
+                httpout.write("</MAP>\n")
+                
+            httpout.write("</BODY>\n</HTML>\n")
             
+            if (ISMAP == "true"):
+                mapfile.close()
+
+            # Return to Proxy thread and Loop...
             RESP.put('')
             self.getURL(webview)
 
 class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
         req_url=self.path
-        global httpout
         httpout=self.wfile
-        self.send_response(200, 'OK')
+        
+        gif_re = re.match("http://(wrp-\d+\.gif).*", req_url)
+        map_re = re.match("http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
+        ico_re = re.match("http://.+\.ico", req_url)
 
-        gif_re = re.compile("http://webrender-[0-9]+\.gif")
-        ico_re = re.compile(".+\.ico")
-
-        if (gif_re.search(req_url)):
-            img=req_url.split("/")
-            print ">>> request for rendered gif image... %s" % (img[2])
+        # Serve Rendered GIF
+        if (gif_re):
+            img=gif_re.group(1)
+            print ">>> GIF file request... " + img
+            self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/gif')
             self.end_headers()  
-            fimg = open(img[2])
+            fimg=open(img)
             httpout.write(fimg.read())
             fimg.close()
-            os.remove(img[2])
+            os.remove(img)
             
-        elif (ico_re.search(req_url)):
-            #print ">>> request for .ico file - skipping"
-            self.send_error(404, "ICO not supported")       
+        # Process ISMAP Request
+        elif (map_re):
+            map=map_re.group(1)
+            req_x=int(map_re.group(2))
+            req_y=int(map_re.group(3))
+            print ">>> ISMAP request... %s [%d,%d] " % (map, req_x, req_y)
+
+            with open(map) as mapf:
+                goto_url="none"
+                for line in mapf.readlines(): 
+                    if(re.match("(\S+)", line).group(1) == "default"):
+                        default_url=re.match("\S+\s+(\S+)", line).group(1)
+    
+                    elif(re.match("(\S+)", line).group(1) == "rect"):
+                        rect=re.match("(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
+                        min_x=int(rect.group(3))
+                        min_y=int(rect.group(4))
+                        max_x=int(rect.group(5))
+                        max_y=int(rect.group(6))
+                        if( (req_x >= min_x) and (req_x <= max_x) and (req_y >= min_y) and (req_y <= max_y) ):
+                            goto_url=rect.group(2)
+                        
+            mapf.close()
+            
+            if(goto_url == "none"):
+                goto_url=default_url
+
+            print(">>> ISMAP redirect: %s\n" % (goto_url))
+
+            self.send_response(302, "Found")
+            self.send_header("Location", goto_url)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n" % (goto_url, goto_url))
+            
+        # ICO files, WebKit crashes on these
+        elif (ico_re):
+            self.send_error(415, "ICO not supported")       
             self.end_headers()
           
+        # Process a web page request and generate image
         else:
-            print ">>> request for url: " + req_url
+            print ">>> URL request... " + req_url
+            self.send_response(200, 'OK')
             self.send_header('Content-type', 'text/html')
             self.end_headers()  
 
-            global GIF
-            GIF = "webrender-%s.gif" % (random.randrange(0,1000))
+            rnd = random.randrange(0,1000)
+            
+            "wrp-%s.gif" % (rnd)
+            "wrp-%s.map" % (rnd)
 
-            # To thread
-            REQ.put(req_url)
+            # To WebKit Thread
+            REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
             # Wait for completition
             RESP.get()
 
