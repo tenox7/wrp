@@ -210,6 +210,7 @@ def main():
     app = AppKit.NSApplication.sharedApplication()
     delegate = AppDelegate.alloc().init()
     AppKit.NSApp().setDelegate_(delegate)
+    AppKit.NSBundle.mainBundle().infoDictionary()['NSAppTransportSecurity'] = dict(NSAllowsArbitraryLoads = True)
     rect = Foundation.NSMakeRect(-16000,-16000,100,100)
     win = AppKit.NSWindow.alloc()
     win.initWithContentRect_styleMask_backing_defer_ (rect, AppKit.NSBorderlessWindowMask, 2, 0)
