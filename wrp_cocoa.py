@@ -5,7 +5,7 @@
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
 
-__version__ = "1.2"
+__version__ = "1.3"
 
 # 
 # This program is based on the software picidae.py from picidae.net
@@ -191,94 +191,7 @@ class WebkitLoad (Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
             RESP.put('')
             self.getURL(webview)
 
-class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        req_url=self.path
-        httpout=self.wfile
-        
-        gif_re = re.match("http://(wrp-\d+\.gif).*", req_url)
-        map_re = re.match("http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
-        ico_re = re.match("http://.+\.ico", req_url)
-
-        # Serve Rendered GIF
-        if (gif_re):
-            img=gif_re.group(1)
-            print ">>> GIF file request... " + img
-            self.send_response(200, 'OK')
-            self.send_header('Content-type', 'image/gif')
-            self.end_headers()  
-            fimg=open(img)
-            httpout.write(fimg.read())
-            fimg.close()
-            os.remove(img)
-            
-        # Process ISMAP Request
-        elif (map_re):
-            map=map_re.group(1)
-            req_x=int(map_re.group(2))
-            req_y=int(map_re.group(3))
-            print ">>> ISMAP request... %s [%d,%d] " % (map, req_x, req_y)
-
-            with open(map) as mapf:
-                goto_url="none"
-                for line in mapf.readlines(): 
-                    if(re.match("(\S+)", line).group(1) == "default"):
-                        default_url=re.match("\S+\s+(\S+)", line).group(1)
-    
-                    elif(re.match("(\S+)", line).group(1) == "rect"):
-                        rect=re.match("(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
-                        min_x=int(rect.group(3))
-                        min_y=int(rect.group(4))
-                        max_x=int(rect.group(5))
-                        max_y=int(rect.group(6))
-                        if( (req_x >= min_x) and (req_x <= max_x) and (req_y >= min_y) and (req_y <= max_y) ):
-                            goto_url=rect.group(2)
-                        
-            mapf.close()
-            
-            if(goto_url == "none"):
-                goto_url=default_url
-
-            print(">>> ISMAP redirect: %s\n" % (goto_url))
-
-            self.send_response(302, "Found")
-            self.send_header("Location", goto_url)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n" % (goto_url, goto_url))
-            
-        # ICO files, WebKit crashes on these
-        elif (ico_re):
-            self.send_error(415, "ICO not supported")       
-            self.end_headers()
-          
-        # Process a web page request and generate image
-        else:
-            print ">>> URL request... " + req_url
-            self.send_response(200, 'OK')
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()  
-
-            rnd = random.randrange(0,1000)
-            
-            "wrp-%s.gif" % (rnd)
-            "wrp-%s.map" % (rnd)
-
-            # To WebKit Thread
-            REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
-            # Wait for completition
-            RESP.get()
-
-def run_proxy():
-    httpd = SocketServer.TCPServer(('', PORT), Proxy)
-    print "Web Rendering Proxy v%s serving at port: %s" % (__version__, PORT)
-    while 1:
-        httpd.serve_forever()
-
 def main():
-    # Launch Proxy Thread
-    threading.Thread(target=run_proxy).start()
-
     # Launch NS Application
     AppKit.NSApplicationLoad(); 
     app = AppKit.NSApplication.sharedApplication()
@@ -298,6 +211,3 @@ def main():
     loaddelegate.options = [""]
     webview.setFrameLoadDelegate_(loaddelegate)
     app.run()  
-
-if __name__ == '__main__' : main()
-

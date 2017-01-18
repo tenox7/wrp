@@ -40,7 +40,7 @@ HEIGHT  = 0  # eg.: 480, 600,  768, 0 for auto
 WAIT    = 1  # sleep for 1 second to allow javascript renders
 QUALITY = 80 # jpeg image quality 0-100 
 
-__version__ = "1.1qt"
+__version__ = "1.3"
 
 import re
 import random
@@ -184,8 +184,10 @@ class _WebkitRendererHelper(QObject):
         else:
             image = QPixmap.grabWidget(self._window)
 
+        httpout = WebkitRenderer.httpout
+
         # Write URL map
-        httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n<html>\n<body>\n<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n<map name=\"map\">\n" % (__version__, IMG))
+        httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n<html>\n<body>\n<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n<map name=\"map\">\n" % (__version__, WebkitRenderer.req_jpg))
         frame = self._view.page().currentFrame()
         for x in frame.findAllElements('a'):
             value = x.attribute('href')
@@ -318,105 +320,49 @@ REQ = Queue.Queue()
 # Response queue (dummy response objects)
 RESP = Queue.Queue()
 
-#import pdb; pdb.set_trace()
+# Technically, this is a QtGui application, because QWebPage requires it
+# to be. But because we will have no user interaction, and rendering can
+# not start before 'app.exec_()' is called, we have to trigger our "main"
+# by a timer event.
+def __main_qt():
+    # Render the page.
+    # If this method times out or loading failed, a
+    # RuntimeException is thrown
+    try:
+        while True:
+            req = REQ.get()
+            WebkitRenderer.httpout = req[0]
+            rurl = req[1]
+            WebkitRenderer.req_jpg = req[2]
+            WebkitRenderer.req_map = req[3]
+            if rurl == "http://wrp.stop/":
+                print ">>> Terminate Request Received"
+                break
 
-class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        req_url=self.path
-        global httpout
-        httpout=self.wfile
-        self.send_response(200, 'OK')
+            # Initialize WebkitRenderer object
+            renderer = WebkitRenderer()
+            renderer.logger = logger
+            renderer.width = WIDTH
+            renderer.height = HEIGHT
+            renderer.timeout = 60
+            renderer.wait = WAIT
+            renderer.grabWholeWindow = False
 
-        jpg_re = re.compile("http://webrender-[0-9]+\.jpg")
-        ico_re = re.compile(".+\.ico")
+            image = renderer.render(rurl)
+            qBuffer = QBuffer()
+            image.save(qBuffer, 'jpg', QUALITY)
 
-        if (jpg_re.search(req_url)):
-            img=req_url.split("/")
-            print ">>> request for rendered jpg image... %s  [%d kb]" % (img[2], os.path.getsize(img[2])/1024)
-            self.send_header('Content-type', 'image/jpeg')
-            self.end_headers()  
-            fimg = open(img[2])
-            httpout.write(fimg.read())
-            fimg.close()
-            os.remove(img[2])
+            output = open(WebkitRenderer.req_jpg, 'w')
+            output.write(qBuffer.buffer().data())
+            output.close()
+
+            del renderer
+            print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg, os.path.getsize(WebkitRenderer.req_jpg)/1024)
             
-        elif (ico_re.search(req_url)):
-            print ">>> request for .ico file - skipping"
-            self.send_error(404, "ICO not supported")       
-            self.end_headers()
-          
-        else:
-            print ">>> request for url: " + req_url
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()  
+            RESP.put('')
 
-            global IMG
-            IMG = "webrender-%s.jpg" % (random.randrange(0,1000))
-
-            # To thread
-            REQ.put(req_url)
-            # Wait for completition
-            RESP.get()
-
-def run_proxy():
-    httpd = SocketServer.TCPServer(('', PORT), Proxy)
-    print "Web Rendering Proxy v%s serving port: %s" % (__version__, PORT)
-    while 1:
-        httpd.serve_forever()
-
-def main():
-    # Launch Proxy Thread
-    threading.Thread(target=run_proxy).start()
-
-    # Technically, this is a QtGui application, because QWebPage requires it
-    # to be. But because we will have no user interaction, and rendering can
-    # not start before 'app.exec_()' is called, we have to trigger our "main"
-    # by a timer event.
-    def __main_qt():
-        # Render the page.
-        # If this method times out or loading failed, a
-        # RuntimeException is thrown
-        try:
-            while True:
-                rurl = REQ.get()
-                if rurl == "http://wrp.stop/":
-                    print ">>> Terminate Request Received"
-                    break
-
-                # Initialize WebkitRenderer object
-                renderer = WebkitRenderer()
-                renderer.logger = logger
-                renderer.width = WIDTH
-                renderer.height = HEIGHT
-                renderer.timeout = 60
-                renderer.wait = WAIT
-                renderer.grabWholeWindow = False
-
-                image = renderer.render(rurl)
-                qBuffer = QBuffer()
-                image.save(qBuffer, 'jpg', QUALITY)
-
-                output = open(IMG, 'w')
-                output.write(qBuffer.buffer().data())
-                output.close()
-
-                del renderer
-                print ">>> done: %s [%d kb]..." % (IMG, os.path.getsize(IMG)/1024)
-                
-                RESP.put('')
-
-            QApplication.exit(0)
-        except RuntimeError, e:
-            logger.error("main: %s" % e)
-            print >> sys.stderr, e
-            QApplication.exit(1)
-
-    # Initialize Qt-Application, but make this script
-    # abortable via CTRL-C
-    app = init_qtgui(display=None, style=None)
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    QTimer.singleShot(0, __main_qt)
-    sys.exit(app.exec_())
-
-if __name__ == '__main__' : main()
+        QApplication.exit(0)
+    except RuntimeError, e:
+        logger.error("main: %s" % e)
+        print >> sys.stderr, e
+        QApplication.exit(1)
