@@ -682,8 +682,6 @@ def main():
         app = init_qtgui(display=None, style=None)
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-        print QImageWriter.supportedImageFormats()
-
         PyQt4.QtCore.QTimer.singleShot(0, __main_qt)
         sys.exit(app.exec_())
     elif sys.platform == "darwin":
