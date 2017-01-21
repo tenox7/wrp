@@ -5,7 +5,7 @@
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
 
-__version__ = "1.3"
+__version__ = "1.4"
 
 #
 # This program is based on the software picidae.py from picidae.net
@@ -59,11 +59,14 @@ import threading
 import Queue
 import sys
 import logging
+import StringIO
 
 # Request queue (URLs go in here)
 REQ = Queue.Queue()
 # Response queue (dummy response objects)
 RESP = Queue.Queue()
+# Renders dictionary
+RENDERS = {}
 
 #######################
 ### Linux CODEPATH ###
@@ -373,13 +376,12 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 qBuffer = QBuffer()
                 image.save(qBuffer, 'jpg', QUALITY)
 
-                output = open(WebkitRenderer.req_jpg, 'w')
+                output = StringIO.StringIO()
                 output.write(qBuffer.buffer().data())
-                output.close()
+                RENDERS[req[2]] = output
 
                 del renderer
-                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg,
-                                                   os.path.getsize(WebkitRenderer.req_jpg)/1024)
+                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg, output.len/1024)
 
                 RESP.put('')
 
@@ -470,10 +472,10 @@ elif sys.platform == "darwin":
             if frame == webview.mainFrame():
                 view = frame.frameView().documentView()
 
-                bitmapdata = self.captureView(view)
-                bitmapdata.representationUsingType_properties_(
-                    AppKit.NSGIFFileType, None).writeToFile_atomically_(
-                        WebkitLoad.req_gif, objc.YES)
+                output = StringIO.StringIO()
+                output.write(self.captureView(view).representationUsingType_properties_(
+                    AppKit.NSGIFFileType, None))
+                RENDERS[WebkitLoad.req_gif] = output
 
                 # url of the rendered page
                 web_url = frame.dataSource().initialRequest().URL().absoluteString()
@@ -490,7 +492,7 @@ elif sys.platform == "darwin":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
                                   "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
-                    mapfile = open(WebkitLoad.req_map, "w+")
+                    mapfile = StringIO.StringIO()
                     mapfile.write("default %s\n" % (web_url))
                 else:
                     httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
@@ -525,7 +527,7 @@ elif sys.platform == "darwin":
                 httpout.write("</BODY>\n</HTML>\n")
 
                 if ISMAP == "true":
-                    mapfile.close()
+                    RENDERS[WebkitLoad.req_map] = mapfile
 
                 # Return to Proxy thread and Loop...
                 RESP.put('')
@@ -571,26 +573,23 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
         # Serve Rendered GIF
         if gif_re:
             img = gif_re.group(1)
-            print ">>> GIF file request... " + img
+            print ">>> request for rendered gif image... %s  [%d kb]" \
+                   % (img, RENDERS[img].len/1024)
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/gif')
             self.end_headers()
-            fimg = open(img)
-            httpout.write(fimg.read())
-            fimg.close()
-            os.remove(img)
+            httpout.write(RENDERS[img].getvalue())
+            del RENDERS[img]
 
         elif jpg_re:
             img = jpg_re.group(1)
             print ">>> request for rendered jpg image... %s  [%d kb]" \
-                   % (img, os.path.getsize(img)/1024)
+                   % (img, RENDERS[img].len/1024)
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/jpeg')
             self.end_headers()
-            fimg = open(img)
-            httpout.write(fimg.read())
-            fimg.close()
-            os.remove(img)
+            httpout.write(RENDERS[img].getvalue())
+            del RENDERS[img]
 
         # Process ISMAP Request
         elif map_re:
@@ -599,25 +598,24 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             req_y = int(map_re.group(3))
             print ">>> ISMAP request... %s [%d,%d] " % (map, req_x, req_y)
 
-            with open(map) as mapf:
-                goto_url = "none"
-                for line in mapf.readlines():
-                    if re.match(r"(\S+)", line).group(1) == "default":
-                        default_url = re.match(r"\S+\s+(\S+)", line).group(1)
+            mapf = RENDERS[map]
+            mapf.seek(0)
+            goto_url = "none"
+            for line in mapf.readlines():
+                if re.match(r"(\S+)", line).group(1) == "default":
+                    default_url = re.match(r"\S+\s+(\S+)", line).group(1)
 
-                    elif re.match(r"(\S+)", line).group(1) == "rect":
-                        rect = re.match(r"(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
-                        min_x = int(rect.group(3))
-                        min_y = int(rect.group(4))
-                        max_x = int(rect.group(5))
-                        max_y = int(rect.group(6))
-                        if (req_x >= min_x) and \
-                           (req_x <= max_x) and \
-                           (req_y >= min_y) and \
-                           (req_y <= max_y):
-                            goto_url = rect.group(2)
-
-            mapf.close()
+                elif re.match(r"(\S+)", line).group(1) == "rect":
+                    rect = re.match(r"(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
+                    min_x = int(rect.group(3))
+                    min_y = int(rect.group(4))
+                    max_x = int(rect.group(5))
+                    max_y = int(rect.group(6))
+                    if (req_x >= min_x) and \
+                        (req_x <= max_x) and \
+                        (req_y >= min_y) and \
+                        (req_y <= max_y):
+                        goto_url = rect.group(2)
 
             if goto_url == "none":
                 goto_url = default_url
