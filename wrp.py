@@ -357,7 +357,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 WebkitRenderer.req_map = req[3]
                 if rurl == "http://wrp.stop/":
                     print ">>> Terminate Request Received"
-                    sys.exit(0)
+                    QApplication.exit(0)
                     break
 
                 # Initialize WebkitRenderer object
@@ -681,6 +681,8 @@ def main():
         # abortable via CTRL-C
         app = init_qtgui(display=None, style=None)
         signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        print QImageWriter.supportedImageFormats()
 
         PyQt4.QtCore.QTimer.singleShot(0, __main_qt)
         sys.exit(app.exec_())
