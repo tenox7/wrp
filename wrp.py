@@ -7,13 +7,13 @@
 
 __version__ = "1.3"
 
-# 
+#
 # This program is based on the software picidae.py from picidae.net
 # It was modified by Antoni Sawicki http://www.tenox.net/out/#wrp
-# 
+#
 # This program is based on the software webkit2png from Paul Hammond.
 # It was extended by picidae.net
-# 
+#
 # Copyright (c) 2013-2014 Antoni Sawicki
 # Copyright (c) 2012-2013 picidae.net
 # Copyright (c) 2004-2013 Paul Hammond
@@ -37,9 +37,9 @@ __version__ = "1.3"
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-        
+
 # Configuration options:
-PORT   = 8080                
+PORT   = 8080
 WIDTH  = 1024
 HEIGHT = 768
 ISMAP  = "true"
@@ -76,17 +76,18 @@ if sys.platform == "linux" or sys.platform == "linux2":
     from PyQt4.QtNetwork import *
 
     # claunia: Check how to use this in macOS
-    logging.basicConfig(filename='/dev/stdout',level=logging.WARN,)
-    logger = logging.getLogger('wrp');
+    logging.basicConfig(filename='/dev/stdout', level=logging.WARN, )
+    logger = logging.getLogger('wrp')
 
     # Class for Website-Rendering. Uses QWebPage, which
     # requires a running QtGui to work.
     class WebkitRenderer(QObject):
-        def __init__(self,**kwargs):
+        def __init__(self, **kwargs):
             """Sets default values for the properties."""
 
             if not QApplication.instance():
-                raise RuntimeError(self.__class__.__name__ + " requires a running QApplication instance")
+                raise RuntimeError(self.__class__.__name__ + \
+                " requires a running QApplication instance")
             QObject.__init__(self)
 
             # Initialize default properties
@@ -114,7 +115,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
             # QApplication.processEvents may be called, causing
             # this method to get called while it has not returned yet.
             helper = _WebkitRendererHelper(self)
-            helper._window.resize( self.width, self.height )
+            helper._window.resize(self.width, self.height)
             image = helper.render(url)
 
             # Bind helper instance to this image to prevent the
@@ -138,8 +139,8 @@ if sys.platform == "linux" or sys.platform == "linux2":
             QObject.__init__(self)
 
             # Copy properties from parent
-            for key,value in parent.__dict__.items():
-                setattr(self,key,value)
+            for key, value in parent.__dict__.items():
+                setattr(self, key, value)
 
             # Create and connect required PyQt4 objects
             self._page = CustomWebPage(logger=self.logger)
@@ -155,13 +156,18 @@ if sys.platform == "linux" or sys.platform == "linux2":
             # Connect required event listeners
             self.connect(self._page, SIGNAL("loadFinished(bool)"), self._on_load_finished)
             self.connect(self._page, SIGNAL("loadStarted()"), self._on_load_started)
-            self.connect(self._page.networkAccessManager(), SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"), self._on_ssl_errors)
-            self.connect(self._page.networkAccessManager(), SIGNAL("finished(QNetworkReply *)"), self._on_each_reply)
+            self.connect(self._page.networkAccessManager(),
+                         SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"),
+                         self._on_ssl_errors)
+            self.connect(self._page.networkAccessManager(),
+                         SIGNAL("finished(QNetworkReply *)"),
+                         self._on_each_reply)
 
             # The way we will use this, it seems to be unesseccary to have Scrollbars enabled
             self._page.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
             self._page.mainFrame().setScrollBarPolicy(Qt.Vertical, Qt.ScrollBarAlwaysOff)
-            self._page.settings().setUserStyleSheetUrl(QUrl("data:text/css,html,body{overflow-y:hidden !important;}"))
+            self._page.settings().setUserStyleSheetUrl(
+                QUrl("data:text/css,html,body{overflow-y:hidden !important;}"))
 
             # Show this widget
             # self._window.show()
@@ -202,12 +208,16 @@ if sys.platform == "linux" or sys.platform == "linux2":
             httpout = WebkitRenderer.httpout
 
             # Write URL map
-            httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n<html>\n<body>\n<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n<map name=\"map\">\n" % (__version__, WebkitRenderer.req_jpg))
+            httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n"
+                          "<html>\n<body>\n"
+                          "<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n"
+                          "<map name=\"map\">\n" % (__version__, WebkitRenderer.req_jpg))
             frame = self._view.page().currentFrame()
             for x in frame.findAllElements('a'):
                 value = x.attribute('href')
-                xmin, ymin, xmax, ymax = x.geometry().getCoords() 
-                httpout.write("<area shape=\"rect\" coords=\"%i,%i,%i,%i\" alt=\"%s\" href=\"%s\">\n" % (xmin, ymin, xmax, ymax, value, value))
+                xmin, ymin, xmax, ymax = x.geometry().getCoords()
+                httpout.write("<area shape=\"rect\" coords=\"%i,%i,%i,%i\" alt=\"%s\" href=\"%s\">"
+                              "\n" % (xmin, ymin, xmax, ymax, value, value))
             httpout.write("</map>\n</body>\n</html>\n")
 
             return image
@@ -245,7 +255,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
 
             self._window.resize(size)
 
-        def _on_each_reply(self,reply):
+        def _on_each_reply(self, reply):
             """Logs each requested uri"""
             self.logger.debug("Received %s" % (reply.url().toString()))
 
@@ -284,9 +294,9 @@ if sys.platform == "linux" or sys.platform == "linux2":
             return False
 
         def javaScriptPrompt(self, frame, message, default, result):
-            """This function is called whenever a JavaScript program running inside frame tries to prompt
-            the user for input. The program may provide an optional message, msg, as well as a default value
-            for the input in defaultValue.
+            """This function is called whenever a JavaScript program running inside frame tries to
+            prompt the user for input. The program may provide an optional message, msg, as well
+            as a default value for the input in defaultValue.
 
             If the prompt was cancelled by the user the implementation should return false;
             otherwise the result should be written to result and true should be returned.
@@ -297,8 +307,9 @@ if sys.platform == "linux" or sys.platform == "linux2":
             return False
 
         def shouldInterruptJavaScript(self):
-            """This function is called when a JavaScript program is running for a long period of time.
-            If the user wanted to stop the JavaScript the implementation should return true; otherwise false.
+            """This function is called when a JavaScript program is running for a long period of
+            time. If the user wanted to stop the JavaScript the implementation should return
+            true; otherwise false.
             """
             if self.logger: self.logger.debug("WebKit ask to interrupt JavaScript")
             return True
@@ -366,8 +377,9 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 output.close()
 
                 del renderer
-                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg, os.path.getsize(WebkitRenderer.req_jpg)/1024)
-                
+                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg,
+                                                   os.path.getsize(WebkitRenderer.req_jpg)/1024)
+
                 RESP.put('')
 
             QApplication.exit(0)
@@ -375,7 +387,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
             logger.error("main: %s" % e)
             print >> sys.stderr, e
             QApplication.exit(1)
-    
+
 ######################
 ### macOS CODEPATH ###
 ######################
@@ -386,40 +398,40 @@ elif sys.platform == "darwin":
     import AppKit
     import objc
 
-    class AppDelegate (Foundation.NSObject):
+    class AppDelegate(Foundation.NSObject):
         # what happens when the app starts up
         def applicationDidFinishLaunching_(self, aNotification):
             webview = aNotification.object().windows()[0].contentView()
             webview.frameLoadDelegate().getURL(webview)
 
-    class WebkitLoad (Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
+    class WebkitLoad(Foundation.NSObject, WebKit.protocols.WebFrameLoadDelegate):
         # what happens if something goes wrong while loading
-        def webView_didFailLoadWithError_forFrame_(self,webview,error,frame):
+        def webView_didFailLoadWithError_forFrame_(self, webview, error, frame):
             if error.code() == Foundation.NSURLErrorCancelled:
                 return
             print " ... something went wrong 1: " + error.localizedDescription()
             AppKit.NSApplication.sharedApplication().terminate_(None)
 
-        def webView_didFailProvisionalLoadWithError_forFrame_(self,webview,error,frame):
+        def webView_didFailProvisionalLoadWithError_forFrame_(self, webview, error, frame):
             if error.code() == Foundation.NSURLErrorCancelled:
                 return
             print " ... something went wrong 2: " + error.localizedDescription()
             AppKit.NSApplication.sharedApplication().terminate_(None)
 
-        def getURL(self,webview):
+        def getURL(self, webview):
             req = REQ.get()
             WebkitLoad.httpout = req[0]
             WebkitLoad.req_url = req[1]
             WebkitLoad.req_gif = req[2]
             WebkitLoad.req_map = req[3]
-                
-            if (WebkitLoad.req_url == "http://wrp.stop/"):
+
+            if WebkitLoad.req_url == "http://wrp.stop/":
                 print ">>> Terminate Request Received"
                 AppKit.NSApplication.sharedApplication().terminate_(None)
 
             nsurl = Foundation.NSURL.URLWithString_(WebkitLoad.req_url)
             if not (nsurl and nsurl.scheme()):
-                    nsurl = Foundation.NSURL.alloc().initFileURLWithPath_(WebkitLoad.req_url)
+                nsurl = Foundation.NSURL.alloc().initFileURLWithPath_(WebkitLoad.req_url)
             nsurl = nsurl.absoluteURL()
 
             Foundation.NSURLRequest.setAllowsAnyHTTPSCertificate_forHost_(objc.YES, nsurl.host())
@@ -430,13 +442,13 @@ elif sys.platform == "darwin":
                 print " ... not a proper url?"
                 RESP.put('')
                 self.getURL(webview)
-        
-        def resetWebview(self,webview):
-            rect = Foundation.NSMakeRect(0,0,WIDTH,HEIGHT)
-            webview.window().setContentSize_((WIDTH,HEIGHT))
+
+        def resetWebview(self, webview):
+            rect = Foundation.NSMakeRect(0, 0, WIDTH, HEIGHT)
+            webview.window().setContentSize_((WIDTH, HEIGHT))
             webview.setFrame_(rect)
-        
-        def captureView(self,view):
+
+        def captureView(self, view):
             view.window().display()
             view.window().setContentSize_(view.bounds().size)
             view.setFrame_(view.bounds())
@@ -450,31 +462,39 @@ elif sys.platform == "darwin":
                 bitmapdata.initWithFocusedViewRect_(view.bounds())
                 view.unlockFocus()
             return bitmapdata
-    
+
         # what happens when the page has finished loading
-        def webView_didFinishLoadForFrame_(self,webview,frame):
+        def webView_didFinishLoadForFrame_(self, webview, frame):
             # don't care about subframes
-            if (frame == webview.mainFrame()):
+            if frame == webview.mainFrame():
                 view = frame.frameView().documentView()
 
-                bitmapdata = self.captureView(view)  
-                bitmapdata.representationUsingType_properties_(AppKit.NSGIFFileType,None).writeToFile_atomically_(WebkitLoad.req_gif,objc.YES)
+                bitmapdata = self.captureView(view)
+                bitmapdata.representationUsingType_properties_(
+                    AppKit.NSGIFFileType, None).writeToFile_atomically_(
+                        WebkitLoad.req_gif, objc.YES)
 
                 # url of the rendered page
                 web_url = frame.dataSource().initialRequest().URL().absoluteString()
 
                 httpout = WebkitLoad.httpout
 
-                httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n" % (__version__))
-                httpout.write("<!-- Request for [%s] frame [%s] -->\n" % (WebkitLoad.req_url, web_url))
-                httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n" % (__version__,web_url))
-                if (ISMAP == "true"):
-                    httpout.write("<A HREF=\"http://%s\"><IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
+                httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n"
+                              % (__version__))
+                httpout.write("<!-- Request for [%s] frame [%s] -->\n"
+                              % (WebkitLoad.req_url, web_url))
+                httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
+                              % (__version__, web_url))
+                if ISMAP == "true":
+                    httpout.write("<A HREF=\"http://%s\">"
+                                  "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
+                                  "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
                     mapfile = open(WebkitLoad.req_map, "w+")
                     mapfile.write("default %s\n" % (web_url))
                 else:
-                    httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n" % (WebkitLoad.req_gif))
-                
+                    httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
+                                  "<MAP NAME=\"map\">\n" % (WebkitLoad.req_gif))
+
                 domdocument = frame.DOMDocument()
                 domnodelist = domdocument.getElementsByTagName_('A')
                 i = 0
@@ -482,25 +502,28 @@ elif sys.platform == "darwin":
                     turl = domnodelist.item_(i).valueForKey_('href')
                     #TODO: crashes? validate url? insert web_url if wrong?
                     myrect = domnodelist.item_(i).boundingBox()
-                    
+
                     xmin = Foundation.NSMinX(myrect)
                     ymin = Foundation.NSMinY(myrect)
                     xmax = Foundation.NSMaxX(myrect)
                     ymax = Foundation.NSMaxY(myrect)
-                    
-                    if (ISMAP == "true"):
+
+                    if ISMAP == "true":
                         mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
                     else:
-                        httpout.write("<AREA SHAPE=\"RECT\" COORDS=\"%i,%i,%i,%i\" ALT=\"%s\" HREF=\"%s\">\n" % (xmin, ymin, xmax, ymax, turl, turl))
-                    
+                        httpout.write("<AREA SHAPE=\"RECT\""
+                                      " COORDS=\"%i,%i,%i,%i\""
+                                      " ALT=\"%s\" HREF=\"%s\">\n"
+                                      % (xmin, ymin, xmax, ymax, turl, turl))
+
                     i += 1
-                
-                if (ISMAP != "true"):
+
+                if ISMAP != "true":
                     httpout.write("</MAP>\n")
-                    
+
                 httpout.write("</BODY>\n</HTML>\n")
-                
-                if (ISMAP == "true"):
+
+                if ISMAP == "true":
                     mapfile.close()
 
                 # Return to Proxy thread and Loop...
@@ -509,109 +532,117 @@ elif sys.platform == "darwin":
 
     def main_cocoa():
         # Launch NS Application
-        AppKit.NSApplicationLoad(); 
+        AppKit.NSApplicationLoad()
         app = AppKit.NSApplication.sharedApplication()
         delegate = AppDelegate.alloc().init()
         AppKit.NSApp().setDelegate_(delegate)
-        AppKit.NSBundle.mainBundle().infoDictionary()['NSAppTransportSecurity'] = dict(NSAllowsArbitraryLoads = True)
-        rect = Foundation.NSMakeRect(-16000,-16000,100,100)
+        AppKit.NSBundle.mainBundle().infoDictionary()['NSAppTransportSecurity'] = \
+            dict(NSAllowsArbitraryLoads=True)
+        rect = Foundation.NSMakeRect(-16000, -16000, 100, 100)
         win = AppKit.NSWindow.alloc()
-        win.initWithContentRect_styleMask_backing_defer_ (rect, AppKit.NSBorderlessWindowMask, 2, 0)
+        win.initWithContentRect_styleMask_backing_defer_(rect, AppKit.NSBorderlessWindowMask, 2, 0)
         webview = WebKit.WebView.alloc()
         webview.initWithFrame_(rect)
         webview.mainFrame().frameView().setAllowsScrolling_(objc.NO)
-        webkit_version = Foundation.NSBundle.bundleForClass_(WebKit.WebView).objectForInfoDictionaryKey_(WebKit.kCFBundleVersionKey)[1:]
-        webview.setApplicationNameForUserAgent_("Like-Version/6.0 Safari/%s wrp/%s" % (webkit_version, __version__))
+        webkit_version = Foundation.NSBundle.bundleForClass_(WebKit.WebView). \
+                         objectForInfoDictionaryKey_(WebKit.kCFBundleVersionKey)[1:]
+        webview.setApplicationNameForUserAgent_("Like-Version/6.0 Safari/%s wrp/%s"
+                                                % (webkit_version, __version__))
         win.setContentView_(webview)
         loaddelegate = WebkitLoad.alloc().init()
         loaddelegate.options = [""]
         webview.setFrameLoadDelegate_(loaddelegate)
-        app.run()  
+        app.run()
 
 #######################
 ### COMMON CODEPATH ###
 #######################
 class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
-        req_url=self.path
-        httpout=self.wfile
-        
-        gif_re = re.match("http://(wrp-\d+\.gif).*", req_url)
-        map_re = re.match("http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
-        ico_re = re.match("http://.+\.ico", req_url)
-        jpg_re = re.match("http://(wrp-\d+\.jpg).*", req_url)
+        req_url = self.path
+        httpout = self.wfile
+
+        gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
+        map_re = re.match(r"http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
+        ico_re = re.match(r"http://.+\.ico", req_url)
+        jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
 
         # Serve Rendered GIF
-        if (gif_re):
-            img=gif_re.group(1)
+        if gif_re:
+            img = gif_re.group(1)
             print ">>> GIF file request... " + img
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/gif')
-            self.end_headers()  
-            fimg=open(img)
+            self.end_headers()
+            fimg = open(img)
             httpout.write(fimg.read())
             fimg.close()
             os.remove(img)
-            
-        elif (jpg_re):
-            img=jpg_re.group(1)
-            print ">>> request for rendered jpg image... %s  [%d kb]" % (img, os.path.getsize(img)/1024)
+
+        elif jpg_re:
+            img = jpg_re.group(1)
+            print ">>> request for rendered jpg image... %s  [%d kb]" \
+                   % (img, os.path.getsize(img)/1024)
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/jpeg')
-            self.end_headers()  
+            self.end_headers()
             fimg = open(img)
             httpout.write(fimg.read())
             fimg.close()
             os.remove(img)
 
         # Process ISMAP Request
-        elif (map_re):
-            map=map_re.group(1)
-            req_x=int(map_re.group(2))
-            req_y=int(map_re.group(3))
+        elif map_re:
+            map = map_re.group(1)
+            req_x = int(map_re.group(2))
+            req_y = int(map_re.group(3))
             print ">>> ISMAP request... %s [%d,%d] " % (map, req_x, req_y)
 
             with open(map) as mapf:
-                goto_url="none"
-                for line in mapf.readlines(): 
-                    if(re.match("(\S+)", line).group(1) == "default"):
-                        default_url=re.match("\S+\s+(\S+)", line).group(1)
-    
-                    elif(re.match("(\S+)", line).group(1) == "rect"):
-                        rect=re.match("(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
-                        min_x=int(rect.group(3))
-                        min_y=int(rect.group(4))
-                        max_x=int(rect.group(5))
-                        max_y=int(rect.group(6))
-                        if( (req_x >= min_x) and (req_x <= max_x) and (req_y >= min_y) and (req_y <= max_y) ):
-                            goto_url=rect.group(2)
-                        
-            mapf.close()
-            
-            if(goto_url == "none"):
-                goto_url=default_url
+                goto_url = "none"
+                for line in mapf.readlines():
+                    if re.match(r"(\S+)", line).group(1) == "default":
+                        default_url = re.match(r"\S+\s+(\S+)", line).group(1)
 
-            print(">>> ISMAP redirect: %s\n" % (goto_url))
+                    elif re.match(r"(\S+)", line).group(1) == "rect":
+                        rect = re.match(r"(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
+                        min_x = int(rect.group(3))
+                        min_y = int(rect.group(4))
+                        max_x = int(rect.group(5))
+                        max_y = int(rect.group(6))
+                        if (req_x >= min_x) and \
+                           (req_x <= max_x) and \
+                           (req_y >= min_y) and \
+                           (req_y <= max_y):
+                            goto_url = rect.group(2)
+
+            mapf.close()
+
+            if goto_url == "none":
+                goto_url = default_url
+
+            print ">>> ISMAP redirect: %s\n" % (goto_url)
 
             self.send_response(302, "Found")
             self.send_header("Location", goto_url)
             self.send_header("Content-type", "text/html")
             self.end_headers()
-            httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n" % (goto_url, goto_url))
-            
+            httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n"
+                          % (goto_url, goto_url))
+
         # ICO files, WebKit crashes on these
-        elif (ico_re):
-            self.send_error(415, "ICO not supported")       
+        elif ico_re:
+            self.send_error(415, "ICO not supported")
             self.end_headers()
-          
+
         # Process a web page request and generate image
         else:
             print ">>> URL request... " + req_url
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'text/html')
-            self.end_headers()  
+            self.end_headers()
 
-            rnd = random.randrange(0,1000)
+            rnd = random.randrange(0, 1000)
 
             if sys.platform == "linux" or sys.platform == "linux2":
 
@@ -657,4 +688,4 @@ def main():
     else:
         sys.exit("Unsupported platform: %s. Exiting." % sys.platform)
 
-if __name__ == '__main__' : main()
+if __name__ == '__main__': main()
