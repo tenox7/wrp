@@ -357,6 +357,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 WebkitRenderer.req_map = req[3]
                 if rurl == "http://wrp.stop/":
                     print ">>> Terminate Request Received"
+                    sys.exit(0)
                     break
 
                 # Initialize WebkitRenderer object
