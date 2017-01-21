@@ -1,0 +1,8 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "python.pythonPath": "python2",
+    "python.linting.pylintPath": "pylint2",
+    "python.linting.flake8Path": "flake8-python2",
+    "python.formatting.autopep8Path": "autopep8-python2",
+    "python.formatting.yapfPath": "yapf2",
+}
