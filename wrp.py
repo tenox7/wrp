@@ -659,8 +659,6 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n"
                           % (goto_url, goto_url))
 
-            del RENDERS[map]
-
         # ICO files, WebKit crashes on these
         elif ico_re:
             self.send_error(415, "ICO not supported")
