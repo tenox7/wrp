@@ -210,18 +210,45 @@ if sys.platform == "linux" or sys.platform == "linux2":
 
             httpout = WebkitRenderer.httpout
 
+            frame = self._view.page().currentFrame()
+            web_url = frame.url().toString()
+
             # Write URL map
             httpout.write("<!-- Web Rendering Proxy v%s by Antoni Sawicki -->\n"
-                          "<html>\n<body>\n"
-                          "<img src=\"http://%s\" alt=\"webrender\" usemap=\"#map\">\n"
-                          "<map name=\"map\">\n" % (__version__, WebkitRenderer.req_jpg))
-            frame = self._view.page().currentFrame()
+                          % (__version__))
+            httpout.write("<!-- Request for [%s] frame [%s] -->\n"
+                          % (WebkitRenderer.req_url, web_url))
+            httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
+                          % (__version__, web_url))
+
+            if ISMAP == "true":
+                httpout.write("<A HREF=\"http://%s\">"
+                              "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
+                              "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_jpg))
+                mapfile = StringIO.StringIO()
+                mapfile.write("default %s\n" % (web_url))
+            else:
+                httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
+                              "<MAP NAME=\"map\">\n" % (WebkitRenderer.req_jpg))
+
             for x in frame.findAllElements('a'):
-                value = x.attribute('href')
+                turl = QUrl(web_url).resolved(QUrl(x.attribute('href'))).toString()
                 xmin, ymin, xmax, ymax = x.geometry().getCoords()
-                httpout.write("<area shape=\"rect\" coords=\"%i,%i,%i,%i\" alt=\"%s\" href=\"%s\">"
-                              "\n" % (xmin, ymin, xmax, ymax, value, value))
-            httpout.write("</map>\n</body>\n</html>\n")
+                if ISMAP == "true":
+                    mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                else:
+                    httpout.write("<AREA SHAPE=\"RECT\""
+                                  " COORDS=\"%i,%i,%i,%i\""
+                                  " ALT=\"%s\" HREF=\"%s\">\n"
+                                  % (xmin, ymin, xmax, ymax, turl, turl))
+
+            if ISMAP != "true":
+                httpout.write("</MAP>\n")
+
+            httpout.write("</BODY>\n</HTML>\n")
+
+            if ISMAP == "true":
+                RENDERS[WebkitRenderer.req_map] = mapfile
 
             return image
 
@@ -355,10 +382,10 @@ if sys.platform == "linux" or sys.platform == "linux2":
             while True:
                 req = REQ.get()
                 WebkitRenderer.httpout = req[0]
-                rurl = req[1]
+                WebkitRenderer.req_url = req[1]
                 WebkitRenderer.req_jpg = req[2]
                 WebkitRenderer.req_map = req[3]
-                if rurl == "http://wrp.stop/":
+                if WebkitRenderer.req_url == "http://wrp.stop/":
                     print ">>> Terminate Request Received"
                     QApplication.exit(0)
                     break
@@ -372,7 +399,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 renderer.wait = WAIT
                 renderer.grabWholeWindow = False
 
-                image = renderer.render(rurl)
+                image = renderer.render(WebkitRenderer.req_url)
                 qBuffer = QBuffer()
                 image.save(qBuffer, 'jpg', QUALITY)
 
@@ -606,16 +633,19 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     default_url = re.match(r"\S+\s+(\S+)", line).group(1)
 
                 elif re.match(r"(\S+)", line).group(1) == "rect":
-                    rect = re.match(r"(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
-                    min_x = int(rect.group(3))
-                    min_y = int(rect.group(4))
-                    max_x = int(rect.group(5))
-                    max_y = int(rect.group(6))
-                    if (req_x >= min_x) and \
-                        (req_x <= max_x) and \
-                        (req_y >= min_y) and \
-                        (req_y <= max_y):
-                        goto_url = rect.group(2)
+                    try:
+                        rect = re.match(r"(\S+)\s+(\S+)\s+(\d+),(\d+)\s+(\d+),(\d+)", line)
+                        min_x = int(rect.group(3))
+                        min_y = int(rect.group(4))
+                        max_x = int(rect.group(5))
+                        max_y = int(rect.group(6))
+                        if (req_x >= min_x) and \
+                            (req_x <= max_x) and \
+                            (req_y >= min_y) and \
+                            (req_y <= max_y):
+                            goto_url = rect.group(2)
+                    except AttributeError:
+                        pass
 
             if goto_url == "none":
                 goto_url = default_url
