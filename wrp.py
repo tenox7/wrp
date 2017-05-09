@@ -73,10 +73,20 @@ RENDERS = {}
 #######################
 
 if sys.platform == "linux" or sys.platform == "linux2":
-    from PyQt4.QtCore import *
-    from PyQt4.QtGui import *
-    from PyQt4.QtWebKit import *
-    from PyQt4.QtNetwork import *
+    try:
+        from PyQt5.QtCore import *
+        from PyQt5.QtGui import *
+        from PyQt5.QtWebKit import *
+        from PyQt5.QtWebKitWidgets import *
+        from PyQt5.QtNetwork import *
+        from PyQt5.QtWidgets import *
+        IsPyQt5 = True
+    except ImportError:
+        from PyQt4.QtCore import *
+        from PyQt4.QtGui import *
+        from PyQt4.QtWebKit import *
+        from PyQt4.QtNetwork import *
+        IsPyQt5 = False
 
     # claunia: Check how to use this in macOS
     logging.basicConfig(filename='/dev/stdout', level=logging.WARN, )
@@ -157,14 +167,20 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 self._page.settings().setAttribute(key, value)
 
             # Connect required event listeners
-            self.connect(self._page, SIGNAL("loadFinished(bool)"), self._on_load_finished)
-            self.connect(self._page, SIGNAL("loadStarted()"), self._on_load_started)
-            self.connect(self._page.networkAccessManager(),
-                         SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"),
-                         self._on_ssl_errors)
-            self.connect(self._page.networkAccessManager(),
-                         SIGNAL("finished(QNetworkReply *)"),
-                         self._on_each_reply)
+            if IsPyQt5:
+                self._page.loadFinished.connect(self._on_load_finished)
+                self._page.loadStarted.connect(self._on_load_started)
+                self._page.networkAccessManager().sslErrors.connect(self._on_ssl_errors)
+                self._page.networkAccessManager().finished.connect(self._on_each_reply)
+            else:
+                self.connect(self._page, SIGNAL("loadFinished(bool)"), self._on_load_finished)
+                self.connect(self._page, SIGNAL("loadStarted()"), self._on_load_started)
+                self.connect(self._page.networkAccessManager(),
+                            SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"),
+                            self._on_ssl_errors)
+                self.connect(self._page.networkAccessManager(),
+                            SIGNAL("finished(QNetworkReply *)"),
+                            self._on_each_reply)
 
             # The way we will use this, it seems to be unesseccary to have Scrollbars enabled
             self._page.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
@@ -204,9 +220,15 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 # window still has the focus when the screen is
                 # grabbed. This might result in a race condition.
                 self._view.activateWindow()
-                image = QPixmap.grabWindow(self._window.winId())
+                if IsPyQt5:
+                    image = QScreen.grabWindow(self._window.winId())
+                else:
+                    image = QPixmap.grabWindow(self._window.winId())
             else:
-                image = QPixmap.grabWidget(self._window)
+                if IsPyQt5:
+                    image = QWidget.grab(self._window)
+                else:
+                    image = QPixmap.grabWidget(self._window)
 
             httpout = WebkitRenderer.httpout
 
@@ -704,13 +726,16 @@ def main():
 
     if sys.platform == "linux" or sys.platform == "linux2":
         import signal
-        import PyQt4.QtCore
+        try:
+            import PyQt5.QtCore
+        except ImportError:
+            import PyQt4.QtCore
         # Initialize Qt-Application, but make this script
         # abortable via CTRL-C
         app = init_qtgui(display=None, style=None)
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-        PyQt4.QtCore.QTimer.singleShot(0, __main_qt)
+        QTimer.singleShot(0, __main_qt)
         sys.exit(app.exec_())
     elif sys.platform == "darwin":
         main_cocoa()
