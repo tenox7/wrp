@@ -240,8 +240,8 @@ if sys.platform == "linux" or sys.platform == "linux2":
                           % (__version__))
             httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                           % (WebkitRenderer.req_url, web_url))
-            httpout.write("<HTML><HEAD>")
             # Get title
+            httpout.write("<HTML><HEAD>")
             for ttl in frame.findAllElements('title'):
                 httpout.write((u"<TITLE>%s</TITLE>"
                               % ttl.toPlainText()).encode('utf-8', errors='ignore'))
@@ -541,6 +541,7 @@ elif sys.platform == "darwin":
                 httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                               % (WebkitLoad.req_url, web_url))
                 # Get title
+                httpout.write("<HTML><HEAD>")
                 for ttl in frame.findAllElements('title'):
                     httpout.write((u"<TITLE>%s</TITLE>"
                                 % ttl.toPlainText()).encode('utf-8', errors='ignore'))
