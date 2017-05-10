@@ -544,7 +544,7 @@ elif sys.platform == "darwin":
                 httpout.write("<HTML><HEAD>")
                 for ttl in frame.findAllElements('title'):
                     httpout.write((u"<TITLE>%s</TITLE>"
-                                % ttl.toPlainText()).encode('utf-8', errors='ignore'))
+                                  % ttl.toPlainText()).encode('utf-8', errors='ignore'))
                     break # Don't repeat bad HTML coding with several title marks
                 httpout.write("</HEAD>\n<BODY>\n")
                 if ISMAP == "true":
@@ -626,7 +626,6 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
         gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
         map_re = re.match(r"http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
-        ico_re = re.match(r"http://.+\.ico", req_url)
         jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
 
         # Serve Rendered GIF
@@ -691,38 +690,55 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n"
                           % (goto_url, goto_url))
 
-        # ICO files, WebKit crashes on these
-        elif ico_re:
-            self.send_error(415, "ICO not supported")
-            self.end_headers()
-
         # Process a web page request and generate image
         else:
             print ">>> URL request... " + req_url
-            self.send_response(200, 'OK')
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
 
-            rnd = random.randrange(0, 1000)
-
-            if sys.platform == "linux" or sys.platform == "linux2":
-
-                "wrp-%s.jpg" % (rnd)
-                "wrp-%s.map" % (rnd)
-
-                # To thread
-                REQ.put((httpout, req_url, "wrp-%s.jpg" % (rnd), "wrp-%s.map" % (rnd)))
-                # Wait for completition
+            if req_url == "http://wrp.stop/" or req_url == "http://www.wrp.stop/":
+                REQ.put((httpout, req_url, "", ""))
                 RESP.get()
-            elif sys.platform == "darwin":
+            else:
+                reqst = urllib.urlopen(req_url)
 
-                "wrp-%s.gif" % (rnd)
-                "wrp-%s.map" % (rnd)
+                if reqst.info().type == "text/html" or reqst.info().type == "application/xhtml+xml":
+                # If an error occurs, send error headers to the requester
+                    if reqst.getcode() >= 400:
+                        self.send_response(reqst.getcode())
+                        for hdr in reqst.info():
+                            self.send_header(hdr, reqst.info()[hdr])
+                        self.end_headers()
+                    else:
+                        self.send_response(200, 'OK')
+                        self.send_header('Content-type', 'text/html')
+                        self.end_headers()
 
-                # To WebKit Thread
-                REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
-                # Wait for completition
-                RESP.get()
+                    rnd = random.randrange(0, 1000)
+
+                    if sys.platform == "linux" or sys.platform == "linux2":
+
+                        "wrp-%s.jpg" % (rnd)
+                        "wrp-%s.map" % (rnd)
+
+                        # To thread
+                        REQ.put((httpout, req_url, "wrp-%s.jpg" % (rnd), "wrp-%s.map" % (rnd)))
+                        # Wait for completition
+                        RESP.get()
+                    elif sys.platform == "darwin":
+
+                        "wrp-%s.gif" % (rnd)
+                        "wrp-%s.map" % (rnd)
+
+                        # To WebKit Thread
+                        REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
+                        # Wait for completition
+                        RESP.get()
+                # If the requested file is not HTML or XHTML, just return it as is.
+                else:
+                    self.send_response(reqst.getcode())
+                    for hdr in reqst.info():
+                        self.send_header(hdr, reqst.info()[hdr])
+                    self.end_headers()
+                    httpout.write(reqst.read())
 
 def run_proxy():
     httpd = SocketServer.TCPServer(('', PORT), Proxy)
