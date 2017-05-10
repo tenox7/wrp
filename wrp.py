@@ -1,11 +1,11 @@
 #!/usr/bin/env python2.7
 
 # wrp.py - Web Rendering Proxy
-# A HTTP proxy service that renders the requested URL in to a GIF image associated
+# A HTTP proxy service that renders the requested URL in to a image associated
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
 
-__version__ = "1.4"
+__version__ = "2.0"
 
 #
 # This program is based on the software picidae.py from picidae.net
@@ -48,7 +48,7 @@ QUALITY = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (l
 AUTOWIDTH = True # Check for browser width using javascript
 FORMAT = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
 
-# PythonMagic configuration options
+# PythonMagick configuration options
 MK_MONOCHROME = False # Convert the render to a black and white dithered image
 MK_GRAYSCALE = False # Convert the render to a grayscal dithered image
 MK_COLORS = 0 # Reduce number of colors in the image. 0 for not reducing. Less than 256 works in grayscale also.
