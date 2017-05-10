@@ -44,9 +44,15 @@ WIDTH  = 1024
 HEIGHT = 768
 ISMAP  = "true"
 WAIT    = 1  # sleep for 1 second to allow javascript renders
-QUALITY = 80 # jpeg image quality 0-100 
+QUALITY = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
 AUTOWIDTH = True # Check for browser width using javascript
-FORMAT = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values
+FORMAT = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
+
+# PythonMagic configuration options
+MK_MONOCHROME = False # Convert the render to a black and white dithered image
+MK_GRAYSCALE = False # Convert the render to a grayscal dithered image
+MK_COLORS = 0 # Reduce number of colors in the image. 0 for not reducing. Less than 256 works in grayscale also.
+MK_DITHER = False # Dither the image to reduce size. GIFs will always be dithered. Ignored if MK_COLORS is not set.
 
 import re
 import random
@@ -62,6 +68,12 @@ import Queue
 import sys
 import logging
 import StringIO
+
+try:
+    import PythonMagick
+    HasMagick = True
+except ImportError:
+    HasMagick = False
 
 # Request queue (URLs go in here)
 REQ = Queue.Queue()
@@ -433,13 +445,56 @@ if sys.platform == "linux" or sys.platform == "linux2":
 
                 image = renderer.render(WebkitRenderer.req_url)
                 qBuffer = QBuffer()
-                if FORMAT=="AUTO" or FORMAT=="JPG":
-                    image.save(qBuffer, 'jpg', QUALITY)
-                elif FORMAT=="PNG":
-                    image.save(qBuffer, 'png', QUALITY)
 
-                output = StringIO.StringIO()
-                output.write(qBuffer.buffer().data())
+                if HasMagick:
+                    image.save(qBuffer, 'png', QUALITY)
+                    blob = PythonMagick.Blob(qBuffer.buffer().data())
+                    mimg = PythonMagick.Image(blob)
+                    mimg.quality(QUALITY)
+
+                    if FORMAT=="GIF" and not MK_MONOCHROME and not MK_GRAYSCALE and not MK_DITHER and MK_COLORS != 0 and not MK_COLORS <= 256:
+                        mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+
+                    if MK_MONOCHROME:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        mimg.quantizeColors(2)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                        mimg.monochrome()
+                    elif MK_GRAYSCALE:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        if MK_COLORS > 0 and MK_COLORS < 256:
+                            mimg.quantizeColors(MK_COLORS)
+                        else:
+                            mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                    else:
+                        if MK_COLORS > 0:
+                            mimg.quantizeColors(MK_COLORS)
+                            if MK_DITHER:
+                                mimg.quantizeDither()
+                            mimg.quantize()
+
+                    if FORMAT=="AUTO" or FORMAT=="JPG":
+                        mimg.write(blob, "jpg")
+                    elif FORMAT=="PNG":
+                        mimg.write(blob, "png")
+                    elif FORMAT=="GIF":
+                        mimg.write(blob, "gif")
+                    output = StringIO.StringIO()
+                    output.write(blob.data)
+                else:
+                    if FORMAT=="AUTO" or FORMAT=="JPG":
+                        image.save(qBuffer, 'jpg', QUALITY)
+                    elif FORMAT=="PNG":
+                        image.save(qBuffer, 'png', QUALITY)
+
+                    output = StringIO.StringIO()
+                    output.write(qBuffer.buffer().data())
+
                 RENDERS[req[2]] = output
 
                 del renderer
@@ -535,15 +590,59 @@ elif sys.platform == "darwin":
                 view = frame.frameView().documentView()
 
                 output = StringIO.StringIO()
-                if FORMAT=="AUTO" or FORMAT=="GIF":
-                    output.write(self.captureView(view).representationUsingType_properties_(
-                        AppKit.NSGIFFileType, None))
-                elif FORMAT=="JPG":
-                    output.write(self.captureView(view).representationUsingType_properties_(
-                        AppKit.NSJPEGFileType, None))
-                elif FORMAT=="PNG":
+
+                if HasMagick:
                     output.write(self.captureView(view).representationUsingType_properties_(
                         AppKit.NSPNGFileType, None))
+                    blob = PythonMagick.Blob(output)
+                    mimg = PythonMagick.Image(blob)
+                    mimg.quality(QUALITY)
+
+                    if FORMAT=="GIF" and not MK_MONOCHROME and not MK_GRAYSCALE and not MK_DITHER and MK_COLORS != 0 and not MK_COLORS <= 256:
+                        mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+
+                    if MK_MONOCHROME:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        mimg.quantizeColors(2)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                        mimg.monochrome()
+                    elif MK_GRAYSCALE:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        if MK_COLORS > 0 and MK_COLORS < 256:
+                            mimg.quantizeColors(MK_COLORS)
+                        else:
+                            mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                    else:
+                        if MK_COLORS > 0:
+                            mimg.quantizeColors(MK_COLORS)
+                            if MK_DITHER:
+                                mimg.quantizeDither()
+                            mimg.quantize()
+
+                    if FORMAT=="JPG":
+                        mimg.write(blob, "jpg")
+                    elif FORMAT=="PNG":
+                        mimg.write(blob, "png")
+                    elif FORMAT=="AUTO" or FORMAT=="GIF":
+                        mimg.write(blob, "gif")
+                    output = StringIO.StringIO()
+                    output.write(blob.data)
+                else:
+                    if FORMAT=="AUTO" or FORMAT=="GIF":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSGIFFileType, None))
+                    elif FORMAT=="JPG":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSJPEGFileType, None))
+                    elif FORMAT=="PNG":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSPNGFileType, None))
+
                 RENDERS[WebkitLoad.req_img] = output
 
                 # url of the rendered page
@@ -793,7 +892,7 @@ def main():
     if(FORMAT != "AUTO" and FORMAT != "GIF" and FORMAT != "JPG" and FORMAT != "PNG"):
         sys.exit("Unsupported image format \"%s\". Exiting." % FORMAT)
 
-    if (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "GIF":
+    if (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "GIF" and not HasMagick:
         sys.exit("GIF format is not supported on this platform. Exiting.")
 
     # Launch Proxy Thread
