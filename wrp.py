@@ -46,6 +46,7 @@ ISMAP  = "true"
 WAIT    = 1  # sleep for 1 second to allow javascript renders
 QUALITY = 80 # jpeg image quality 0-100 
 AUTOWIDTH = True # Check for browser width using javascript
+FORMAT = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values
 
 import re
 import random
@@ -255,12 +256,12 @@ if sys.platform == "linux" or sys.platform == "linux2":
             if ISMAP == "true":
                 httpout.write("<A HREF=\"http://%s\">"
                               "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
-                              "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_jpg))
+                              "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_img))
                 mapfile = StringIO.StringIO()
                 mapfile.write("default %s\n" % (web_url))
             else:
                 httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
-                              "<MAP NAME=\"map\">\n" % (WebkitRenderer.req_jpg))
+                              "<MAP NAME=\"map\">\n" % (WebkitRenderer.req_img))
 
             for x in frame.findAllElements('a'):
                 turl = QUrl(web_url).resolved(QUrl(x.attribute('href'))).toString()
@@ -414,7 +415,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 req = REQ.get()
                 WebkitRenderer.httpout = req[0]
                 WebkitRenderer.req_url = req[1]
-                WebkitRenderer.req_jpg = req[2]
+                WebkitRenderer.req_img = req[2]
                 WebkitRenderer.req_map = req[3]
                 if WebkitRenderer.req_url == "http://wrp.stop/" or WebkitRenderer.req_url == "http://www.wrp.stop/":
                     print ">>> Terminate Request Received"
@@ -432,14 +433,17 @@ if sys.platform == "linux" or sys.platform == "linux2":
 
                 image = renderer.render(WebkitRenderer.req_url)
                 qBuffer = QBuffer()
-                image.save(qBuffer, 'jpg', QUALITY)
+                if FORMAT=="AUTO" or FORMAT=="JPG":
+                    image.save(qBuffer, 'jpg', QUALITY)
+                elif FORMAT=="PNG":
+                    image.save(qBuffer, 'png', QUALITY)
 
                 output = StringIO.StringIO()
                 output.write(qBuffer.buffer().data())
                 RENDERS[req[2]] = output
 
                 del renderer
-                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg, output.len/1024)
+                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_img, output.len/1024)
 
                 RESP.put('')
 
@@ -483,7 +487,7 @@ elif sys.platform == "darwin":
             req = REQ.get()
             WebkitLoad.httpout = req[0]
             WebkitLoad.req_url = req[1]
-            WebkitLoad.req_gif = req[2]
+            WebkitLoad.req_img = req[2]
             WebkitLoad.req_map = req[3]
 
             if WebkitLoad.req_url == "http://wrp.stop/" or WebkitLoad.req_url == "http://www.wrp.stop/":
@@ -531,9 +535,16 @@ elif sys.platform == "darwin":
                 view = frame.frameView().documentView()
 
                 output = StringIO.StringIO()
-                output.write(self.captureView(view).representationUsingType_properties_(
-                    AppKit.NSGIFFileType, None))
-                RENDERS[WebkitLoad.req_gif] = output
+                if FORMAT=="AUTO" or FORMAT=="GIF":
+                    output.write(self.captureView(view).representationUsingType_properties_(
+                        AppKit.NSGIFFileType, None))
+                elif FORMAT=="JPG":
+                    output.write(self.captureView(view).representationUsingType_properties_(
+                        AppKit.NSJPEGFileType, None))
+                elif FORMAT=="PNG":
+                    output.write(self.captureView(view).representationUsingType_properties_(
+                        AppKit.NSPNGFileType, None))
+                RENDERS[WebkitLoad.req_img] = output
 
                 # url of the rendered page
                 web_url = frame.dataSource().initialRequest().URL().absoluteString()
@@ -558,12 +569,12 @@ elif sys.platform == "darwin":
                 if ISMAP == "true":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
-                                  "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
+                                  "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_img))
                     mapfile = StringIO.StringIO()
                     mapfile.write("default %s\n" % (web_url))
                 else:
                     httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
-                                  "<MAP NAME=\"map\">\n" % (WebkitLoad.req_gif))
+                                  "<MAP NAME=\"map\">\n" % (WebkitLoad.req_img))
 
                 domdocument = frame.DOMDocument()
                 domnodelist = domdocument.getElementsByTagName_('A')
@@ -632,10 +643,11 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
         req_url = self.path
         httpout = self.wfile
 
-        gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
         map_re = re.match(r"http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
-        jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
         wid_re = re.match(r"http://(width-[0-9]+-px\.jpg).*", req_url)
+        gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
+        jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
+        png_re = re.match(r"http://(wrp-\d+\.png).*", req_url)
 
         # Serve Rendered GIF
         if gif_re:
@@ -654,6 +666,16 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
                    % (img, RENDERS[img].len/1024)
             self.send_response(200, 'OK')
             self.send_header('Content-type', 'image/jpeg')
+            self.end_headers()
+            httpout.write(RENDERS[img].getvalue())
+            del RENDERS[img]
+
+        elif png_re:
+            img = png_re.group(1)
+            print ">>> request for rendered png image... %s  [%d kb]" \
+                   % (img, RENDERS[img].len/1024)
+            self.send_response(200, 'OK')
+            self.send_header('Content-type', 'image/png')
             self.end_headers()
             httpout.write(RENDERS[img].getvalue())
             del RENDERS[img]
@@ -735,24 +757,24 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
                     rnd = random.randrange(0, 1000)
 
-                    if sys.platform == "linux" or sys.platform == "linux2":
+                    if FORMAT == "GIF":
+                        req_extension = ".gif"
+                    elif FORMAT == "JPG":
+                        req_extension = ".jpg"
+                    elif FORMAT == "PNG":
+                        req_extension = ".png"
+                    elif (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "AUTO":
+                        req_extension = ".jpg"
+                    elif sys.platform == "darwin" and FORMAT == "AUTO":
+                        req_extension = ".gif"
 
-                        "wrp-%s.jpg" % (rnd)
-                        "wrp-%s.map" % (rnd)
+                    req_img = "wrp-%s%s" % (rnd, req_extension)
+                    req_map = "wrp-%s.map" % (rnd)
 
-                        # To thread
-                        REQ.put((httpout, req_url, "wrp-%s.jpg" % (rnd), "wrp-%s.map" % (rnd)))
-                        # Wait for completition
-                        RESP.get()
-                    elif sys.platform == "darwin":
-
-                        "wrp-%s.gif" % (rnd)
-                        "wrp-%s.map" % (rnd)
-
-                        # To WebKit Thread
-                        REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
-                        # Wait for completition
-                        RESP.get()
+                    # To WebKit Thread
+                    REQ.put((httpout, req_url, req_img, req_map))
+                    # Wait for completition
+                    RESP.get()
                 # If the requested file is not HTML or XHTML, just return it as is.
                 else:
                     self.send_response(reqst.getcode())
@@ -768,6 +790,12 @@ def run_proxy():
         httpd.serve_forever()
 
 def main():
+    if(FORMAT != "AUTO" and FORMAT != "GIF" and FORMAT != "JPG" and FORMAT != "PNG"):
+        sys.exit("Unsupported image format \"%s\". Exiting." % FORMAT)
+
+    if (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "GIF":
+        sys.exit("GIF format is not supported on this platform. Exiting.")
+
     # Launch Proxy Thread
     threading.Thread(target=run_proxy).start()
 
