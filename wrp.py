@@ -262,11 +262,11 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 turl = QUrl(web_url).resolved(QUrl(x.attribute('href'))).toString()
                 xmin, ymin, xmax, ymax = x.geometry().getCoords()
                 if ISMAP == "true":
-                    mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                    mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                 else:
                     httpout.write("<AREA SHAPE=\"RECT\""
                                   " COORDS=\"%i,%i,%i,%i\""
-                                  " ALT=\"%s\" HREF=\"%s\">\n"
+                                  " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
                                   % (xmin, ymin, xmax, ymax, turl, turl))
 
             if ISMAP != "true":
@@ -547,6 +547,7 @@ elif sys.platform == "darwin":
                                   % ttl.toPlainText()).encode('utf-8', errors='ignore'))
                     break # Don't repeat bad HTML coding with several title marks
                 httpout.write("</HEAD>\n<BODY>\n")
+
                 if ISMAP == "true":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
@@ -571,11 +572,11 @@ elif sys.platform == "darwin":
                     ymax = Foundation.NSMaxY(myrect)
 
                     if ISMAP == "true":
-                        mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                        mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                     else:
                         httpout.write("<AREA SHAPE=\"RECT\""
                                       " COORDS=\"%i,%i,%i,%i\""
-                                      " ALT=\"%s\" HREF=\"%s\">\n"
+                                      " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
                                       % (xmin, ymin, xmax, ymax, turl, turl))
 
                     i += 1
