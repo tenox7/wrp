@@ -412,7 +412,7 @@ if sys.platform == "linux" or sys.platform == "linux2":
                 WebkitRenderer.req_url = req[1]
                 WebkitRenderer.req_jpg = req[2]
                 WebkitRenderer.req_map = req[3]
-                if WebkitRenderer.req_url == "http://wrp.stop/":
+                if WebkitRenderer.req_url == "http://wrp.stop/" or WebkitRenderer.req_url == "http://www.wrp.stop/":
                     print ">>> Terminate Request Received"
                     QApplication.exit(0)
                     break
@@ -482,7 +482,7 @@ elif sys.platform == "darwin":
             WebkitLoad.req_gif = req[2]
             WebkitLoad.req_map = req[3]
 
-            if WebkitLoad.req_url == "http://wrp.stop/":
+            if WebkitLoad.req_url == "http://wrp.stop/" or WebkitLoad.req_url == "http://www.wrp.stop/":
                 print ">>> Terminate Request Received"
                 AppKit.NSApplication.sharedApplication().terminate_(None)
 
