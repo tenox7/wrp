@@ -240,8 +240,13 @@ if sys.platform == "linux" or sys.platform == "linux2":
                           % (__version__))
             httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                           % (WebkitRenderer.req_url, web_url))
-            httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
-                          % (__version__, web_url))
+            httpout.write("<HTML><HEAD>")
+            # Get title
+            for ttl in frame.findAllElements('title'):
+                httpout.write((u"<TITLE>%s</TITLE>"
+                              % ttl.toPlainText()).encode('utf-8', errors='ignore'))
+                break # Don't repeat bad HTML coding with several title marks
+            httpout.write("</HEAD>\n<BODY>\n")
 
             if ISMAP == "true":
                 httpout.write("<A HREF=\"http://%s\">"
@@ -535,8 +540,12 @@ elif sys.platform == "darwin":
                               % (__version__))
                 httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                               % (WebkitLoad.req_url, web_url))
-                httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
-                              % (__version__, web_url))
+                # Get title
+                for ttl in frame.findAllElements('title'):
+                    httpout.write((u"<TITLE>%s</TITLE>"
+                                % ttl.toPlainText()).encode('utf-8', errors='ignore'))
+                    break # Don't repeat bad HTML coding with several title marks
+                httpout.write("</HEAD>\n<BODY>\n")
                 if ISMAP == "true":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
