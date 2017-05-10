@@ -654,12 +654,12 @@ elif sys.platform == "darwin":
                               % (__version__))
                 httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                               % (WebkitLoad.req_url, web_url))
+
+                domdocument = frame.DOMDocument()
                 # Get title
                 httpout.write("<HTML><HEAD>")
-                for ttl in frame.findAllElements('title'):
-                    httpout.write((u"<TITLE>%s</TITLE>"
-                                  % ttl.toPlainText()).encode('utf-8', errors='ignore'))
-                    break # Don't repeat bad HTML coding with several title marks
+                httpout.write((u"<TITLE>%s</TITLE>"
+                                % domdocument.title()).encode('utf-8', errors='ignore'))
                 httpout.write("</HEAD>\n<BODY>\n")
 
                 if AUTOWIDTH:
@@ -675,7 +675,6 @@ elif sys.platform == "darwin":
                     httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
                                   "<MAP NAME=\"map\">\n" % (WebkitLoad.req_img))
 
-                domdocument = frame.DOMDocument()
                 domnodelist = domdocument.getElementsByTagName_('A')
                 i = 0
                 while  i < domnodelist.length():
