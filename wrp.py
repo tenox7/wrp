@@ -45,6 +45,7 @@ HEIGHT = 768
 ISMAP  = "true"
 WAIT    = 1  # sleep for 1 second to allow javascript renders
 QUALITY = 80 # jpeg image quality 0-100 
+AUTOWIDTH = True # Check for browser width using javascript
 
 import re
 import random
@@ -247,6 +248,9 @@ if sys.platform == "linux" or sys.platform == "linux2":
                               % ttl.toPlainText()).encode('utf-8', errors='ignore'))
                 break # Don't repeat bad HTML coding with several title marks
             httpout.write("</HEAD>\n<BODY>\n")
+
+            if AUTOWIDTH:
+                httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
 
             if ISMAP == "true":
                 httpout.write("<A HREF=\"http://%s\">"
@@ -548,6 +552,9 @@ elif sys.platform == "darwin":
                     break # Don't repeat bad HTML coding with several title marks
                 httpout.write("</HEAD>\n<BODY>\n")
 
+                if AUTOWIDTH:
+                    httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
+
                 if ISMAP == "true":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
@@ -628,6 +635,7 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
         gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
         map_re = re.match(r"http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
         jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
+        wid_re = re.match(r"http://(width-[0-9]+-px\.jpg).*", req_url)
 
         # Serve Rendered GIF
         if gif_re:
@@ -649,6 +657,18 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.end_headers()
             httpout.write(RENDERS[img].getvalue())
             del RENDERS[img]
+
+        elif wid_re:
+            global WIDTH
+            try:
+                wid = req_url.split("-")
+                WIDTH = int(wid[1])
+                print ">>> width request: %d" % WIDTH
+            except:
+                print ">>> width request error" % WIDTH
+
+            self.send_error(404, "Width request")
+            self.end_headers()
 
         # Process ISMAP Request
         elif map_re:
