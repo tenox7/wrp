@@ -72,7 +72,7 @@ RENDERS = {}
 ### Linux CODEPATH ###
 #######################
 
-if sys.platform == "linux" or sys.platform == "linux2":
+if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
     from PyQt4.QtCore import *
     from PyQt4.QtGui import *
     from PyQt4.QtWebKit import *
@@ -673,7 +673,7 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
             rnd = random.randrange(0, 1000)
 
-            if sys.platform == "linux" or sys.platform == "linux2":
+            if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
 
                 "wrp-%s.jpg" % (rnd)
                 "wrp-%s.map" % (rnd)
@@ -702,7 +702,7 @@ def main():
     # Launch Proxy Thread
     threading.Thread(target=run_proxy).start()
 
-    if sys.platform == "linux" or sys.platform == "linux2":
+    if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
         import signal
         import PyQt4.QtCore
         # Initialize Qt-Application, but make this script
