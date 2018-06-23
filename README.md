@@ -4,8 +4,11 @@ A HTTP proxy server that renders the web page in to a GIF/JPEG image associated 
 ## OS Support
 WRP works on Mac OS X and Linux. It requires Python 2.7 and under Linux, PyQT4 or PyQT5.
 
-## Linux QT Webkit Install
+## Linux Prerequisites
 apt install python-qt5 python-pyqt5.qtwebkit
+
+## Configuration
+Edit wrp.py, scroll past Copyright nonsense to find config parameters
 
 ## More info and screenshots
 * http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/
