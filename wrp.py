@@ -1,6 +1,6 @@
 #!/usr/bin/env python2.7
 
-# wrp.py - Web Rendering Proxy
+# wrp.py - Web Rendering Proxy - https://github.com/tenox7/wrp
 # A HTTP proxy service that renders the requested URL in to a image associated
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
@@ -9,15 +9,15 @@ __version__ = "2.0"
 
 #
 # This program is based on the software picidae.py from picidae.net
-# It was modified by Antoni Sawicki http://www.tenox.net/out/#wrp
+# It was modified by Antoni Sawicki and Natalia Portillo
 #
 # This program is based on the software webkit2png from Paul Hammond.
 # It was extended by picidae.net
 #
-# Copyright (c) 2013-2014 Antoni Sawicki
+# Copyright (c) 2013-2018 Antoni Sawicki
 # Copyright (c) 2012-2013 picidae.net
 # Copyright (c) 2004-2013 Paul Hammond
-# Copyright (c) 2017      Natalia Portillo
+# Copyright (c) 2017-2018 Natalia Portillo
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,20 +39,20 @@ __version__ = "2.0"
 #
 
 # Configuration options:
-PORT   = 8080
-WIDTH  = 1024
-HEIGHT = 768
-ISMAP  = "true"
-WAIT    = 1  # sleep for 1 second to allow javascript renders
-QUALITY = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
+PORT      = 8080
+WIDTH     = 1024
+HEIGHT    = 768
+ISMAP     = "False" # ISMAP=True is Server side for Mosaic 1.1 and up. HTML 3.2 supports Client side maps (ISMAP=False)
+WAIT      = 1  # sleep for 1 second to allow javascript renders
+QUALITY   = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
 AUTOWIDTH = True # Check for browser width using javascript
-FORMAT = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
+FORMAT    = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
 
 # PythonMagick configuration options
 MK_MONOCHROME = False # Convert the render to a black and white dithered image
-MK_GRAYSCALE = False # Convert the render to a grayscal dithered image
-MK_COLORS = 0 # Reduce number of colors in the image. 0 for not reducing. Less than 256 works in grayscale also.
-MK_DITHER = False # Dither the image to reduce size. GIFs will always be dithered. Ignored if MK_COLORS is not set.
+MK_GRAYSCALE  = False # Convert the render to a grayscal dithered image
+MK_COLORS     = 0   # Reduce number of colors in the image. 0 for not reducing. Less than 256 works in grayscale also.
+MK_DITHER     = False # Dither the image to reduce size. GIFs will always be dithered. Ignored if MK_COLORS is not set.
 
 import re
 import random
