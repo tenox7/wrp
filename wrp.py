@@ -86,7 +86,7 @@ RENDERS = {}
 ### Linux CODEPATH ###
 #######################
 
-if sys.platform == "linux" or sys.platform == "linux2":
+if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
     try:
         from PyQt5.QtCore import *
         from PyQt5.QtGui import *
@@ -861,7 +861,7 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
                         req_extension = ".jpg"
                     elif FORMAT == "PNG":
                         req_extension = ".png"
-                    elif (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "AUTO":
+                    elif (sys.platform.startswith('linux') or sys.platform.startswitch('freebsd')) and FORMAT == "AUTO":
                         req_extension = ".jpg"
                     elif sys.platform == "darwin" and FORMAT == "AUTO":
                         req_extension = ".gif"
@@ -891,13 +891,13 @@ def main():
     if(FORMAT != "AUTO" and FORMAT != "GIF" and FORMAT != "JPG" and FORMAT != "PNG"):
         sys.exit("Unsupported image format \"%s\". Exiting." % FORMAT)
 
-    if (sys.platform == "linux" or sys.platform == "linux2") and FORMAT == "GIF" and not HasMagick:
+    if (sys.platform.startswith('linux') or sys.platform.startswith('freebsd')) and FORMAT == "GIF" and not HasMagick:
         sys.exit("GIF format is not supported on this platform. Exiting.")
 
     # Launch Proxy Thread
     threading.Thread(target=run_proxy).start()
 
-    if sys.platform == "linux" or sys.platform == "linux2":
+    if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
         import signal
         try:
             import PyQt5.QtCore
