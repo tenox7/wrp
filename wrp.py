@@ -1,23 +1,23 @@
 #!/usr/bin/env python2.7
 
-# wrp.py - Web Rendering Proxy
-# A HTTP proxy service that renders the requested URL in to a GIF image associated
+# wrp.py - Web Rendering Proxy - https://github.com/tenox7/wrp
+# A HTTP proxy service that renders the requested URL in to a image associated
 # with an imagemap of clickable links. This is an adaptation of previous works by
 # picidae.net and Paul Hammond.
 
-__version__ = "1.4"
+__version__ = "2.0"
 
 #
 # This program is based on the software picidae.py from picidae.net
-# It was modified by Antoni Sawicki http://www.tenox.net/out/#wrp
+# It was modified by Antoni Sawicki and Natalia Portillo
 #
 # This program is based on the software webkit2png from Paul Hammond.
 # It was extended by picidae.net
 #
-# Copyright (c) 2013-2014 Antoni Sawicki
+# Copyright (c) 2013-2018 Antoni Sawicki
 # Copyright (c) 2012-2013 picidae.net
 # Copyright (c) 2004-2013 Paul Hammond
-# Copyright (c) 2017      Natalia Portillo
+# Copyright (c) 2017-2018 Natalia Portillo
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,12 +39,20 @@ __version__ = "1.4"
 #
 
 # Configuration options:
-PORT   = 8080
-WIDTH  = 1024
-HEIGHT = 768
-ISMAP  = "true"
-WAIT    = 1  # sleep for 1 second to allow javascript renders
-QUALITY = 80 # jpeg image quality 0-100 
+PORT      = 8080
+WIDTH     = 1024
+HEIGHT    = 768
+ISMAP     = "False" # ISMAP=True is Server side for Mosaic 1.1 and up. HTML 3.2 supports Client side maps (ISMAP=False)
+WAIT      = 1  # sleep for 1 second to allow javascript renders
+QUALITY   = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
+AUTOWIDTH = True # Check for browser width using javascript
+FORMAT    = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
+
+# PythonMagick configuration options
+MK_MONOCHROME = False # Convert the render to a black and white dithered image
+MK_GRAYSCALE  = False # Convert the render to a grayscal dithered image
+MK_COLORS     = 0   # Reduce number of colors in the image. 0 for not reducing. Less than 256 works in grayscale also.
+MK_DITHER     = False # Dither the image to reduce size. GIFs will always be dithered. Ignored if MK_COLORS is not set.
 
 import re
 import random
@@ -61,6 +69,12 @@ import sys
 import logging
 import StringIO
 
+try:
+    import PythonMagick
+    HasMagick = True
+except ImportError:
+    HasMagick = False
+
 # Request queue (URLs go in here)
 REQ = Queue.Queue()
 # Response queue (dummy response objects)
@@ -72,11 +86,21 @@ RENDERS = {}
 ### Linux CODEPATH ###
 #######################
 
-if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
-    from PyQt4.QtCore import *
-    from PyQt4.QtGui import *
-    from PyQt4.QtWebKit import *
-    from PyQt4.QtNetwork import *
+if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+    try:
+        from PyQt5.QtCore import *
+        from PyQt5.QtGui import *
+        from PyQt5.QtWebKit import *
+        from PyQt5.QtWebKitWidgets import *
+        from PyQt5.QtNetwork import *
+        from PyQt5.QtWidgets import *
+        IsPyQt5 = True
+    except ImportError:
+        from PyQt4.QtCore import *
+        from PyQt4.QtGui import *
+        from PyQt4.QtWebKit import *
+        from PyQt4.QtNetwork import *
+        IsPyQt5 = False
 
     # claunia: Check how to use this in macOS
     logging.basicConfig(filename='/dev/stdout', level=logging.WARN, )
@@ -157,14 +181,20 @@ if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswit
                 self._page.settings().setAttribute(key, value)
 
             # Connect required event listeners
-            self.connect(self._page, SIGNAL("loadFinished(bool)"), self._on_load_finished)
-            self.connect(self._page, SIGNAL("loadStarted()"), self._on_load_started)
-            self.connect(self._page.networkAccessManager(),
-                         SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"),
-                         self._on_ssl_errors)
-            self.connect(self._page.networkAccessManager(),
-                         SIGNAL("finished(QNetworkReply *)"),
-                         self._on_each_reply)
+            if IsPyQt5:
+                self._page.loadFinished.connect(self._on_load_finished)
+                self._page.loadStarted.connect(self._on_load_started)
+                self._page.networkAccessManager().sslErrors.connect(self._on_ssl_errors)
+                self._page.networkAccessManager().finished.connect(self._on_each_reply)
+            else:
+                self.connect(self._page, SIGNAL("loadFinished(bool)"), self._on_load_finished)
+                self.connect(self._page, SIGNAL("loadStarted()"), self._on_load_started)
+                self.connect(self._page.networkAccessManager(),
+                            SIGNAL("sslErrors(QNetworkReply *,const QList<QSslError>&)"),
+                            self._on_ssl_errors)
+                self.connect(self._page.networkAccessManager(),
+                            SIGNAL("finished(QNetworkReply *)"),
+                            self._on_each_reply)
 
             # The way we will use this, it seems to be unesseccary to have Scrollbars enabled
             self._page.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
@@ -204,9 +234,15 @@ if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswit
                 # window still has the focus when the screen is
                 # grabbed. This might result in a race condition.
                 self._view.activateWindow()
-                image = QPixmap.grabWindow(self._window.winId())
+                if IsPyQt5:
+                    image = QScreen.grabWindow(self._window.winId())
+                else:
+                    image = QPixmap.grabWindow(self._window.winId())
             else:
-                image = QPixmap.grabWidget(self._window)
+                if IsPyQt5:
+                    image = QWidget.grab(self._window)
+                else:
+                    image = QPixmap.grabWidget(self._window)
 
             httpout = WebkitRenderer.httpout
 
@@ -218,28 +254,36 @@ if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswit
                           % (__version__))
             httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                           % (WebkitRenderer.req_url, web_url))
-            httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
-                          % (__version__, web_url))
+            # Get title
+            httpout.write("<HTML><HEAD>")
+            for ttl in frame.findAllElements('title'):
+                httpout.write((u"<TITLE>%s</TITLE>"
+                              % ttl.toPlainText()).encode('utf-8', errors='ignore'))
+                break # Don't repeat bad HTML coding with several title marks
+            httpout.write("</HEAD>\n<BODY>\n")
+
+            if AUTOWIDTH:
+                httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
 
             if ISMAP == "true":
                 httpout.write("<A HREF=\"http://%s\">"
                               "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
-                              "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_jpg))
+                              "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_img))
                 mapfile = StringIO.StringIO()
                 mapfile.write("default %s\n" % (web_url))
             else:
                 httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
-                              "<MAP NAME=\"map\">\n" % (WebkitRenderer.req_jpg))
+                              "<MAP NAME=\"map\">\n" % (WebkitRenderer.req_img))
 
             for x in frame.findAllElements('a'):
                 turl = QUrl(web_url).resolved(QUrl(x.attribute('href'))).toString()
                 xmin, ymin, xmax, ymax = x.geometry().getCoords()
                 if ISMAP == "true":
-                    mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                    mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                 else:
                     httpout.write("<AREA SHAPE=\"RECT\""
                                   " COORDS=\"%i,%i,%i,%i\""
-                                  " ALT=\"%s\" HREF=\"%s\">\n"
+                                  " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
                                   % (xmin, ymin, xmax, ymax, turl, turl))
 
             if ISMAP != "true":
@@ -383,9 +427,9 @@ if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswit
                 req = REQ.get()
                 WebkitRenderer.httpout = req[0]
                 WebkitRenderer.req_url = req[1]
-                WebkitRenderer.req_jpg = req[2]
+                WebkitRenderer.req_img = req[2]
                 WebkitRenderer.req_map = req[3]
-                if WebkitRenderer.req_url == "http://wrp.stop/":
+                if WebkitRenderer.req_url == "http://wrp.stop/" or WebkitRenderer.req_url == "http://www.wrp.stop/":
                     print ">>> Terminate Request Received"
                     QApplication.exit(0)
                     break
@@ -401,14 +445,60 @@ if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswit
 
                 image = renderer.render(WebkitRenderer.req_url)
                 qBuffer = QBuffer()
-                image.save(qBuffer, 'jpg', QUALITY)
 
-                output = StringIO.StringIO()
-                output.write(qBuffer.buffer().data())
+                if HasMagick:
+                    image.save(qBuffer, 'png', QUALITY)
+                    blob = PythonMagick.Blob(qBuffer.buffer().data())
+                    mimg = PythonMagick.Image(blob)
+                    mimg.quality(QUALITY)
+
+                    if FORMAT=="GIF" and not MK_MONOCHROME and not MK_GRAYSCALE and not MK_DITHER and MK_COLORS != 0 and not MK_COLORS <= 256:
+                        mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+
+                    if MK_MONOCHROME:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        mimg.quantizeColors(2)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                        mimg.monochrome()
+                    elif MK_GRAYSCALE:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        if MK_COLORS > 0 and MK_COLORS < 256:
+                            mimg.quantizeColors(MK_COLORS)
+                        else:
+                            mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                    else:
+                        if MK_COLORS > 0:
+                            mimg.quantizeColors(MK_COLORS)
+                            if MK_DITHER:
+                                mimg.quantizeDither()
+                            mimg.quantize()
+
+                    if FORMAT=="AUTO" or FORMAT=="JPG":
+                        mimg.write(blob, "jpg")
+                    elif FORMAT=="PNG":
+                        mimg.write(blob, "png")
+                    elif FORMAT=="GIF":
+                        mimg.write(blob, "gif")
+                    output = StringIO.StringIO()
+                    output.write(blob.data)
+                else:
+                    if FORMAT=="AUTO" or FORMAT=="JPG":
+                        image.save(qBuffer, 'jpg', QUALITY)
+                    elif FORMAT=="PNG":
+                        image.save(qBuffer, 'png', QUALITY)
+
+                    output = StringIO.StringIO()
+                    output.write(qBuffer.buffer().data())
+
                 RENDERS[req[2]] = output
 
                 del renderer
-                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_jpg, output.len/1024)
+                print ">>> done: %s [%d kb]..." % (WebkitRenderer.req_img, output.len/1024)
 
                 RESP.put('')
 
@@ -452,10 +542,10 @@ elif sys.platform == "darwin":
             req = REQ.get()
             WebkitLoad.httpout = req[0]
             WebkitLoad.req_url = req[1]
-            WebkitLoad.req_gif = req[2]
+            WebkitLoad.req_img = req[2]
             WebkitLoad.req_map = req[3]
 
-            if WebkitLoad.req_url == "http://wrp.stop/":
+            if WebkitLoad.req_url == "http://wrp.stop/" or WebkitLoad.req_url == "http://www.wrp.stop/":
                 print ">>> Terminate Request Received"
                 AppKit.NSApplication.sharedApplication().terminate_(None)
 
@@ -500,9 +590,60 @@ elif sys.platform == "darwin":
                 view = frame.frameView().documentView()
 
                 output = StringIO.StringIO()
-                output.write(self.captureView(view).representationUsingType_properties_(
-                    AppKit.NSGIFFileType, None))
-                RENDERS[WebkitLoad.req_gif] = output
+
+                if HasMagick:
+                    output.write(self.captureView(view).representationUsingType_properties_(
+                        AppKit.NSPNGFileType, None))
+                    blob = PythonMagick.Blob(output)
+                    mimg = PythonMagick.Image(blob)
+                    mimg.quality(QUALITY)
+
+                    if FORMAT=="GIF" and not MK_MONOCHROME and not MK_GRAYSCALE and not MK_DITHER and MK_COLORS != 0 and not MK_COLORS <= 256:
+                        mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+
+                    if MK_MONOCHROME:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        mimg.quantizeColors(2)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                        mimg.monochrome()
+                    elif MK_GRAYSCALE:
+                        mimg.quantizeColorSpace(PythonMagick.ColorspaceType.GRAYColorspace)
+                        if MK_COLORS > 0 and MK_COLORS < 256:
+                            mimg.quantizeColors(MK_COLORS)
+                        else:
+                            mimg.quantizeColors(256)
+                        mimg.quantizeDither()
+                        mimg.quantize()
+                    else:
+                        if MK_COLORS > 0:
+                            mimg.quantizeColors(MK_COLORS)
+                            if MK_DITHER:
+                                mimg.quantizeDither()
+                            mimg.quantize()
+
+                    if FORMAT=="JPG":
+                        mimg.write(blob, "jpg")
+                    elif FORMAT=="PNG":
+                        mimg.write(blob, "png")
+                    elif FORMAT=="AUTO" or FORMAT=="GIF":
+                        mimg.write(blob, "gif")
+                    output = StringIO.StringIO()
+                    output.write(blob.data)
+                else:
+                    if FORMAT=="AUTO" or FORMAT=="GIF":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSGIFFileType, None))
+                    elif FORMAT=="JPG":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSJPEGFileType, None))
+                    elif FORMAT=="PNG":
+                        output.write(self.captureView(view).representationUsingType_properties_(
+                            AppKit.NSPNGFileType, None))
+
+                RENDERS[WebkitLoad.req_img] = output
 
                 # url of the rendered page
                 web_url = frame.dataSource().initialRequest().URL().absoluteString()
@@ -513,19 +654,27 @@ elif sys.platform == "darwin":
                               % (__version__))
                 httpout.write("<!-- Request for [%s] frame [%s] -->\n"
                               % (WebkitLoad.req_url, web_url))
-                httpout.write("<HTML><HEAD><TITLE>WRP%s:%s</TITLE></HEAD>\n<BODY>\n"
-                              % (__version__, web_url))
+
+                domdocument = frame.DOMDocument()
+                # Get title
+                httpout.write("<HTML><HEAD>")
+                httpout.write((u"<TITLE>%s</TITLE>"
+                                % domdocument.title()).encode('utf-8', errors='ignore'))
+                httpout.write("</HEAD>\n<BODY>\n")
+
+                if AUTOWIDTH:
+                    httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
+
                 if ISMAP == "true":
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
-                                  "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_gif))
+                                  "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_img))
                     mapfile = StringIO.StringIO()
                     mapfile.write("default %s\n" % (web_url))
                 else:
                     httpout.write("<IMG SRC=\"http://%s\" ALT=\"wrp-render\" USEMAP=\"#map\">\n"
-                                  "<MAP NAME=\"map\">\n" % (WebkitLoad.req_gif))
+                                  "<MAP NAME=\"map\">\n" % (WebkitLoad.req_img))
 
-                domdocument = frame.DOMDocument()
                 domnodelist = domdocument.getElementsByTagName_('A')
                 i = 0
                 while  i < domnodelist.length():
@@ -539,11 +688,11 @@ elif sys.platform == "darwin":
                     ymax = Foundation.NSMaxY(myrect)
 
                     if ISMAP == "true":
-                        mapfile.write("rect %s %i,%i %i,%i\n" % (turl, xmin, ymin, xmax, ymax))
+                        mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                     else:
                         httpout.write("<AREA SHAPE=\"RECT\""
                                       " COORDS=\"%i,%i,%i,%i\""
-                                      " ALT=\"%s\" HREF=\"%s\">\n"
+                                      " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
                                       % (xmin, ymin, xmax, ymax, turl, turl))
 
                     i += 1
@@ -592,10 +741,11 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
         req_url = self.path
         httpout = self.wfile
 
-        gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
         map_re = re.match(r"http://(wrp-\d+\.map).*?(\d+),(\d+)", req_url)
-        ico_re = re.match(r"http://.+\.ico", req_url)
+        wid_re = re.match(r"http://(width-[0-9]+-px\.jpg).*", req_url)
+        gif_re = re.match(r"http://(wrp-\d+\.gif).*", req_url)
         jpg_re = re.match(r"http://(wrp-\d+\.jpg).*", req_url)
+        png_re = re.match(r"http://(wrp-\d+\.png).*", req_url)
 
         # Serve Rendered GIF
         if gif_re:
@@ -617,6 +767,28 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.end_headers()
             httpout.write(RENDERS[img].getvalue())
             del RENDERS[img]
+
+        elif png_re:
+            img = png_re.group(1)
+            print ">>> request for rendered png image... %s  [%d kb]" \
+                   % (img, RENDERS[img].len/1024)
+            self.send_response(200, 'OK')
+            self.send_header('Content-type', 'image/png')
+            self.end_headers()
+            httpout.write(RENDERS[img].getvalue())
+            del RENDERS[img]
+
+        elif wid_re:
+            global WIDTH
+            try:
+                wid = req_url.split("-")
+                WIDTH = int(wid[1])
+                print ">>> width request: %d" % WIDTH
+            except:
+                print ">>> width request error" % WIDTH
+
+            self.send_error(404, "Width request")
+            self.end_headers()
 
         # Process ISMAP Request
         elif map_re:
@@ -659,38 +831,55 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             httpout.write("<HTML><BODY><A HREF=\"%s\">%s</A></BODY></HTML>\n"
                           % (goto_url, goto_url))
 
-        # ICO files, WebKit crashes on these
-        elif ico_re:
-            self.send_error(415, "ICO not supported")
-            self.end_headers()
-
         # Process a web page request and generate image
         else:
             print ">>> URL request... " + req_url
-            self.send_response(200, 'OK')
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
 
-            rnd = random.randrange(0, 1000)
-
-            if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
-
-                "wrp-%s.jpg" % (rnd)
-                "wrp-%s.map" % (rnd)
-
-                # To thread
-                REQ.put((httpout, req_url, "wrp-%s.jpg" % (rnd), "wrp-%s.map" % (rnd)))
-                # Wait for completition
+            if req_url == "http://wrp.stop/" or req_url == "http://www.wrp.stop/":
+                REQ.put((httpout, req_url, "", ""))
                 RESP.get()
-            elif sys.platform == "darwin":
+            else:
+                reqst = urllib.urlopen(req_url)
 
-                "wrp-%s.gif" % (rnd)
-                "wrp-%s.map" % (rnd)
+                if reqst.info().type == "text/html" or reqst.info().type == "application/xhtml+xml":
+                # If an error occurs, send error headers to the requester
+                    if reqst.getcode() >= 400:
+                        self.send_response(reqst.getcode())
+                        for hdr in reqst.info():
+                            self.send_header(hdr, reqst.info()[hdr])
+                        self.end_headers()
+                    else:
+                        self.send_response(200, 'OK')
+                        self.send_header('Content-type', 'text/html')
+                        self.end_headers()
 
-                # To WebKit Thread
-                REQ.put((httpout, req_url, "wrp-%s.gif" % (rnd), "wrp-%s.map" % (rnd)))
-                # Wait for completition
-                RESP.get()
+                    rnd = random.randrange(0, 1000)
+
+                    if FORMAT == "GIF":
+                        req_extension = ".gif"
+                    elif FORMAT == "JPG":
+                        req_extension = ".jpg"
+                    elif FORMAT == "PNG":
+                        req_extension = ".png"
+                    elif (sys.platform.startswith('linux') or sys.platform.startswitch('freebsd')) and FORMAT == "AUTO":
+                        req_extension = ".jpg"
+                    elif sys.platform == "darwin" and FORMAT == "AUTO":
+                        req_extension = ".gif"
+
+                    req_img = "wrp-%s%s" % (rnd, req_extension)
+                    req_map = "wrp-%s.map" % (rnd)
+
+                    # To WebKit Thread
+                    REQ.put((httpout, req_url, req_img, req_map))
+                    # Wait for completition
+                    RESP.get()
+                # If the requested file is not HTML or XHTML, just return it as is.
+                else:
+                    self.send_response(reqst.getcode())
+                    for hdr in reqst.info():
+                        self.send_header(hdr, reqst.info()[hdr])
+                    self.end_headers()
+                    httpout.write(reqst.read())
 
 def run_proxy():
     httpd = SocketServer.TCPServer(('', PORT), Proxy)
@@ -699,18 +888,27 @@ def run_proxy():
         httpd.serve_forever()
 
 def main():
+    if(FORMAT != "AUTO" and FORMAT != "GIF" and FORMAT != "JPG" and FORMAT != "PNG"):
+        sys.exit("Unsupported image format \"%s\". Exiting." % FORMAT)
+
+    if (sys.platform.startswith('linux') or sys.platform.startswith('freebsd')) and FORMAT == "GIF" and not HasMagick:
+        sys.exit("GIF format is not supported on this platform. Exiting.")
+
     # Launch Proxy Thread
     threading.Thread(target=run_proxy).start()
 
-    if sys.platform == "linux" or sys.platform == "linux2" or sys.platform.startswith('freebsd'):
+    if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
         import signal
-        import PyQt4.QtCore
+        try:
+            import PyQt5.QtCore
+        except ImportError:
+            import PyQt4.QtCore
         # Initialize Qt-Application, but make this script
         # abortable via CTRL-C
         app = init_qtgui(display=None, style=None)
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-        PyQt4.QtCore.QTimer.singleShot(0, __main_qt)
+        QTimer.singleShot(0, __main_qt)
         sys.exit(app.exec_())
     elif sys.platform == "darwin":
         main_cocoa()
