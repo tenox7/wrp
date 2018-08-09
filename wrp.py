@@ -42,7 +42,7 @@ __version__ = "2.0"
 PORT      = 8080
 WIDTH     = 1024
 HEIGHT    = 768
-ISMAP     = "False" # ISMAP=True is Server side for Mosaic 1.1 and up. HTML 3.2 supports Client side maps (ISMAP=False)
+ISMAP     = False # ISMAP=True is Server side for Mosaic 1.1 and up. HTML 3.2 supports Client side maps (ISMAP=False)
 WAIT      = 1  # sleep for 1 second to allow javascript renders
 QUALITY   = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
 AUTOWIDTH = True # Check for browser width using javascript
@@ -265,7 +265,7 @@ if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
             if AUTOWIDTH:
                 httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
 
-            if ISMAP == "true":
+            if ISMAP == True:
                 httpout.write("<A HREF=\"http://%s\">"
                               "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
                               "</A>\n" % (WebkitRenderer.req_map, WebkitRenderer.req_img))
@@ -278,7 +278,7 @@ if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
             for x in frame.findAllElements('a'):
                 turl = QUrl(web_url).resolved(QUrl(x.attribute('href'))).toString()
                 xmin, ymin, xmax, ymax = x.geometry().getCoords()
-                if ISMAP == "true":
+                if ISMAP == True:
                     mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                 else:
                     httpout.write("<AREA SHAPE=\"RECT\""
@@ -286,12 +286,12 @@ if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
                                   " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
                                   % (xmin, ymin, xmax, ymax, turl, turl))
 
-            if ISMAP != "true":
+            if ISMAP != True:
                 httpout.write("</MAP>\n")
 
             httpout.write("</BODY>\n</HTML>\n")
 
-            if ISMAP == "true":
+            if ISMAP == True:
                 RENDERS[WebkitRenderer.req_map] = mapfile
 
             return image
@@ -665,7 +665,7 @@ elif sys.platform == "darwin":
                 if AUTOWIDTH:
                     httpout.write("<script>document.write('<span style=\"display: none;\"><img src=\"http://width-' + document.body.clientWidth + '-px.jpg\" width=\"0\" height=\"0\"></span>');</script>\n")
 
-                if ISMAP == "true":
+                if ISMAP == True:
                     httpout.write("<A HREF=\"http://%s\">"
                                   "<IMG SRC=\"http://%s\" ALT=\"wrp-render\" ISMAP>\n"
                                   "</A>\n" % (WebkitLoad.req_map, WebkitLoad.req_img))
@@ -687,7 +687,7 @@ elif sys.platform == "darwin":
                     xmax = Foundation.NSMaxX(myrect)
                     ymax = Foundation.NSMaxY(myrect)
 
-                    if ISMAP == "true":
+                    if ISMAP == True:
                         mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                     else:
                         httpout.write("<AREA SHAPE=\"RECT\""
@@ -697,12 +697,12 @@ elif sys.platform == "darwin":
 
                     i += 1
 
-                if ISMAP != "true":
+                if ISMAP != True:
                     httpout.write("</MAP>\n")
 
                 httpout.write("</BODY>\n</HTML>\n")
 
-                if ISMAP == "true":
+                if ISMAP == True:
                     RENDERS[WebkitLoad.req_map] = mapfile
 
                 # Return to Proxy thread and Loop...
