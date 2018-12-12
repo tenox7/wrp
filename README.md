@@ -3,6 +3,12 @@ A HTTP proxy server that renders the web page in to a GIF/PNG/JPEG image associa
 
 Version 2.0 brings support for PythonMagick (ImageMagick Library) that allows to optimize and reduce image size or covert to greyscale or bitmap for these cool computers without color displays.
 
+# Current Status
+* Due to a recent migration of the whole Internet to SSL/HTTPS, WRP is currently pretty much useless
+* Support for a SSL/HTTPS is under way, however not in a proxy mode
+* I'm also looking for moving away from WebKit, QT and Python
+* Stay tuned
+
 ## OS Support
 WRP works on macOS (Mac OS X), Linux and FreeBSD. On macOS it uses Cocoa Webkit, on Linux/FreeBSD QT Webkit, for which needs PyQT4 or PyQT5.
 
