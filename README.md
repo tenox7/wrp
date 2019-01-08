@@ -6,7 +6,7 @@ New: Version 2.1 brings support for sslstrip to allow browsing https/SSL/TSL web
 
 # Current Status
 * It mostly works for casual browsing but the app is not very stable and your mileage may vary. 
-* Secure aka https/SSL/TLS websites might work with use of `sslstrip`[1] cheat (enabled by default).
+* Secure aka https/SSL/TLS websites might work with use of [sslstrip](https://moxie.org/software/sslstrip/) cheat (enabled by default).
 * Web form submission is not yet implemented.
 
 ## OS Support
@@ -27,4 +27,3 @@ Configure your web browser to use HTTP proxy at IP address and port where WRP is
 * http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/
 * http://virtuallyfun.superglobalmegacorp.com/2014/03/03/surfing-modern-web-with-ancient-browsers/
 
-[1]: https://moxie.org/software/sslstrip/
