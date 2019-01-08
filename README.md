@@ -1,21 +1,20 @@
 # WRP - Web Rendering Proxy
-A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF/PNG/JPEG image associated with clickable imagemap of original web links. 
+A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF/PNG/JPEG image associated with clickable imagemap of original web links.
 
-New: Version 2.1 brings support for sslstrip to allow browsing https/SSL/TSL websites
+New: Version 2.1 brings support for sslstrip to allow browsing https/SSL/TSL websites.
 
 
 # Current Status
-* SSL/TLS stripping is delegated to `sslstrip`[1], which you need to install into your PATH first
-* I'm also looking for moving away from WebKit, QT and Python
-* Stay tuned
+* It mostly works for casual browsing but the app is not very stable and your mileage may vary. 
+* Secure aka https/SSL/TLS websites might work with use of `sslstrip`[1] cheat (enabled by default).
+* Web form submission is not yet implemented.
 
 ## OS Support
 WRP works on macOS (Mac OS X), Linux and FreeBSD. On macOS it uses Cocoa Webkit, on Linux/FreeBSD QT Webkit, for which needs PyQT4 or PyQT5.
 
 ## Installation
 * macOS - should just work
-* Linux/FreeBSD install `python-pyqt5.qtwebkit`
-* For sslstrip install `sslstrip`
+* Linux/FreeBSD install `python-pyqt5.qtwebkit` and `sslstrip`
 * For PythonMagick (Imagemagick library) install `python-pythonmagick`
 
 ## Configuration
