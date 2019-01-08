@@ -4,8 +4,7 @@ A HTTP proxy server that renders the web page in to a GIF/PNG/JPEG image associa
 Version 2.0 brings support for PythonMagick (ImageMagick Library) that allows to optimize and reduce image size or covert to greyscale or bitmap for these cool computers without color displays.
 
 # Current Status
-* Due to a recent migration of the whole Internet to SSL/HTTPS, WRP is currently pretty much useless
-* Support for a SSL/HTTPS is under way, however not in a proxy mode
+* SSL/TLS stripping is delegated to `sslstrip`[1], which you need to install into your PATH first
 * I'm also looking for moving away from WebKit, QT and Python
 * Stay tuned
 
@@ -25,3 +24,5 @@ Configure your web browser to use HTTP proxy at IP address and port where WRP is
 ## More info and screenshots
 * http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/
 * http://virtuallyfun.superglobalmegacorp.com/2014/03/03/surfing-modern-web-with-ancient-browsers/
+
+[1]: https://moxie.org/software/sslstrip/

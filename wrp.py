@@ -18,6 +18,7 @@ __version__ = "2.0"
 # Copyright (c) 2012-2013 picidae.net
 # Copyright (c) 2004-2013 Paul Hammond
 # Copyright (c) 2017-2018 Natalia Portillo
+# Copyright (c) 2018      //gir.st/
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -47,6 +48,7 @@ WAIT      = 1  # sleep for 1 second to allow javascript renders
 QUALITY   = 75 # For JPEG: image quality 0-100; For PNG: sets compression level (leftmost digit 0 fastest, 9 best)
 AUTOWIDTH = True # Check for browser width using javascript
 FORMAT    = "AUTO" # AUTO = GIF for mac OS, JPG for rest; PNG, GIF, JPG as supported values.
+SSLSTRIP  = True # enable to automatically downgrade secure requests
 
 # PythonMagick configuration options
 MK_MONOCHROME = False # Convert the render to a black and white dithered image
@@ -68,6 +70,7 @@ import Queue
 import sys
 import logging
 import StringIO
+import subprocess
 
 try:
     import PythonMagick
@@ -894,6 +897,16 @@ def main():
     if (sys.platform.startswith('linux') or sys.platform.startswith('freebsd')) and FORMAT == "GIF" and not HasMagick:
         sys.exit("GIF format is not supported on this platform. Exiting.")
 
+    # run traffic through sslstrip as a quick workaround for getting SSL webpages to work
+    # NOTE: modern browsers are doing their best to stop this kind of 'attack'. Firefox 
+    # supports an about:config flag test.currentTimeOffsetSeconds(int) = 12000000, which 
+    # you can use to circumvent those checks.
+    if SSLSTRIP:
+        try:
+            subprocess.check_output(["pidof", "sslstrip"])
+        except:
+            subprocess.Popen(["sslstrip"], stdout=open(os.devnull,'w'), stderr=subprocess.STDOUT) # runs on port 10000 by default
+        QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.HttpProxy, "localhost", 10000))
     # Launch Proxy Thread
     threading.Thread(target=run_proxy).start()
 
