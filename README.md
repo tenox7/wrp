@@ -5,9 +5,12 @@ New: Version 2.1 brings support for sslstrip to allow browsing https/SSL/TSL web
 
 
 # Current Status
+
+* This is a WebKit / Python version of WRP.
 * It mostly works for casual browsing but the app is not very stable and your mileage may vary. 
 * Secure aka https/SSL/TLS websites might work with use of [sslstrip](https://moxie.org/software/sslstrip/) cheat (enabled by default).
 * Web form submission is not yet implemented.
+* New version using Chrome and GoLang is actively being developed. Stay tuned for updates.
 
 ## OS Support
 WRP works on macOS (Mac OS X), Linux and FreeBSD. On macOS it uses Cocoa Webkit, on Linux/FreeBSD QT Webkit, for which needs PyQT4 or PyQT5.
