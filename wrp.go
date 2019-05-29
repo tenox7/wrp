@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
+
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/chromedp"
@@ -54,7 +56,9 @@ func capture(url string, out http.ResponseWriter) {
 	var target string
 
 	log.Printf("Caputure Request for %s\n", url)
+
 	chromedp.Run(ctx,
+		emulation.SetDeviceMetricsOverride(1024, 768, 1.0, false),
 		chromedp.Navigate(url),
 		chromedp.Sleep(time.Second*2),
 		chromedp.CaptureScreenshot(&scrcap),
