@@ -1,3 +1,10 @@
+//
+// WRP - Web Rendering Proxy
+//
+// Copyright (c) 2013-2018 Antoni Sawicki
+// Copyright (c) 2019 Google LLC
+//
+
 package main
 
 import (
