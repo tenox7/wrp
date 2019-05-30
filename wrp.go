@@ -105,6 +105,7 @@ func main() {
 
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/wrp.gif", imgServer)
+	http.HandleFunc("/favicon.ico", http.NotFound)
 	log.Printf("Starting http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
 }
