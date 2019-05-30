@@ -8,18 +8,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	_ "image"
+	"image/gif"
+	"image/png"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
-	"bytes"
-	_ "image"
-	"image/png"
-	"image/gif"
-	"net/url"
 
 	"github.com/chromedp/cdproto/emulation"
 
@@ -79,15 +79,16 @@ func capture(gourl string, out http.ResponseWriter) {
 
 	log.Printf("Landed on: %s, Got %d nodes\n", loc, len(nodes))
 
-	img, err:= png.Decode(bytes.NewReader(scrcap) )
+	img, err := png.Decode(bytes.NewReader(scrcap))
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to decode screenshot: %s\n", err)
+		fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
+		return
 	}
 	gifbuf.Reset()
 	gif.Encode(&gifbuf, img, nil)
 
 	base, _ := url.Parse(loc)
-	fmt.Fprintf(out, "<!-- Location: %s -->\n", base)
 	fmt.Fprintf(out, "<IMG SRC=\"/wrp.gif\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n")
 
 	for _, n := range nodes {
