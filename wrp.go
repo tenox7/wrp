@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -59,6 +60,15 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	out.Header().Set("Content-Type", "image/gif")
 	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
 	out.Write(gifbuf.Bytes())
+}
+
+func haltServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s Shutdown request received [%s]\n", req.RemoteAddr, req.URL.Path)
+	out.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(out, "WRP Shutdown")
+	out.(http.Flusher).Flush()
+	cancel()
+	os.Exit(0)
 }
 
 func capture(gourl string, out http.ResponseWriter) {
@@ -122,6 +132,7 @@ func main() {
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/wrp.gif", imgServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
+	http.HandleFunc("/halt", haltServer)
 	log.Printf("Starting http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
 }
