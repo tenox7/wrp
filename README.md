@@ -24,6 +24,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * better http server shutdown
 * chromedp logging, timeout, non-headless flags
 
+## Python version
 Check [master branch](https://github.com/tenox7/wrp/tree/master) for "stable" Python-Webkit version.
 
 
