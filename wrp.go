@@ -9,6 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
+	_ "image"
+	"image/png"
+	"image/gif"
 
 	"github.com/chromedp/cdproto/emulation"
 
@@ -20,7 +24,7 @@ import (
 var (
 	ctx    context.Context
 	cancel context.CancelFunc
-	scrcap []byte
+	gifbuf bytes.Buffer
 )
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
@@ -30,7 +34,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	if len(furl) >= 1 && len(furl[0]) > 4 {
 		url = furl[0]
 	} else {
-		url = "https://www.google.com/"
+		url = "https://en.wikipedia.org/wiki/"
 	}
 	log.Printf("%s Page Reqest for %s URL=%s\n", req.RemoteAddr, req.URL.Path, url)
 	out.Header().Set("Content-Type", "text/html")
@@ -45,15 +49,16 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Img Reqest for %s\n", req.RemoteAddr, req.URL.Path)
-	out.Header().Set("Content-Type", "image/png")
-	out.Header().Set("Content-Length", strconv.Itoa(len(scrcap)))
-	out.Write(scrcap)
+	out.Header().Set("Content-Type", "image/gif")
+	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
+	out.Write(gifbuf.Bytes())
 }
 
 func capture(url string, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var target string
+	var scrcap []byte
 
 	log.Printf("Caputure Request for %s\n", url)
 
@@ -64,7 +69,14 @@ func capture(url string, out http.ResponseWriter) {
 		chromedp.CaptureScreenshot(&scrcap),
 		chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
 
-	fmt.Fprintf(out, "<IMG SRC=\"/wrp.png\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n")
+		img, err:= png.Decode(bytes.NewReader(scrcap) )
+		if err != nil {
+			log.Fatal(err)
+		}
+		gifbuf.Reset()
+		gif.Encode(&gifbuf, img, nil)
+
+	fmt.Fprintf(out, "<IMG SRC=\"/wrp.gif\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n")
 
 	for _, n := range nodes {
 		b, err := dom.GetBoxModel().WithNodeID(n.NodeID).Do(cdp.WithExecutor(ctx, ctxx.Target))
@@ -92,7 +104,7 @@ func main() {
 	flag.Parse()
 
 	http.HandleFunc("/", pageServer)
-	http.HandleFunc("/wrp.png", imgServer)
+	http.HandleFunc("/wrp.gif", imgServer)
 	log.Printf("Starting http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
 }
