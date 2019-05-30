@@ -96,7 +96,12 @@ func capture(gourl string, out http.ResponseWriter) {
 		return
 	}
 	gifbuf.Reset()
-	gif.Encode(&gifbuf, img, nil)
+	err = gif.Encode(&gifbuf, img, nil)
+	if err != nil {
+		log.Printf("Failed to encode GIF: %s\n", err)
+		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
+		return
+	}
 
 	base, _ := url.Parse(loc)
 	fmt.Fprintf(out, "<IMG SRC=\"/wrp.gif\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n")
