@@ -1,14 +1,30 @@
 # WRP - Web Rendering Proxy
 A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF image associated with clickable imagemap of original web links.
 
+<Warning>
 You are looking at a GoLang / CDP branch of WRP.
 
 This code is under active development and not fully usable yet.
+</Warning>
 
-Check master branch for "stable" Python-Webkit version.
+## Done so far
+* basic browser-in-browser mode
+* process and serve image+map via cdp
+* gif with Floyd–Steinberg dithering
+* random image addressing
+* resolve relative links
 
+## Todo
+* configurable size and scale
+* ISMAP
+* configurable color palete and quantization
+* paginated scrolling
+* real http proxy support
+* encode to png/jpeg option
+* padded box model coordinates
+* better http server shutdown
+* chromedp logging, timeout, non-headless flags
 
-## More info and screenshots
-* http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/
-* http://virtuallyfun.superglobalmegacorp.com/2014/03/03/surfing-modern-web-with-ancient-browsers/
+Check [master branch](https://github.com/tenox7/wrp/tree/master) for "stable" Python-Webkit version.
+
 
