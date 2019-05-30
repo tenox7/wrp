@@ -96,6 +96,7 @@ func capture(gourl string, out http.ResponseWriter) {
 	log.Printf("Landed on: %s, Got %d nodes\n", loc, len(nodes))
 
 	// Process Screenshot Image
+	bytes.NewReader(pngbuf).Seek(0, 0)
 	img, err := png.Decode(bytes.NewReader(pngbuf))
 	if err != nil {
 		log.Printf("Failed to decode screenshot: %s\n", err)
