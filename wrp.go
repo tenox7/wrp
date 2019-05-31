@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/runtime"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/dom"
@@ -39,6 +40,7 @@ var (
 func pageServer(out http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	u := r.FormValue("url")
+	y, _ := strconv.ParseInt(r.FormValue("y"), 10, 64)
 	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
 	if w < 10 {
 		w = 1024
@@ -56,12 +58,13 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
-	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"5\"> \n", w)
-	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"5\"> \n", h)
-	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"4\"> \n", s)
+	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
+	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
+	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
+	fmt.Fprintf(out, "Scroll:<INPUT TYPE=\"TEXT\" NAME=\"y\" VALUE=\"%d\" SIZE=\"4\"> \n", y)
 	fmt.Fprintf(out, "</FORM><P>")
 	if len(u) > 4 {
-		capture(u, w, h, s, out)
+		capture(u, w, h, s, y, out)
 	} else {
 		fmt.Fprintf(out, "No URL specified")
 	}
@@ -87,25 +90,28 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, w int64, h int64, s float64, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, y int64, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var loc string
+	var res *runtime.RemoteObject
 
 	log.Printf("Processing Caputure Request for %s\n", gourl)
 
 	// Run ChromeDP Magic
+	scrl := fmt.Sprintf("window.scrollTo(0, %d);", y)
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(w, h, s, false),
 		chromedp.Navigate(gourl),
-		chromedp.Sleep(time.Second*2),
+		chromedp.Evaluate(scrl, &res),
+		chromedp.Sleep(time.Second*1),
 		chromedp.CaptureScreenshot(&pngbuf),
 		chromedp.Location(&loc),
 		chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
 
-	log.Printf("Landed on: %s, Got %d nodes\n", loc, len(nodes))
+	log.Printf("Landed on: %s, Nodes: %d\n", loc, len(nodes))
 
 	// Process Screenshot Image
 	bytes.NewReader(pngbuf).Seek(0, 0)
@@ -139,7 +145,7 @@ func capture(gourl string, w int64, h int64, s float64, out http.ResponseWriter)
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f", tgt, w, h, s)
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&y=%d", tgt, w, h, s, y)
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
