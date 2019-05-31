@@ -58,7 +58,7 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
 	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"5\"> \n", w)
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"5\"> \n", h)
-	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%0.1f\" SIZE=\"4\"> \n", s)
+	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"4\"> \n", s)
 	fmt.Fprintf(out, "</FORM><P>")
 	if len(u) > 4 {
 		capture(u, w, h, s, out)
@@ -139,7 +139,7 @@ func capture(gourl string, w int64, h int64, s float64, out http.ResponseWriter)
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s", tgt)
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f", tgt, w, h, s)
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
