@@ -17,7 +17,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Todo
 * ISMAP
-* unexpected EOF on Windows
+* net/url: invalid control character in URL on Windows
 * configurable color palete and quantization
 * paginated scrolling
 * real http proxy support
