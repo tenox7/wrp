@@ -106,7 +106,7 @@ func capture(gourl string, w int64, h int64, s float64, y int64, out http.Respon
 	log.Printf("Processing Caputure Request for %s\n", gourl)
 
 	// Run ChromeDP Magic
-	chromedp.Run(ctx,
+	err := chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(w, h, s, false),
 		chromedp.Navigate(gourl),
 		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", y), &res),
@@ -114,6 +114,12 @@ func capture(gourl string, w int64, h int64, s float64, y int64, out http.Respon
 		chromedp.CaptureScreenshot(&pngbuf),
 		chromedp.Location(&loc),
 		chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
+
+	if err != nil {
+		log.Printf("%s", err)
+		fmt.Fprintf(out, "<BR>%s<BR>", err)
+		return
+	}
 
 	log.Printf("Landed on: %s, Nodes: %d\n", loc, len(nodes))
 
