@@ -143,7 +143,7 @@ func capture(gourl string, w int64, h int64, s float64, out http.ResponseWriter)
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
-				b.Content[0], b.Content[1], b.Content[4], b.Content[5], n.AttributeValue("href"), n.AttributeValue("href"), target)
+				b.Content[0]*s, b.Content[1]*s, b.Content[4]*s, b.Content[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
 		}
 	}
 
@@ -163,6 +163,6 @@ func main() {
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/halt", haltServer)
-	log.Printf("Starting http server on %s\n", addr)
+	log.Printf("Starting WRP http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
 }

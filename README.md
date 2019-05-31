@@ -14,7 +14,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * resolve relative links
 
 ## Todo
-* configurable size and scale
 * ISMAP
 * unexpected EOF on Windows
 * configurable color palete and quantization
