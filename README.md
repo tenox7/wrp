@@ -8,10 +8,12 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Done so far
 * basic browser-in-browser mode
-* process and serve image+map via cdp
+* screenshot and serve image+map via CDP
 * gif with Floyd–Steinberg dithering
 * random image addressing
 * resolve relative links
+* simple scrolling
+* google search on input not starting with ^http
 
 ## Todo
 * ISMAP
@@ -19,7 +21,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * configurable color palete and quantization
 * paginated scrolling
 * real http proxy support
-* encode to png/jpeg option
+* option to encode as png/jpeg
 * padded box model coordinates
 * better http server shutdown
 * chromedp logging, timeout, non-headless flags
