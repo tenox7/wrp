@@ -50,7 +50,12 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 		istr = ""
 		i = false
 	}
-	y, _ := strconv.ParseInt(r.FormValue("y"), 10, 64)
+	p, _ := strconv.ParseInt(r.FormValue("p"), 10, 64)
+	if r.FormValue("pg") == ">>" {
+		p++
+	} else if r.FormValue("pg") == "<<" {
+		p--
+	}
 	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
 	if w < 10 {
 		w = 1024
@@ -72,13 +77,15 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
-	fmt.Fprintf(out, "Scroll:<INPUT TYPE=\"TEXT\" NAME=\"y\" VALUE=\"%d\" SIZE=\"4\"> \n", y)
+	fmt.Fprintf(out, "Page:<INPUT TYPE=\"HIDDEN\" NAME=\"p\" VALUE=\"%d\"> \n", p)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"<<\"> %d \n", p)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\">>\"> \n")
 	fmt.Fprintf(out, "</FORM><P>")
 	if len(u) > 4 {
 		if strings.HasPrefix(u, "http") {
-			capture(u, w, h, s, y, out)
+			capture(u, w, h, s, p, out)
 		} else {
-			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, y, out)
+			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, p, out)
 		}
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
@@ -105,7 +112,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, w int64, h int64, s float64, y int64, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, p int64, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
@@ -119,7 +126,7 @@ func capture(gourl string, w int64, h int64, s float64, y int64, out http.Respon
 	err := chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(w, h, s, false),
 		chromedp.Navigate(gourl),
-		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", y), &res),
+		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p*int64(float64(h)*float64(0.9))), &res),
 		chromedp.Sleep(time.Second*1),
 		chromedp.CaptureScreenshot(&pngbuf),
 		chromedp.Location(&loc),
@@ -165,7 +172,7 @@ func capture(gourl string, w int64, h int64, s float64, y int64, out http.Respon
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&y=%d", tgt, w, h, s, y)
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&", tgt, w, h, s) // no page# here
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",

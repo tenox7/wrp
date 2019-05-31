@@ -12,14 +12,13 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * gif with Floyd–Steinberg dithering
 * random image addressing
 * resolve relative links
-* simple scrolling
+* paginated scrolling
 * google search on input not starting with ^http
 
 ## Todo
 * ISMAP
 * net/url: invalid control character in URL on Windows
 * configurable color palete and quantization
-* paginated scrolling
 * real http proxy support
 * option to encode as png/jpeg
 * padded box model coordinates
@@ -28,5 +27,3 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Python version
 Check [master branch](https://github.com/tenox7/wrp/tree/master) for "stable" Python-Webkit version.
-
-
