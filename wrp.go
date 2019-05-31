@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -56,7 +57,7 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", r.RemoteAddr, u, r.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
+	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
 	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
@@ -64,9 +65,13 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "Scroll:<INPUT TYPE=\"TEXT\" NAME=\"y\" VALUE=\"%d\" SIZE=\"4\"> \n", y)
 	fmt.Fprintf(out, "</FORM><P>")
 	if len(u) > 4 {
-		capture(u, w, h, s, y, out)
+		if strings.HasPrefix(u, "http") {
+			capture(u, w, h, s, y, out)
+		} else {
+			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, y, out)
+		}
 	} else {
-		fmt.Fprintf(out, "No URL specified")
+		fmt.Fprintf(out, "No URL or search query specified")
 	}
 	fmt.Fprintf(out, "</BODY>\n</HTML>\n")
 }
@@ -101,11 +106,10 @@ func capture(gourl string, w int64, h int64, s float64, y int64, out http.Respon
 	log.Printf("Processing Caputure Request for %s\n", gourl)
 
 	// Run ChromeDP Magic
-	scrl := fmt.Sprintf("window.scrollTo(0, %d);", y)
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(w, h, s, false),
 		chromedp.Navigate(gourl),
-		chromedp.Evaluate(scrl, &res),
+		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", y), &res),
 		chromedp.Sleep(time.Second*1),
 		chromedp.CaptureScreenshot(&pngbuf),
 		chromedp.Location(&loc),
