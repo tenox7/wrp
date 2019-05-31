@@ -36,22 +36,34 @@ var (
 	gifmap = make(map[string]bytes.Buffer)
 )
 
-func pageServer(out http.ResponseWriter, req *http.Request) {
-	req.ParseForm()
-	furl := req.Form["url"]
-	var gourl string
-	if len(furl) >= 1 && len(furl[0]) > 4 {
-		gourl = furl[0]
-	} else {
-		gourl = "https://www.bbc.com/news"
+func pageServer(out http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	u := r.FormValue("url")
+	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
+	if w < 10 {
+		w = 1024
 	}
-	log.Printf("%s Page Reqest for %s [%s]\n", req.RemoteAddr, gourl, req.URL.Path)
+	h, _ := strconv.ParseInt(r.FormValue("h"), 10, 64)
+	if h < 10 {
+		h = 768
+	}
+	s, _ := strconv.ParseFloat(r.FormValue("s"), 64)
+	if s < 0.1 {
+		s = 1.0
+	}
+	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", r.RemoteAddr, u, r.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE>\n<BODY BGCOLOR=\"#F0F0F0\">", gourl)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\">", gourl)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"></FORM><P>\n")
-	if len(gourl) > 4 {
-		capture(gourl, out)
+	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
+	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
+	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"5\"> \n", w)
+	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"5\"> \n", h)
+	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%0.1f\" SIZE=\"4\"> \n", s)
+	fmt.Fprintf(out, "</FORM><P>")
+	if len(u) > 4 {
+		capture(u, w, h, s, out)
+	} else {
+		fmt.Fprintf(out, "No URL specified")
 	}
 	fmt.Fprintf(out, "</BODY>\n</HTML>\n")
 }
@@ -75,7 +87,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
@@ -86,7 +98,7 @@ func capture(gourl string, out http.ResponseWriter) {
 
 	// Run ChromeDP Magic
 	chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(1024, 768, 1.0, false),
+		emulation.SetDeviceMetricsOverride(w, h, s, false),
 		chromedp.Navigate(gourl),
 		chromedp.Sleep(time.Second*2),
 		chromedp.CaptureScreenshot(&pngbuf),
