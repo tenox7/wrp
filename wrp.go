@@ -41,6 +41,15 @@ var (
 func pageServer(out http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	u := r.FormValue("url")
+	var istr string
+	var i bool
+	if r.FormValue("i") == "on" {
+		istr = "CHECKED"
+		i = true
+	} else {
+		istr = ""
+		i = false
+	}
 	y, _ := strconv.ParseInt(r.FormValue("y"), 10, 64)
 	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
 	if w < 10 {
@@ -59,6 +68,7 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
+	fmt.Fprintf(out, "ISMAP:<INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> [%v]\n", istr, i)
 	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
