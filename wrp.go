@@ -51,9 +51,9 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 		i = false
 	}
 	p, _ := strconv.ParseInt(r.FormValue("p"), 10, 64)
-	if r.FormValue("pg") == ">>" {
+	if r.FormValue("pg") == "Next" {
 		p++
-	} else if r.FormValue("pg") == "<<" {
+	} else if r.FormValue("pg") == "Prev" {
 		p--
 	} else {
 		p = 0
@@ -80,8 +80,8 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
 	fmt.Fprintf(out, "Page:<INPUT TYPE=\"HIDDEN\" NAME=\"p\" VALUE=\"%d\"> \n", p)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"<<\"> %d \n", p)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\">>\"> \n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Prev\"> %d \n", p)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Next\"> \n")
 	fmt.Fprintf(out, "</FORM><P>\n")
 	if len(u) > 4 {
 		if strings.HasPrefix(u, "http") {
@@ -108,7 +108,6 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 func mapServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s MAP Request for %s [%v]\n", req.RemoteAddr, req.URL.Path, req.URL.Query())
 }
-
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Shutdown request received [%s]\n", req.RemoteAddr, req.URL.Path)
