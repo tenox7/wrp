@@ -188,8 +188,8 @@ func capture(gourl string, w int64, h int64, s float64, p int64, ismap bool, out
 			if ismap {
 
 			} else {
-			fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
-				b.Content[0]*s, b.Content[1]*s, b.Content[4]*s, b.Content[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
+				fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
+					b.Content[0]*s, b.Content[1]*s, b.Content[4]*s, b.Content[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
 			}
 		}
 	}
