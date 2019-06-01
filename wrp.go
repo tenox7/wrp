@@ -156,12 +156,12 @@ func capture(gourl string, w int64, h int64, s float64, p int64, out http.Respon
 		return
 	}
 	imgpath := fmt.Sprintf("/img/%04d.gif", rand.Intn(9999))
+	log.Printf("Encoded GIF image: %s, Size: %dKB\n", imgpath, len(gifbuf.Bytes())/1024)
 	gifmap[imgpath] = gifbuf
 
 	// Process Nodes
 	base, _ := url.Parse(loc)
 	fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
-	log.Printf("Image path will be: %s", imgpath)
 
 	for _, n := range nodes {
 		b, err := dom.GetBoxModel().WithNodeID(n.NodeID).Do(cdp.WithExecutor(ctx, ctxx.Target))
