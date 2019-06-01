@@ -55,6 +55,8 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 		p++
 	} else if r.FormValue("pg") == "<<" {
 		p--
+	} else {
+		p = 0
 	}
 	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
 	if w < 10 {
