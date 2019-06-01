@@ -19,7 +19,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 ## Todo
 
 * ISMAP - underway
-* net/url: invalid control character in URL on Windows
 * configurable color palete and quantization
 * real http proxy support
 * option to encode as png/jpeg
@@ -27,6 +26,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * better http server shutdown
 * chromedp logging, timeout, non-headless flags
 
-## Python version
+## Old Python version
 
-Check [master branch](https://github.com/tenox7/wrp/tree/master) for "stable" Python-Webkit version.
+Check [pywebkit/](/pywebkit) folder for the old Python-Webkit version.
