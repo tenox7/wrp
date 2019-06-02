@@ -156,7 +156,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 	var loc string
 	var res *runtime.RemoteObject
 	is := make([]Ismap, 0)
-	var istr string
+	var ion string
 
 	log.Printf("%s Processing Caputure Request for %s\n", c, gourl)
 
@@ -204,7 +204,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 	if i {
 		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", mappath, imgpath)
 		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&i=on", loc, w, h, s)})
-		istr = "i=on"
+		ion = "&i=on"
 	} else {
 		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
 	}
@@ -218,7 +218,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&%s", tgt, w, h, s, istr) // no page# here
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f%s", tgt, w, h, s, ion) // no page# here
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			if i {
