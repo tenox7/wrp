@@ -116,7 +116,27 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 }
 
 func mapServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s MAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
+	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
+	var loc string
+	var x, y int64
+	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &x, &y)
+	if err != nil || n != 2 {
+		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
+		log.Printf("n=%d, err=%s\n", n, err)
+		return
+	}
+	is := ismap[req.URL.Path]
+	defer delete(ismap, req.URL.Path)
+	for _, i := range is {
+		if x >= i.xmin && x <= i.xmax && y >= i.ymin && y <= i.ymax {
+			loc = i.url
+		}
+	}
+	if len(loc) < 1 {
+		loc = is[0].url
+	}
+	log.Printf("ISMAP Redirect to: %s\n", loc)
+	http.Redirect(out, req, loc, 301)
 }
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
@@ -136,6 +156,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 	var loc string
 	var res *runtime.RemoteObject
 	is := make([]Ismap, 0)
+	var istr string
 
 	log.Printf("Processing Caputure Request for %s\n", gourl)
 
@@ -182,7 +203,8 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 	base, _ := url.Parse(loc)
 	if i {
 		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", mappath, imgpath)
-		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: "default"})
+		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&i=on", loc, w, h, s)})
+		istr = "i=on"
 	} else {
 		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
 	}
@@ -196,7 +218,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&", tgt, w, h, s) // no page# here
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&%s", tgt, w, h, s, istr) // no page# here
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			if i {
