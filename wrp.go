@@ -48,39 +48,39 @@ var (
 	ismap  = make(map[string][]Ismap)
 )
 
-func pageServer(out http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	u := r.FormValue("url")
+func pageServer(out http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	u := req.FormValue("url")
 	var istr string
 	var i bool
-	if r.FormValue("i") == "on" {
+	if req.FormValue("i") == "on" {
 		istr = "CHECKED"
 		i = true
 	} else {
 		istr = ""
 		i = false
 	}
-	p, _ := strconv.ParseInt(r.FormValue("p"), 10, 64)
-	if r.FormValue("pg") == "Next" {
+	p, _ := strconv.ParseInt(req.FormValue("p"), 10, 64)
+	if req.FormValue("pg") == "Next" {
 		p++
-	} else if r.FormValue("pg") == "Prev" {
+	} else if req.FormValue("pg") == "Prev" {
 		p--
 	} else {
 		p = 0
 	}
-	w, _ := strconv.ParseInt(r.FormValue("w"), 10, 64)
+	w, _ := strconv.ParseInt(req.FormValue("w"), 10, 64)
 	if w < 10 {
 		w = 1024
 	}
-	h, _ := strconv.ParseInt(r.FormValue("h"), 10, 64)
+	h, _ := strconv.ParseInt(req.FormValue("h"), 10, 64)
 	if h < 10 {
 		h = 768
 	}
-	s, _ := strconv.ParseFloat(r.FormValue("s"), 64)
+	s, _ := strconv.ParseFloat(req.FormValue("s"), 64)
 	if s < 0.1 {
 		s = 1.0
 	}
-	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", r.RemoteAddr, u, r.URL.Path)
+	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
@@ -95,9 +95,9 @@ func pageServer(out http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(out, "</FORM><P>\n")
 	if len(u) > 4 {
 		if strings.HasPrefix(u, "http") {
-			capture(u, w, h, s, p, i, out)
+			capture(u, w, h, s, p, i, req.RemoteAddr, out)
 		} else {
-			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, p, i, out)
+			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, p, i, req.RemoteAddr, out)
 		}
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
@@ -122,7 +122,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &x, &y)
 	if err != nil || n != 2 {
 		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
-		log.Printf("n=%d, err=%s\n", n, err)
+		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
 		return
 	}
 	is := ismap[req.URL.Path]
@@ -135,7 +135,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if len(loc) < 1 {
 		loc = is[0].url
 	}
-	log.Printf("ISMAP Redirect to: %s\n", loc)
+	log.Printf("%s ISMAP Redirect to: %s\n", req.RemoteAddr, loc)
 	http.Redirect(out, req, loc, 301)
 }
 
@@ -148,7 +148,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c string, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
@@ -158,7 +158,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 	is := make([]Ismap, 0)
 	var istr string
 
-	log.Printf("Processing Caputure Request for %s\n", gourl)
+	log.Printf("%s Processing Caputure Request for %s\n", c, gourl)
 
 	// Run ChromeDP Magic
 	err := chromedp.Run(ctx,
@@ -171,32 +171,32 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 		chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
 
 	if err != nil {
-		log.Printf("%s", err)
+		log.Printf("%s %s", c, err)
 		fmt.Fprintf(out, "<BR>%s<BR>", err)
 		return
 	}
 
-	log.Printf("Landed on: %s, Nodes: %d\n", loc, len(nodes))
+	log.Printf("%s Landed on: %s, Nodes: %d\n", c, loc, len(nodes))
 
 	// Process Screenshot Image
 	bytes.NewReader(pngbuf).Seek(0, 0)
 	img, err := png.Decode(bytes.NewReader(pngbuf))
 	if err != nil {
-		log.Printf("Failed to decode screenshot: %s\n", err)
+		log.Printf("%s Failed to decode screenshot: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 		return
 	}
 	gifbuf.Reset()
 	err = gif.Encode(&gifbuf, img, nil)
 	if err != nil {
-		log.Printf("Failed to encode GIF: %s\n", err)
+		log.Printf("%s Failed to encode GIF: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 		return
 	}
 	seq := rand.Intn(9999)
 	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
-	log.Printf("Encoded GIF image: %s, Size: %dKB\n", imgpath, len(gifbuf.Bytes())/1024)
+	log.Printf("%s Encoded GIF image: %s, Size: %dKB\n", c, imgpath, len(gifbuf.Bytes())/1024)
 	gifmap[imgpath] = gifbuf
 
 	// Process Nodes
@@ -233,11 +233,13 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out htt
 		}
 	}
 
-	if !i {
+	if i {
+		log.Printf("%s Encoded ISMAP %s\n", c, mappath)
+	} else {
 		fmt.Fprintf(out, "</MAP>\n")
 	}
 	out.(http.Flusher).Flush()
-	log.Printf("Done with caputure for %s\n", gourl)
+	log.Printf("%s Done with caputure for %s\n", c, gourl)
 	ismap[mappath] = is
 }
 
