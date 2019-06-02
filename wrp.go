@@ -32,10 +32,20 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+// Ismap for server side processing
+type Ismap struct {
+	xmin int64
+	ymin int64
+	xmax int64
+	ymax int64
+	url  string
+}
+
 var (
 	ctx    context.Context
 	cancel context.CancelFunc
 	gifmap = make(map[string]bytes.Buffer)
+	ismap  = make(map[string][]Ismap)
 )
 
 func pageServer(out http.ResponseWriter, r *http.Request) {
@@ -106,7 +116,7 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 }
 
 func mapServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s MAP Request for %s [%v]\n", req.RemoteAddr, req.URL.Path, req.URL.Query())
+	log.Printf("%s MAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
 }
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
@@ -118,13 +128,14 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, w int64, h int64, s float64, p int64, ismap bool, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, p int64, i bool, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var loc string
 	var res *runtime.RemoteObject
+	is := make([]Ismap, 0)
 
 	log.Printf("Processing Caputure Request for %s\n", gourl)
 
@@ -161,14 +172,17 @@ func capture(gourl string, w int64, h int64, s float64, p int64, ismap bool, out
 		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 		return
 	}
-	imgpath := fmt.Sprintf("/img/%04d.gif", rand.Intn(9999))
+	seq := rand.Intn(9999)
+	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
+	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	log.Printf("Encoded GIF image: %s, Size: %dKB\n", imgpath, len(gifbuf.Bytes())/1024)
 	gifmap[imgpath] = gifbuf
 
 	// Process Nodes
 	base, _ := url.Parse(loc)
-	if ismap {
-		fmt.Fprintf(out, "<A HREF=\"/map/123.map\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", imgpath)
+	if i {
+		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", mappath, imgpath)
+		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: "default"})
 	} else {
 		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
 	}
@@ -185,8 +199,11 @@ func capture(gourl string, w int64, h int64, s float64, p int64, ismap bool, out
 		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&", tgt, w, h, s) // no page# here
 
 		if len(b.Content) > 6 && len(target) > 7 {
-			if ismap {
-
+			if i {
+				is = append(is, Ismap{
+					xmin: int64(b.Content[0] * s), ymin: int64(b.Content[1] * s),
+					xmax: int64(b.Content[4] * s), ymax: int64(b.Content[5] * s),
+					url: target})
 			} else {
 				fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
 					b.Content[0]*s, b.Content[1]*s, b.Content[4]*s, b.Content[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
@@ -194,11 +211,12 @@ func capture(gourl string, w int64, h int64, s float64, p int64, ismap bool, out
 		}
 	}
 
-	if !ismap {
+	if !i {
 		fmt.Fprintf(out, "</MAP>\n")
 	}
 	out.(http.Flusher).Flush()
 	log.Printf("Done with caputure for %s\n", gourl)
+	ismap[mappath] = is
 }
 
 func main() {
