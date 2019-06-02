@@ -42,20 +42,23 @@ type Ismap struct {
 }
 
 var (
-	ctx    context.Context
-	cancel context.CancelFunc
-	gifmap = make(map[string]bytes.Buffer)
-	ismap  = make(map[string][]Ismap)
+	version = "3.0"
+	ctx     context.Context
+	cancel  context.CancelFunc
+	gifmap  = make(map[string]bytes.Buffer)
+	ismap   = make(map[string][]Ismap)
 )
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	u := req.FormValue("url")
 	var istr string
+	var ion string
 	var i bool
 	if req.FormValue("i") == "on" {
 		istr = "CHECKED"
 		i = true
+		ion = "&i=on"
 	} else {
 		istr = ""
 		i = false
@@ -102,7 +105,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
 	}
-	fmt.Fprintf(out, "</BODY>\n</HTML>\n")
+	fmt.Fprintf(out, "\n<P><A HREF=\"/url=github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f%s\">Web Rendering Proxy</A> v%s</BODY>\n</HTML>\n", w, h, s, ion, version)
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
