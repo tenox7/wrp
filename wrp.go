@@ -85,7 +85,8 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">", u)
+	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
+	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", u)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
 	fmt.Fprintf(out, "ISMAP:<INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> \n", istr)
@@ -105,7 +106,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
 	}
-	fmt.Fprintf(out, "\n<P><A HREF=\"/url=github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f%s\">Web Rendering Proxy</A> v%s</BODY>\n</HTML>\n", w, h, s, ion, version)
+	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f%s\">Web Rendering Proxy Version %s</A></BODY>\n</HTML>\n", w, h, s, ion, version)
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -258,6 +259,7 @@ func main() {
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/halt", haltServer)
+	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Starting WRP http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
 }
