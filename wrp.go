@@ -83,30 +83,35 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	if s < 0.1 {
 		s = 1.0
 	}
+	c, _ := strconv.ParseInt(req.FormValue("c"), 10, 64)
+	if c < 2 || c > 256 {
+		c = 256
+	}
 	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", u)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", u)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"><P>\n")
+	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", u)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"> \n")
+	fmt.Fprintf(out, "Page:<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Prev\"> \n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"p\" VALUE=\"%d\" SIZE=\"2\"> \n", p)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Next\"> <P>\n")
 	fmt.Fprintf(out, "ISMAP:<INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> \n", istr)
 	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
-	fmt.Fprintf(out, "Page:<INPUT TYPE=\"HIDDEN\" NAME=\"p\" VALUE=\"%d\"> \n", p)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Prev\"> %d \n", p)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Next\"> \n")
+	fmt.Fprintf(out, "Colors:<INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
 	fmt.Fprintf(out, "</FORM><P>\n")
 	if len(u) > 4 {
 		if strings.HasPrefix(u, "http") {
-			capture(u, w, h, s, p, i, req.RemoteAddr, out)
+			capture(u, w, h, s, int(c), p, i, req.RemoteAddr, out)
 		} else {
-			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, p, i, req.RemoteAddr, out)
+			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, int(c), p, i, req.RemoteAddr, out)
 		}
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
 	}
-	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f%s\">Web Rendering Proxy Version %s</A></BODY>\n</HTML>\n", w, h, s, ion, version)
+	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d%s\">Web Rendering Proxy Version %s</A></BODY>\n</HTML>\n", w, h, s, c, ion, version)
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -152,7 +157,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(0)
 }
 
-func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c string, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool, c string, out http.ResponseWriter) {
 	var nodes []*cdp.Node
 	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
@@ -191,7 +196,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 		return
 	}
 	gifbuf.Reset()
-	err = gif.Encode(&gifbuf, img, nil)
+	err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: co})
 	if err != nil {
 		log.Printf("%s Failed to encode GIF: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -207,7 +212,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 	base, _ := url.Parse(loc)
 	if i {
 		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", mappath, imgpath)
-		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&i=on", loc, w, h, s)})
+		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d&i=on", loc, w, h, s, co)})
 		ion = "&i=on"
 	} else {
 		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
@@ -222,7 +227,7 @@ func capture(gourl string, w int64, h int64, s float64, p int64, i bool, c strin
 		if err != nil {
 			continue
 		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f%s", tgt, w, h, s, ion) // no page# here
+		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d%s", tgt, w, h, s, co, ion) // no page# here
 
 		if len(b.Content) > 6 && len(target) > 7 {
 			if i {
