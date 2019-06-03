@@ -211,11 +211,11 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	// Process Nodes
 	base, _ := url.Parse(loc)
 	if i {
-		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" ISMAP></A>", mappath, imgpath)
+		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
 		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d&i=on", loc, w, h, s, co)})
 		ion = "&i=on"
 	} else {
-		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
+		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
 	}
 
 	for _, n := range nodes {
