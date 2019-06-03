@@ -45,6 +45,7 @@ var (
 	version = "3.0"
 	ctx     context.Context
 	cancel  context.CancelFunc
+	iaddr   string
 	gifmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string][]Ismap)
 )
@@ -154,8 +155,14 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if len(loc) < 1 {
 		loc = is[0].url
 	}
-	log.Printf("%s ISMAP Redirect to: %s\n", req.RemoteAddr, loc)
-	http.Redirect(out, req, loc, 301)
+	log.Printf("%s ISMAP Redirect to: http://%s%s\n", req.RemoteAddr, iaddr, loc)
+	if len(iaddr) > 4 {
+		http.Redirect(out, req, fmt.Sprintf("http://%s%s", iaddr, loc), 301)
+	} else {
+		out.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(out, "<HTML>\n<HEAD>\n<META HTTP-EQUIV=\"refresh\" content=\"0; url=%s\">\n</HEAD>\n", loc)
+		fmt.Fprintf(out, "<BODY>\nIf not redirected <A HREF=\"%s\">click Here...</A>\n</BODY>\n</HTML>\n", loc)
+	}
 }
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
@@ -267,6 +274,7 @@ func main() {
 	defer cancel()
 	var addr string
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
+	flag.StringVar(&iaddr, "i", "", "Address:port prefix for ISMAP Redirect")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 	http.HandleFunc("/", pageServer)
