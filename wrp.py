@@ -284,10 +284,10 @@ if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
                 if ISMAP == True:
                     mapfile.write("rect %s %i,%i %i,%i\n".decode('utf-8', errors='ignore') % (turl, xmin, ymin, xmax, ymax))
                 else:
-                    httpout.write("<AREA SHAPE=\"RECT\""
+                    httpout.write(("<AREA SHAPE=\"RECT\""
                                   " COORDS=\"%i,%i,%i,%i\""
                                   " ALT=\"%s\" HREF=\"%s\">\n".decode('utf-8', errors='ignore')
-                                  % (xmin, ymin, xmax, ymax, turl, turl))
+                                  % (xmin, ymin, xmax, ymax, turl, turl)).encode("utf-8"))
 
             if ISMAP != True:
                 httpout.write("</MAP>\n")
