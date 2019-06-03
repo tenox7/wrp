@@ -15,16 +15,16 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * resolve relative links
 * paginated scrolling
 * google search on input not starting with ^http
+* ISMAP, although for a redirect to work `-i` flag must be specified
+  otherwise http-equiv refresh will be used and/or link provided
 
 ## Todo
 
-* ISMAP - underway
 * configurable color palete and quantization
 * real http proxy support
-* option to encode as png/jpeg
 * padded box model coordinates
 * better http server shutdown
-* chromedp logging, timeout, non-headless flags
+* chromedp logging, timeout, non-headless allocator flags
 
 ## Old Python version
 
