@@ -116,7 +116,12 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
-	gifbuf := gifmap[req.URL.Path]
+	gifbuf, ok := gifmap[req.URL.Path]
+	if !ok || gifbuf.Bytes() == nil {
+		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
+		log.Printf("Unable to find image %s\n", req.URL.Path)
+		return
+	}
 	defer delete(gifmap, req.URL.Path)
 	out.Header().Set("Content-Type", "image/gif")
 	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
@@ -134,7 +139,12 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
 		return
 	}
-	is := ismap[req.URL.Path]
+	is, ok := ismap[req.URL.Path]
+	if !ok || is == nil {
+		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
+		log.Printf("Unable to find map %s\n", req.URL.Path)
+		return
+	}
 	defer delete(ismap, req.URL.Path)
 	for _, i := range is {
 		if x >= i.xmin && x <= i.xmax && y >= i.ymin && y <= i.ymax {
