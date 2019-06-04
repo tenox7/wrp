@@ -45,7 +45,6 @@ var (
 	version = "3.0"
 	ctx     context.Context
 	cancel  context.CancelFunc
-	iaddr   string
 	gifmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string][]Ismap)
 )
@@ -103,7 +102,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
 	fmt.Fprintf(out, "Colors:<INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
 	fmt.Fprintf(out, "</FORM><P>\n")
-	if len(u) > 4 {
+	if len(u) > 1 {
 		if strings.HasPrefix(u, "http") {
 			capture(u, w, h, s, int(c), p, i, req.RemoteAddr, out)
 		} else {
@@ -155,14 +154,8 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if len(loc) < 1 {
 		loc = is[0].url
 	}
-	log.Printf("%s ISMAP Redirect to: http://%s%s\n", req.RemoteAddr, iaddr, loc)
-	if len(iaddr) > 4 {
-		http.Redirect(out, req, fmt.Sprintf("http://%s%s", iaddr, loc), 301)
-	} else {
-		out.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(out, "<HTML>\n<HEAD>\n<META HTTP-EQUIV=\"refresh\" content=\"0; url=%s\">\n</HEAD>\n", loc)
-		fmt.Fprintf(out, "<BODY>\nIf not redirected <A HREF=\"%s\">click Here...</A>\n</BODY>\n</HTML>\n", loc)
-	}
+	log.Printf("%s ISMAP Redirect to: http://%s%s\n", req.RemoteAddr, req.Context().Value(http.LocalAddrContextKey), loc)
+	http.Redirect(out, req, fmt.Sprintf("http://%s%s", req.Context().Value(http.LocalAddrContextKey), loc), 301)
 }
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
@@ -271,10 +264,9 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 
 func main() {
 	var addr string
-	var head,headless bool
+	var head, headless bool
 	var debug bool
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
-	flag.StringVar(&iaddr, "i", "", "Address:port prefix for ISMAP Redirect, otherwise http-equiv/redirect will be used")
 	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.Parse()
@@ -284,7 +276,7 @@ func main() {
 		headless = true
 	}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-        chromedp.Flag("headless", headless),
+		chromedp.Flag("headless", headless),
 	)
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
