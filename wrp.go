@@ -61,9 +61,9 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 		i = false
 	}
 	p, _ := strconv.ParseInt(req.FormValue("p"), 10, 64)
-	if req.FormValue("pg") == "Next" {
+	if req.FormValue("pg") == "Dn" {
 		p++
-	} else if req.FormValue("pg") == "Prev" {
+	} else if req.FormValue("pg") == "Up" {
 		p--
 	} else {
 		p = 0
@@ -88,17 +88,17 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", u)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\">URL/Search: <INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", u)
+	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", u)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"> \n")
-	fmt.Fprintf(out, "Page:<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Prev\"> \n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Up\"> \n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"p\" VALUE=\"%d\" SIZE=\"2\"> \n", p)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Next\"> <P>\n")
-	fmt.Fprintf(out, "ISMAP:<INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> \n", istr)
-	fmt.Fprintf(out, "Width:<INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
-	fmt.Fprintf(out, "Height:<INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
-	fmt.Fprintf(out, "Scale:<INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
-	fmt.Fprintf(out, "Colors:<INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
-	fmt.Fprintf(out, "</FORM><P>\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Dn\"> \n")
+	fmt.Fprintf(out, "I <INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> \n", istr)
+	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
+	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
+	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
+	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
+	fmt.Fprintf(out, "</FORM><BR>\n")
 	if len(u) > 1 {
 		if strings.HasPrefix(u, "http") {
 			capture(u, w, h, s, int(c), p, i, req.RemoteAddr, out)
