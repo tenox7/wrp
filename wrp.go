@@ -171,7 +171,7 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 
 	// Run ChromeDP Magic
 	err := chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(w, h, s, false),
+		emulation.SetDeviceMetricsOverride(int64(float64(w)/s), int64(float64(h)/s), s, false),
 		chromedp.Navigate(gourl),
 		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p*int64(float64(h)*float64(0.9))), &res),
 		chromedp.Sleep(time.Second*1),
