@@ -19,7 +19,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -43,8 +42,6 @@ type Ismap struct {
 
 var (
 	version = "3.0"
-	ctx     context.Context
-	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string][]Ismap)
 )
@@ -156,15 +153,6 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s ISMAP Redirect to: http://%s%s\n", req.RemoteAddr, req.Context().Value(http.LocalAddrContextKey), loc)
 	http.Redirect(out, req, fmt.Sprintf("http://%s%s", req.Context().Value(http.LocalAddrContextKey), loc), 301)
-}
-
-func haltServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Shutdown request received [%s]\n", req.RemoteAddr, req.URL.Path)
-	out.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(out, "WRP Shutdown")
-	out.(http.Flusher).Flush()
-	cancel()
-	os.Exit(0)
 }
 
 func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool, c string, out http.ResponseWriter) {
@@ -281,9 +269,9 @@ func main() {
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 	if debug {
-		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
+		ctx, cancel := chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
 	} else {
-		ctx, cancel = chromedp.NewContext(actx)
+		ctx, cancel := chromedp.NewContext(actx)
 	}
 	defer cancel()
 	rand.Seed(time.Now().UnixNano())
@@ -291,7 +279,6 @@ func main() {
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
-	http.HandleFunc("/halt", haltServer)
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Starting WRP http server on %s\n", addr)
 	http.ListenAndServe(addr, nil)
