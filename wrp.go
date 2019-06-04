@@ -42,6 +42,8 @@ type Ismap struct {
 
 var (
 	version = "3.0"
+	ctx     context.Context
+	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string][]Ismap)
 )
@@ -269,9 +271,9 @@ func main() {
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 	if debug {
-		ctx, cancel := chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
+		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
 	} else {
-		ctx, cancel := chromedp.NewContext(actx)
+		ctx, cancel = chromedp.NewContext(actx)
 	}
 	defer cancel()
 	rand.Seed(time.Now().UnixNano())
