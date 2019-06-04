@@ -270,12 +270,30 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 }
 
 func main() {
-	ctx, cancel = chromedp.NewContext(context.Background())
-	defer cancel()
 	var addr string
+	var head,headless bool
+	var debug bool
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
-	flag.StringVar(&iaddr, "i", "", "Address:port prefix for ISMAP Redirect")
+	flag.StringVar(&iaddr, "i", "", "Address:port prefix for ISMAP Redirect, otherwise http-equiv/redirect will be used")
+	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
+	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.Parse()
+	if head {
+		headless = false
+	} else {
+		headless = true
+	}
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+        chromedp.Flag("headless", headless),
+	)
+	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+	if debug {
+		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
+	} else {
+		ctx, cancel = chromedp.NewContext(actx)
+	}
+	defer cancel()
 	rand.Seed(time.Now().UnixNano())
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/img/", imgServer)
