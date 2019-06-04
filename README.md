@@ -11,12 +11,13 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * basic browser-in-browser mode
 * screenshot and serve image+map via CDP
 * gif with Floyd–Steinberg dithering
-* random image addressing
+* multiple concurent client support
 * resolve relative links
 * paginated scrolling
 * google search on input not starting with ^http
 * ISMAP, although for a redirect to work `-i` flag must be specified
   otherwise http-equiv refresh will be used and/or link provided
+* headed mode and chromedp debug output
 
 ## Todo
 
@@ -24,7 +25,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * real http proxy support
 * padded box model coordinates
 * better http server shutdown
-* chromedp logging, timeout, non-headless allocator flags
 
 ## Old Python version
 
