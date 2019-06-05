@@ -9,12 +9,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * Currently works as browser-in-browser however work on http proxy mode is under way.
 * It's beta quality but I can actually fix and maintain the code.
 
-## Todo
-
-* Configurable color palete and quantization.
-* Real http proxy support via [goproxy](https://github.com/elazarl/goproxy) - if you really need a real proxy, for now use the [old/](/old) version.
-* Padded box model coordinates.
-* Input boxes support. However today you can cheat by using headed mode and input your data on the WRP server.
+![ncsa mosaic on reddit in 2019](wrp.png)
 
 ## Flags
 ```
