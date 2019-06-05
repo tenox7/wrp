@@ -7,7 +7,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * This is the new GoLang/ChdomeDP version.
 * It's still lacking some features of the [older version](/old) (such as real http proxy mode and image manipulation) but far surpases it in terms of stability and usability. 
 * Currently works as browser-in-browser however work on http proxy mode is under way.
-* It's beta quality but I can actually fix and maintain the code unlike the older version.
+* It's beta quality but I can actually fix and maintain the code.
 
 ## Todo
 
