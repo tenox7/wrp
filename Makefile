@@ -3,6 +3,9 @@ all: linux freebsd openbsd macos windows rpi
 linux: 
 	GOOS=linux GOARCH=amd64 go build -a -o wrp-linux wrp.go
 
+linux-ppc64le:
+	GOOS=linux GOARCH=ppc64le go build -a -o wrp-linux-ppc64le wrp.go
+
 freebsd: 
 	GOOS=freebsd GOARCH=amd64 go build -a -o wrp-freebsd wrp.go
 
