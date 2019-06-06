@@ -6,8 +6,8 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 * This is the new GoLang/[ChdomeDP](https://github.com/chromedp/chromedp) version.
 * It's still lacking some features of the [older version](/old) (such as real http proxy mode) but far surpasses it in terms of stability and usability. 
-* Currently works as browser-in-browser, however http proxy mode is under way.
-* It's beta quality but I can actually fix and maintain the code.
+* It's beta quality but comared to the older version, it's maintainable and supportable.
+* Currently works as browser-in-browser. A real http proxy mode is being investigated. It will probably use [goproxy](https://github.com/elazarl/goproxy), however due to a widespread use of SSL/TLS/https some form of [ssl stripping](https://moxie.org/software/sslstrip/) will need to be added. Stay tuned.
 
 ## Usage	
 
