@@ -88,7 +88,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	if c < 2 || c > 256 {
 		c = 256
 	}
-	log.Printf("%s Page Reqest for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
+	log.Printf("%s Page Request for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", u)
@@ -169,7 +169,7 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	is := make([]Ismap, 0)
 	var ion string
 
-	log.Printf("%s Processing Caputure Request for %s\n", c, gourl)
+	log.Printf("%s Processing Capture Request for %s\n", c, gourl)
 
 	// Run ChromeDP Magic
 	err := chromedp.Run(ctx,
