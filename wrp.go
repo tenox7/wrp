@@ -12,9 +12,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"image"
-	"image/color/palette"
-	"image/draw"
 	"image/gif"
 	"image/png"
 	"log"
@@ -31,6 +28,8 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/chromedp"
+
+	"github.com/ericpauley/go-quantize/quantize"
 )
 
 // Ismap for server side processing
@@ -101,7 +100,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
-	//fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
+	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", c)
 	fmt.Fprintf(out, "</FORM><BR>\n")
 	if len(u) > 1 {
 		if strings.HasPrefix(u, "http") {
@@ -197,10 +196,8 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 		fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 		return
 	}
-	pm := image.NewPaletted(img.Bounds(), palette.WebSafe)
-	draw.FloydSteinberg.Draw(pm, img.Bounds(), img, image.ZP)
 	gifbuf.Reset()
-	err = gif.Encode(&gifbuf, img, nil)
+	err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: co, Quantizer: quantize.MedianCutQuantizer{}})
 	if err != nil {
 		log.Printf("%s Failed to encode GIF: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -209,7 +206,7 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	seq := rand.Intn(9999)
 	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
-	log.Printf("%s Encoded GIF image: %s, Size: %dKB\n", c, imgpath, len(gifbuf.Bytes())/1024)
+	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, co)
 	gifmap[imgpath] = gifbuf
 
 	// Process Nodes
