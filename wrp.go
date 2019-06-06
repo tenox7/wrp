@@ -251,9 +251,9 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	} else {
 		fmt.Fprintf(out, "</MAP>\n")
 	}
+	ismap[mappath] = is
 	out.(http.Flusher).Flush()
 	log.Printf("%s Done with caputure for %s\n", c, gourl)
-	ismap[mappath] = is
 }
 
 func main() {
