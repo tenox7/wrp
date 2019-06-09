@@ -284,5 +284,5 @@ func main() {
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Starting WRP http server on %s\n", addr)
-	http.ListenAndServe(addr, nil)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
