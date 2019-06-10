@@ -12,7 +12,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 ## Usage	
 
 1. [Download a WRP binary](https://github.com/tenox7/wrp/releases) and run on a  server/gateway. 	
-2. Point your legacy browser to the IP address:port of WRP server.	
+2. Point your legacy browser to the IP address:port of WRP server.	Do not use it as Proxy server (yet)
 3. Type a search string or a http/https URL and click Go.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
 5. For very very very old browsers such as Mosaic 2.x and IBM WebExplorer 1.x tick the I checkbox to enable ISMAP mode. However this normally should not be needed.	
