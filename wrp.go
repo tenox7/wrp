@@ -177,8 +177,7 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p*int64(float64(h)*float64(0.9))), &res),
 		chromedp.Sleep(time.Second*1),
 		chromedp.CaptureScreenshot(&pngbuf),
-		chromedp.Location(&loc),
-		chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
+		chromedp.Location(&loc))
 
 	if err != nil {
 		if err.Error() == "context canceled" {
@@ -216,6 +215,9 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	gifmap[imgpath] = gifbuf
 
 	// Process Nodes
+	tctx, cancel := context.WithTimeout(ctx, time.Second*2) // a context with timeout is needed for pages without nodes
+	defer cancel()
+	chromedp.Run(tctx, chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
 	base, _ := url.Parse(loc)
 	if i {
 		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
