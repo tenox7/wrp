@@ -185,12 +185,11 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 			log.Printf("%s Contex cancelled, try again", c)
 			fmt.Fprintf(out, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
-			return
 		} else {
 			log.Printf("%s %s", c, err)
 			fmt.Fprintf(out, "<BR>%s<BR>", err)
-			return
 		}
+		return
 	}
 
 	log.Printf("%s Landed on: %s, Nodes: %d\n", c, loc, len(nodes))
