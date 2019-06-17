@@ -6,6 +6,9 @@ linux:
 linux-ppc64le:
 	GOOS=linux GOARCH=ppc64le go build -a -o wrp-linux-ppc64le wrp.go
 
+rpi:
+	GOOS=linux GOARCH=arm go build -a -o wrp-linux-rpi wrp.go
+
 freebsd: 
 	GOOS=freebsd GOARCH=amd64 go build -a -o wrp-freebsd wrp.go
 
@@ -17,9 +20,6 @@ macos:
 
 windows: 
 	GOOS=windows GOARCH=amd64 go build -a -o wrp-windows.exe wrp.go
-
-rpi:
-	GOOS=linux GOARCH=arm go build -a -o wrp-linux-rpi wrp.go
 
 clean:
 	rm -rf wrp-linux wrp-freebsd wrp-openbsd wrp-macos wrp-windows.exe wrp-linux-rpi
