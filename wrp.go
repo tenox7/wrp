@@ -238,15 +238,15 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 		}
 		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d%s", tgt, w, h, s, co, ion) // no page# here
 
-		if len(b.Content) > 6 && len(target) > 7 {
+		if len(b.Padding) > 6 && len(target) > 7 {
 			if i {
 				is = append(is, Ismap{
-					xmin: int64(b.Content[0] * s), ymin: int64(b.Content[1] * s),
-					xmax: int64(b.Content[4] * s), ymax: int64(b.Content[5] * s),
+					xmin: int64(b.Padding[0] * s), ymin: int64(b.Padding[1] * s),
+					xmax: int64(b.Padding[4] * s), ymax: int64(b.Padding[5] * s),
 					url: target})
 			} else {
 				fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
-					b.Content[0]*s, b.Content[1]*s, b.Content[4]*s, b.Content[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
+					b.Padding[0]*s, b.Padding[1]*s, b.Padding[4]*s, b.Padding[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
 			}
 		}
 	}
