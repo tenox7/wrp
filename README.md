@@ -38,5 +38,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Legal Stuff
 License: Apache 2.0
+
 Copyright (c) 2013-2018 Antoni Sawicki
+
 Copyright (c) 2019 Google LLC
