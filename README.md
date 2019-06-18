@@ -6,7 +6,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 * This is the new GoLang/[ChdomeDP](https://github.com/chromedp/chromedp) version. 
 * It's still lacking some features of the [older version](/old) but far surpasses it in terms of stability and usability. 
-* It's beta quality but comared to the older version, it's now maintainable and supportable.
+* It's beta quality but unlike the old version, it's now fully supported an maintained.
 * Currently works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
 
 ## Usage	
