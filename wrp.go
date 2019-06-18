@@ -43,6 +43,7 @@ type Ismap struct {
 
 var (
 	version = "3.0"
+	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
@@ -111,7 +112,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
 	}
-	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d%s\">Web Rendering Proxy Version %s</A></BODY>\n</HTML>\n", w, h, s, c, ion, version)
+	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d%s\">Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", w, h, s, c, ion, version)
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -261,6 +262,12 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	log.Printf("%s Done with caputure for %s\n", c, gourl)
 }
 
+func haltServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
+	defer cancel()
+	srv.Shutdown(context.Background())
+}
+
 func main() {
 	var addr string
 	var head, headless bool
@@ -289,8 +296,13 @@ func main() {
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/map/", mapServer)
+	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Starting WRP http server on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	srv.Addr = addr
+	err := srv.ListenAndServe()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
