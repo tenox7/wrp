@@ -37,8 +37,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my rumblings
 
 ## Legal Stuff
-License: Apache 2.0
-
-Copyright (c) 2013-2018 Antoni Sawicki
-
+License: Apache 2.0  
+Copyright (c) 2013-2018 Antoni Sawicki  
 Copyright (c) 2019 Google LLC
