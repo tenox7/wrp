@@ -26,7 +26,6 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/chromedp"
 
 	"github.com/ericpauley/go-quantize/quantize"
@@ -53,17 +52,7 @@ var (
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	u := req.FormValue("url")
-	var istr string
-	var ion string
-	var i bool
-	if req.FormValue("i") == "on" {
-		istr = "CHECKED"
-		i = true
-		ion = "&i=on"
-	} else {
-		istr = ""
-		i = false
-	}
+
 	p, _ := strconv.ParseInt(req.FormValue("p"), 10, 64)
 	if req.FormValue("pg") == "Dn" {
 		p++
@@ -88,7 +77,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	if c < 2 || c > 256 {
 		c = 256
 	}
-	log.Printf("%s Page Request for url=\"%s\" [%s]\n", req.RemoteAddr, u, req.URL.Path)
+	log.Printf("%s Page Request for url=\"%s\" [%s] [%+v]\n", req.RemoteAddr, u, req.URL.Path, req.URL.RawQuery)
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", u)
@@ -97,7 +86,6 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Up\"> \n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"p\" VALUE=\"%d\" SIZE=\"2\"> \n", p)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Dn\"> \n")
-	fmt.Fprintf(out, "I <INPUT TYPE=\"CHECKBOX\" NAME=\"i\" %s> \n", istr)
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", h)
 	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", s)
@@ -105,14 +93,14 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(out, "</FORM><BR>\n")
 	if len(u) > 1 {
 		if strings.HasPrefix(u, "http") {
-			capture(u, w, h, s, int(c), p, i, req.RemoteAddr, out)
+			capture(u, w, h, s, int(c), p, req.RemoteAddr, out)
 		} else {
-			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, int(c), p, i, req.RemoteAddr, out)
+			capture(fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(u)), w, h, s, int(c), p, req.RemoteAddr, out)
 		}
 	} else {
 		fmt.Fprintf(out, "No URL or search query specified")
 	}
-	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d%s\">Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", w, h, s, c, ion, version)
+	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d\">Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", w, h, s, c, version)
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -159,15 +147,12 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	http.Redirect(out, req, fmt.Sprintf("http://%s%s", req.Context().Value(http.LocalAddrContextKey), loc), 301)
 }
 
-func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool, c string, out http.ResponseWriter) {
+func capture(gourl string, w int64, h int64, s float64, co int, p int64, c string, out http.ResponseWriter) {
 	var nodes []*cdp.Node
-	ctxx := chromedp.FromContext(ctx)
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var loc string
 	var res *runtime.RemoteObject
-	is := make([]Ismap, 0)
-	var ion string
 
 	log.Printf("%s Processing Capture Request for %s\n", c, gourl)
 
@@ -177,7 +162,6 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 		chromedp.Navigate(gourl),
 		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p*int64(float64(h)*float64(0.9))), &res),
 		chromedp.Sleep(time.Second*1),
-		chromedp.CaptureScreenshot(&pngbuf),
 		chromedp.Location(&loc))
 
 	if err != nil {
@@ -195,6 +179,12 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	log.Printf("%s Landed on: %s, Nodes: %d\n", c, loc, len(nodes))
 
 	// Process Screenshot Image
+	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngbuf))
+	if err != nil {
+		log.Printf("%s Failed to capture screenshot: %s\n", c, err)
+		fmt.Fprintf(out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+		return
+	}
 	bytes.NewReader(pngbuf).Seek(0, 0)
 	img, err := png.Decode(bytes.NewReader(pngbuf))
 	if err != nil {
@@ -211,53 +201,12 @@ func capture(gourl string, w int64, h int64, s float64, co int, p int64, i bool,
 	}
 	seq := rand.Intn(9999)
 	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
-	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, co)
 	gifmap[imgpath] = gifbuf
 
-	// Process Nodes
-	tctx, cancel := context.WithTimeout(ctx, time.Second*2) // a context with timeout is needed for pages without nodes
-	defer cancel()
-	chromedp.Run(tctx, chromedp.Nodes("a", &nodes, chromedp.ByQueryAll))
-	base, _ := url.Parse(loc)
-	if i {
-		fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
-		is = append(is, Ismap{xmin: -1, xmax: -1, ymin: -1, ymax: -1, url: fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d&i=on", loc, w, h, s, co)})
-		ion = "&i=on"
-	} else {
-		fmt.Fprintf(out, "<IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" USEMAP=\"#map\">\n<MAP NAME=\"map\">\n", imgpath)
-	}
+	// Gif location
+	fmt.Fprintf(out, "<A HREF=\"/w=100/h=100/s=1.0/pg=3/url=%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", loc, imgpath)
 
-	for _, n := range nodes {
-		b, err := dom.GetBoxModel().WithNodeID(n.NodeID).Do(cdp.WithExecutor(ctx, ctxx.Target))
-		if err != nil {
-			continue
-		}
-		tgt, err := base.Parse(n.AttributeValue("href"))
-		if err != nil {
-			continue
-		}
-		target := fmt.Sprintf("/?url=%s&w=%d&h=%d&s=%1.2f&c=%d%s", tgt, w, h, s, co, ion) // no page# here
-
-		if len(b.Padding) > 6 && len(target) > 7 {
-			if i {
-				is = append(is, Ismap{
-					xmin: int64(b.Padding[0] * s), ymin: int64(b.Padding[1] * s),
-					xmax: int64(b.Padding[4] * s), ymax: int64(b.Padding[5] * s),
-					url: target})
-			} else {
-				fmt.Fprintf(out, "<AREA SHAPE=\"RECT\" COORDS=\"%.f,%.f,%.f,%.f\" ALT=\"%s\" TITLE=\"%s\" HREF=\"%s\">\n",
-					b.Padding[0]*s, b.Padding[1]*s, b.Padding[4]*s, b.Padding[5]*s, n.AttributeValue("href"), n.AttributeValue("href"), target)
-			}
-		}
-	}
-
-	if i {
-		log.Printf("%s Encoded ISMAP %s\n", c, mappath)
-	} else {
-		fmt.Fprintf(out, "</MAP>\n")
-	}
-	ismap[mappath] = is
 	out.(http.Flusher).Flush()
 	log.Printf("%s Done with caputure for %s\n", c, gourl)
 }
