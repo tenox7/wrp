@@ -180,7 +180,6 @@ func (p Params) capture(c string, out http.ResponseWriter) {
 		}
 		return
 	}
-
 	log.Printf("%s Landed on: %s\n", c, loc)
 	p.U = loc
 
