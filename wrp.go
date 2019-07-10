@@ -161,7 +161,7 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	var res *runtime.RemoteObject
 	var err error
 
-	// Navigate to page
+	// Navigate to page or process click request
 	if p.X > 0 && p.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, p.X, p.Y)
 		chromedp.Run(ctx,
@@ -190,7 +190,6 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 		return
 	}
 
-	// Mouse Click
 	log.Printf("%s Landed on: %s\n", c, loc)
 	p.U = loc
 
