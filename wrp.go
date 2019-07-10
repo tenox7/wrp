@@ -36,20 +36,22 @@ var (
 	ctx     context.Context
 	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
-	ismap   = make(map[string]Params)
+	ismap   = make(map[string]WrpReq)
 )
 
-// Params - Page Configuration Parameters
-type Params struct {
+// WrpReq - WRP Page Request
+type WrpReq struct {
 	U string  // url
 	P int64   // page
 	W int64   // width
 	H int64   // height
 	S float64 // scale
 	C int64   // #colors
+	X int64   // mouseX
+	Y int64   // mouseY
 }
 
-func (p *Params) parseForm(req *http.Request) {
+func (p *WrpReq) parseForm(req *http.Request) {
 	req.ParseForm()
 	p.U = req.FormValue("url")
 	if len(p.U) > 1 && !strings.HasPrefix(p.U, "http") {
@@ -79,10 +81,10 @@ func (p *Params) parseForm(req *http.Request) {
 	if p.C < 2 || p.C > 256 {
 		p.C = 256
 	}
-	log.Printf("Params from Form: %+v\n", p)
+	log.Printf("WrpReq from Form: %+v\n", p)
 }
 
-func (p Params) printPage(out http.ResponseWriter) {
+func (p WrpReq) printPage(out http.ResponseWriter) {
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", p.U)
@@ -98,14 +100,14 @@ func (p Params) printPage(out http.ResponseWriter) {
 	fmt.Fprintf(out, "</FORM><BR>\n")
 }
 
-func (p Params) printFooter(out http.ResponseWriter) {
+func (p WrpReq) printFooter(out http.ResponseWriter) {
 	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d\">"+
 		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", p.W, p.H, p.S, p.C, version)
 }
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	var p Params
+	var p WrpReq
 	p.parseForm(req)
 	p.printPage(out)
 	if len(p.U) > 4 {
@@ -116,13 +118,6 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 
 func mapServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	var x, y int64
-	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &x, &y)
-	if err != nil || n != 2 {
-		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
-		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
-		return
-	}
 	p, ok := ismap[req.URL.Path]
 	if !ok {
 		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
@@ -130,7 +125,13 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer delete(ismap, req.URL.Path)
-	log.Printf("%s Params from ISMAP: %+v\n", req.RemoteAddr, p)
+	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &p.X, &p.Y)
+	if err != nil || n != 2 {
+		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
+		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
+		return
+	}
+	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, p)
 	p.printPage(out)
 	if len(p.U) > 4 {
 		p.capture(req.RemoteAddr, out)
@@ -153,21 +154,29 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	out.(http.Flusher).Flush()
 }
 
-func (p Params) capture(c string, out http.ResponseWriter) {
+func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var loc string
 	var res *runtime.RemoteObject
+	var err error
 
-	log.Printf("%s Processing Capture Request for %s\n", c, p.U)
-
-	// Run ChromeDP Magic
-	err := chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(int64(float64(p.W)/p.S), int64(float64(p.H)/p.S), p.S, false),
-		chromedp.Navigate(p.U),
-		chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p.P*int64(float64(p.H)*float64(0.9))), &res),
-		chromedp.Sleep(time.Second*1),
-		chromedp.Location(&loc))
+	// Navigate to page
+	if p.X > 0 && p.Y > 0 {
+		log.Printf("%s Mouse Click %d,%d\n", c, p.X, p.Y)
+		chromedp.Run(ctx,
+			chromedp.MouseClickXY(p.X, p.Y),
+			chromedp.Sleep(time.Second*3),
+			chromedp.Location(&loc))
+	} else {
+		log.Printf("%s Processing Capture Request for %s\n", c, p.U)
+		err = chromedp.Run(ctx,
+			emulation.SetDeviceMetricsOverride(int64(float64(p.W)/p.S), int64(float64(p.H)/p.S), p.S, false),
+			chromedp.Navigate(p.U),
+			chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p.P*int64(float64(p.H)*float64(0.9))), &res),
+			chromedp.Sleep(time.Second*1),
+			chromedp.Location(&loc))
+	}
 
 	if err != nil {
 		if err.Error() == "context canceled" {
@@ -180,6 +189,8 @@ func (p Params) capture(c string, out http.ResponseWriter) {
 		}
 		return
 	}
+
+	// Mouse Click
 	log.Printf("%s Landed on: %s\n", c, loc)
 	p.U = loc
 
