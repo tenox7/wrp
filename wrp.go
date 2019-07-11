@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	version = "3.0"
+	version = "4.0"
 	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -71,7 +71,7 @@ func (p *WrpReq) parseForm(req *http.Request) {
 	}
 	p.H, _ = strconv.ParseInt(req.FormValue("h"), 10, 64)
 	if p.H < 10 {
-		p.H = 768
+		p.H = 600
 	}
 	p.S, _ = strconv.ParseFloat(req.FormValue("s"), 64)
 	if p.S < 0.1 {
@@ -109,11 +109,14 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
 	var p WrpReq
 	p.parseForm(req)
-	p.printPage(out)
+
 	if len(p.U) > 4 {
 		p.capture(req.RemoteAddr, out)
+	} else {
+		p.printPage(out)
+		p.printFooter(out)
 	}
-	p.printFooter(out)
+
 }
 
 func mapServer(out http.ResponseWriter, req *http.Request) {
@@ -132,11 +135,13 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		return
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, p)
-	p.printPage(out)
 	if len(p.U) > 4 {
 		p.capture(req.RemoteAddr, out)
+	} else {
+		p.printPage(out)
+		p.printFooter(out)
 	}
-	p.printFooter(out)
+
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -165,7 +170,7 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	if p.X > 0 && p.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, p.X, p.Y)
 		chromedp.Run(ctx,
-			chromedp.MouseClickXY(p.X, p.Y),
+			chromedp.MouseClickXY(int64(float64(p.X)/p.S), int64(float64(p.Y)/p.S)),
 			chromedp.Sleep(time.Second*3),
 			chromedp.Location(&loc))
 	} else {
@@ -173,7 +178,7 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 		err = chromedp.Run(ctx,
 			emulation.SetDeviceMetricsOverride(int64(float64(p.W)/p.S), int64(float64(p.H)/p.S), p.S, false),
 			chromedp.Navigate(p.U),
-			chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p.P*int64(float64(p.H)*float64(0.9))), &res),
+			chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p.P*int64(float64(p.H)*p.S*float64(0.9))), &res),
 			chromedp.Sleep(time.Second*1),
 			chromedp.Location(&loc))
 	}
@@ -191,7 +196,11 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	}
 
 	log.Printf("%s Landed on: %s\n", c, loc)
-	p.U = loc
+	if p.U != loc {
+		p.U = loc
+		p.P = 0
+	}
+	p.printPage(out)
 
 	// Process Screenshot Image
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngbuf))
@@ -223,6 +232,7 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	ismap[mappath] = p
 	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, p.C)
 	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
+	p.printFooter(out)
 	log.Printf("%s Done with caputure for %s\n", c, p.U)
 }
 
