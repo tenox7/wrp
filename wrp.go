@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
-	"github.com/chromedp/cdproto/runtime"
 
 	"github.com/chromedp/chromedp"
 
@@ -36,13 +35,11 @@ var (
 	ctx     context.Context
 	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
-	ismap   = make(map[string]WrpReq)
+	ismap   = make(map[string]wrpReq)
 )
 
-// WrpReq - WRP Page Request
-type WrpReq struct {
+type wrpReq struct {
 	U string  // url
-	P int64   // page
 	W int64   // width
 	H int64   // height
 	S float64 // scale
@@ -51,97 +48,84 @@ type WrpReq struct {
 	Y int64   // mouseY
 }
 
-func (p *WrpReq) parseForm(req *http.Request) {
+func (w *wrpReq) parseForm(req *http.Request) {
 	req.ParseForm()
-	p.U = req.FormValue("url")
-	if len(p.U) > 1 && !strings.HasPrefix(p.U, "http") {
-		p.U = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(p.U))
+	w.U = req.FormValue("url")
+	if len(w.U) > 1 && !strings.HasPrefix(w.U, "http") {
+		w.U = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(w.U))
 	}
-	p.P, _ = strconv.ParseInt(req.FormValue("p"), 10, 64)
-	if req.FormValue("pg") == "Dn" {
-		p.P++
-	} else if req.FormValue("pg") == "Up" {
-		p.P--
-	} else {
-		p.P = 0
+	w.W, _ = strconv.ParseInt(req.FormValue("w"), 10, 64)
+	if w.W < 10 {
+		w.W = 1152
 	}
-	p.W, _ = strconv.ParseInt(req.FormValue("w"), 10, 64)
-	if p.W < 10 {
-		p.W = 1024
+	w.H, _ = strconv.ParseInt(req.FormValue("h"), 10, 64)
+	if w.H < 10 {
+		w.H = 600
 	}
-	p.H, _ = strconv.ParseInt(req.FormValue("h"), 10, 64)
-	if p.H < 10 {
-		p.H = 600
+	w.S, _ = strconv.ParseFloat(req.FormValue("s"), 64)
+	if w.S < 0.1 {
+		w.S = 1.0
 	}
-	p.S, _ = strconv.ParseFloat(req.FormValue("s"), 64)
-	if p.S < 0.1 {
-		p.S = 1.0
+	w.C, _ = strconv.ParseInt(req.FormValue("c"), 10, 64)
+	if w.C < 2 || w.C > 256 {
+		w.C = 256
 	}
-	p.C, _ = strconv.ParseInt(req.FormValue("c"), 10, 64)
-	if p.C < 2 || p.C > 256 {
-		p.C = 256
-	}
-	log.Printf("WrpReq from Form: %+v\n", p)
+	log.Printf("WrpReq from Form: %+v\n", w)
 }
 
-func (p WrpReq) printPage(out http.ResponseWriter) {
+func (w wrpReq) printPage(out http.ResponseWriter) {
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
-	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", p.U)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", p.U)
+	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", w.U)
+	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", w.U)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"> \n")
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Up\"> \n")
-	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"p\" VALUE=\"%d\" SIZE=\"2\"> \n", p.P)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"pg\" VALUE=\"Dn\"> \n")
-	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", p.W)
-	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", p.H)
-	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", p.S)
-	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", p.C)
+	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
+	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.H)
+	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", w.S)
+	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", w.C)
 	fmt.Fprintf(out, "</FORM><BR>\n")
 }
 
-func (p WrpReq) printFooter(out http.ResponseWriter) {
+func (w wrpReq) printFooter(out http.ResponseWriter) {
 	fmt.Fprintf(out, "\n<P><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d\">"+
-		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", p.W, p.H, p.S, p.C, version)
+		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, version)
 }
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	var p WrpReq
-	p.parseForm(req)
+	var w wrpReq
+	w.parseForm(req)
 
-	if len(p.U) > 4 {
-		p.capture(req.RemoteAddr, out)
+	if len(w.U) > 4 {
+		w.capture(req.RemoteAddr, out)
 	} else {
-		p.printPage(out)
-		p.printFooter(out)
+		w.printPage(out)
+		w.printFooter(out)
 	}
-
 }
 
 func mapServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	p, ok := ismap[req.URL.Path]
+	w, ok := ismap[req.URL.Path]
 	if !ok {
 		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
 		log.Printf("Unable to find map %s\n", req.URL.Path)
 		return
 	}
 	defer delete(ismap, req.URL.Path)
-	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &p.X, &p.Y)
+	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.X, &w.Y)
 	if err != nil || n != 2 {
 		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
 		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
 		return
 	}
-	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, p)
-	if len(p.U) > 4 {
-		p.capture(req.RemoteAddr, out)
+	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
+	if len(w.U) > 4 {
+		w.capture(req.RemoteAddr, out)
 	} else {
-		p.printPage(out)
-		p.printFooter(out)
+		w.printPage(out)
+		w.printFooter(out)
 	}
-
 }
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
@@ -159,27 +143,25 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	out.(http.Flusher).Flush()
 }
 
-func (p WrpReq) capture(c string, out http.ResponseWriter) {
+func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var loc string
-	var res *runtime.RemoteObject
 	var err error
 
 	// Navigate to page or process click request
-	if p.X > 0 && p.Y > 0 {
-		log.Printf("%s Mouse Click %d,%d\n", c, p.X, p.Y)
+	if w.X > 0 && w.Y > 0 {
+		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
 		chromedp.Run(ctx,
-			chromedp.MouseClickXY(int64(float64(p.X)/p.S), int64(float64(p.Y)/p.S)),
+			chromedp.MouseClickXY(int64(float64(w.X)/w.S), int64(float64(w.Y)/w.S)),
 			chromedp.Sleep(time.Second*3),
 			chromedp.Location(&loc))
 	} else {
-		log.Printf("%s Processing Capture Request for %s\n", c, p.U)
+		log.Printf("%s Processing Capture Request for %s\n", c, w.U)
 		err = chromedp.Run(ctx,
-			emulation.SetDeviceMetricsOverride(int64(float64(p.W)/p.S), int64(float64(p.H)/p.S), p.S, false),
-			chromedp.Navigate(p.U),
-			chromedp.Evaluate(fmt.Sprintf("window.scrollTo(0, %d);", p.P*int64(float64(p.H)*p.S*float64(0.9))), &res),
-			chromedp.Sleep(time.Second*1),
+			emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), int64(float64(w.H)/w.S), w.S, false),
+			chromedp.Navigate(w.U),
+			chromedp.Sleep(time.Second*3),
 			chromedp.Location(&loc))
 	}
 
@@ -196,11 +178,8 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	}
 
 	log.Printf("%s Landed on: %s\n", c, loc)
-	if p.U != loc {
-		p.U = loc
-		p.P = 0
-	}
-	p.printPage(out)
+	w.U = loc
+	w.printPage(out)
 
 	// Process Screenshot Image
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngbuf))
@@ -217,7 +196,7 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 		return
 	}
 	gifbuf.Reset()
-	err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: int(p.C), Quantizer: quantize.MedianCutQuantizer{}})
+	err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: int(w.C), Quantizer: quantize.MedianCutQuantizer{}})
 	if err != nil {
 		log.Printf("%s Failed to encode GIF: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -229,11 +208,11 @@ func (p WrpReq) capture(c string, out http.ResponseWriter) {
 	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	gifmap[imgpath] = gifbuf
-	ismap[mappath] = p
-	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, p.C)
+	ismap[mappath] = w
+	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
 	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
-	p.printFooter(out)
-	log.Printf("%s Done with caputure for %s\n", c, p.U)
+	w.printFooter(out)
+	log.Printf("%s Done with caputure for %s\n", c, w.U)
 }
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
@@ -257,6 +236,7 @@ func main() {
 	}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", headless),
+		chromedp.Flag("hide-scrollbars", false),
 	)
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
