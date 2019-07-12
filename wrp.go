@@ -46,6 +46,8 @@ type wrpReq struct {
 	C int64   // #colors
 	X int64   // mouseX
 	Y int64   // mouseY
+	K string  // keys to send
+	B bool    // history back
 }
 
 func (w *wrpReq) parseForm(req *http.Request) {
@@ -70,6 +72,15 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	if w.C < 2 || w.C > 256 {
 		w.C = 256
 	}
+	w.K = req.FormValue("k")
+	if w.K == "\\b" {
+		w.K = "\b"
+	} else if w.K == "\\r" {
+		w.K = "\r"
+	}
+	if req.FormValue("hist") == "Back" {
+		w.B = true
+	}
 	log.Printf("WrpReq from Form: %+v\n", w)
 }
 
@@ -77,12 +88,14 @@ func (w wrpReq) printPage(out http.ResponseWriter) {
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", w.U)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", w.U)
+	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"SUBMIT\" NAME=\"hist\" VALUE=\"Back\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", w.U)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"> \n")
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.H)
 	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", w.S)
 	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", w.C)
+	fmt.Fprintf(out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"8\"> \n")
 	fmt.Fprintf(out, "</FORM><BR>\n")
 }
 
@@ -146,23 +159,29 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
-	var loc string
 	var err error
 
-	// Navigate to page or process click request
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
 		chromedp.Run(ctx,
 			chromedp.MouseClickXY(int64(float64(w.X)/w.S), int64(float64(w.Y)/w.S)),
-			chromedp.Sleep(time.Second*3),
-			chromedp.Location(&loc))
+		)
+	} else if w.B {
+		log.Printf("%s History Back\n", c)
+		chromedp.Run(ctx,
+			chromedp.NavigateBack(),
+		)
+	} else if len(w.K) > 0 {
+		log.Printf("%s Sending Keys: %#v\n", c, w.K)
+		err = chromedp.Run(ctx,
+			chromedp.KeyEvent(w.K),
+		)
 	} else {
 		log.Printf("%s Processing Capture Request for %s\n", c, w.U)
 		err = chromedp.Run(ctx,
 			emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), int64(float64(w.H)/w.S), w.S, false),
 			chromedp.Navigate(w.U),
-			chromedp.Sleep(time.Second*3),
-			chromedp.Location(&loc))
+		)
 	}
 
 	if err != nil {
@@ -177,8 +196,11 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		return
 	}
 
-	log.Printf("%s Landed on: %s\n", c, loc)
-	w.U = loc
+	chromedp.Run(
+		ctx, chromedp.Sleep(time.Second*3),
+		chromedp.Location(&w.U),
+	)
+	log.Printf("%s Landed on: %s\n", c, w.U)
 	w.printPage(out)
 
 	// Process Screenshot Image
