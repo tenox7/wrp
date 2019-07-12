@@ -16,7 +16,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 3. Type a search string or a http/https URL and click Go.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
 5. Scroll web page by clicking on the in-image scroll bar.
-6. Send keystrokes by filling in T input box and pressing Go.
+6. Send keystrokes by filling in T input box and pressing Go. Use `\b` for backspace and `\r` for enter.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
