@@ -47,7 +47,7 @@ type wrpReq struct {
 	X int64   // mouseX
 	Y int64   // mouseY
 	K string  // keys to send
-	B bool    // history back
+	F string  // Fn buttons
 }
 
 func (w *wrpReq) parseForm(req *http.Request) {
@@ -73,14 +73,7 @@ func (w *wrpReq) parseForm(req *http.Request) {
 		w.C = 256
 	}
 	w.K = req.FormValue("k")
-	if w.K == "\\b" {
-		w.K = "\b"
-	} else if w.K == "\\r" {
-		w.K = "\r"
-	}
-	if req.FormValue("hist") == "Back" {
-		w.B = true
-	}
+	w.F = req.FormValue("Fn")
 	log.Printf("WrpReq from Form: %+v\n", w)
 }
 
@@ -88,14 +81,21 @@ func (w wrpReq) printPage(out http.ResponseWriter) {
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", w.U)
-	fmt.Fprintf(out, "<FORM ACTION=\"/\"><INPUT TYPE=\"SUBMIT\" NAME=\"hist\" VALUE=\"Back\">\n")
-	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"40\">", w.U)
-	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\"> \n")
+	fmt.Fprintf(out, "<FORM ACTION=\"/\" METHOD=\"POST\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"10\">", w.U)
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bk\">\n")
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.H)
 	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", w.S)
-	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\"> \n", w.C)
-	fmt.Fprintf(out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"8\"> \n")
+	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\">\n", w.C)
+	fmt.Fprintf(out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"4\"> \n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bs\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Rt\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"&lt;\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"^\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"v\">\n")
+	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"&gt;\" SIZE=\"1\">\n")
 	fmt.Fprintf(out, "</FORM><BR>\n")
 }
 
@@ -163,14 +163,25 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
-		chromedp.Run(ctx,
-			chromedp.MouseClickXY(int64(float64(w.X)/w.S), int64(float64(w.Y)/w.S)),
-		)
-	} else if w.B {
-		log.Printf("%s History Back\n", c)
-		chromedp.Run(ctx,
-			chromedp.NavigateBack(),
-		)
+		err = chromedp.Run(ctx, chromedp.MouseClickXY(int64(float64(w.X)/w.S), int64(float64(w.Y)/w.S)))
+	} else if len(w.F) > 0 {
+		log.Printf("%s Button %v\n", c, w.F)
+		switch w.F {
+		case "Bk":
+			err = chromedp.Run(ctx, chromedp.NavigateBack())
+		case "Bs":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\b"))
+		case "Rt":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+		case "<":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0302"))
+		case "^":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0304"))
+		case "v":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0301"))
+		case ">":
+			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0303"))
+		}
 	} else if len(w.K) > 0 {
 		log.Printf("%s Sending Keys: %#v\n", c, w.K)
 		err = chromedp.Run(ctx,
