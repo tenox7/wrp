@@ -7,7 +7,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * This is a new reimplementation in GoLang/[ChromeDP](https://github.com/chromedp/chromedp).
 * Beta but fully supported an maintained.
 * Currently works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
-* As of 4.1 supports clicking on non-link elements (eg. cookie warnings) and sending keystrokes. Yes, you can login and use Gmail or play web based games from any old browser.
+* As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail or play web based games from any old browser.
 
 ## Usage	
 
@@ -16,7 +16,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 3. Type a search string or a http/https URL and click Go.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
 5. Scroll web page by clicking on the in-image scroll bar.
-6. Send keystrokes by filling in T input box and pressing Go. Use `\b` for backspace and `\r` for enter.
+6. Send keystrokes by filling in K input box and pressing Go. You also have buttons for backspace, enter and arrow keys.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
