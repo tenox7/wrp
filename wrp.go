@@ -23,14 +23,12 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
-
 	"github.com/chromedp/chromedp"
-
 	"github.com/ericpauley/go-quantize/quantize"
 )
 
 var (
-	version = "4.1"
+	version = "4.2"
 	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -184,9 +182,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 	} else if len(w.K) > 0 {
 		log.Printf("%s Sending Keys: %#v\n", c, w.K)
-		err = chromedp.Run(ctx,
-			chromedp.KeyEvent(w.K),
-		)
+		err = chromedp.Run(ctx, chromedp.KeyEvent(w.K))
 	} else {
 		log.Printf("%s Processing Capture Request for %s\n", c, w.U)
 		err = chromedp.Run(ctx,
