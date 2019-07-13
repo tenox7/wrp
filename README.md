@@ -27,9 +27,12 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 -d  chromedp debug logging
 ```
 
-## More info and screenshots
-* http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/
-* http://virtuallyfun.superglobalmegacorp.com/2014/03/03/surfing-modern-web-with-ancient-browsers/
+## History
+* In 2014, version 1.0 started as a cgi-bin script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](http://virtuallyfun.superglobalmegacorp.com/2014/03/11/web-rendering-proxy-update/).
+* Later in 2014, version 2.0 became a stand alone http-proxy server, also support for both Linux/MacOS, [another post](http://virtuallyfun.superglobalmegacorp.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
+* In 2016 the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and mostly unportable (especially to Windows, even WSL).
+* In 2019 WRP 3.0 has been rewritten in Golang/Chromedp as browser-in-browser instead of http proxy.
+* Later in 2019, WRP 4.0 was refactored to use ISMAP x,y coordinates as mouse clicks instead of iterating DOM for A HREF nodes. Also in 4.1 added sending keystrokes in to web forms. You can now login to Gmail.
 
 ## Credits 
 * Uses [chromedp](https://github.com/chromedp), thanks to [mvdan](https://github.com/mvdan) for dealing with my issues
