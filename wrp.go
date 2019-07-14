@@ -72,7 +72,7 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	}
 	w.K = req.FormValue("k")
 	w.F = req.FormValue("Fn")
-	log.Printf("WrpReq from Form: %+v\n", w)
+	log.Printf("%s WrpReq from Form: %+v\n", req.RemoteAddr, w)
 }
 
 func (w wrpReq) printPage(out http.ResponseWriter) {
