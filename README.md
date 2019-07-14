@@ -5,7 +5,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 ## Current Status
 
 * This is a new reimplementation in GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
-* Beta but fully supported an maintained.
+* Beta versiom, but fully supported an maintained.
 * Works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
 * As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail or play web based games from any old browser.
 
@@ -38,6 +38,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * Uses [chromedp](https://github.com/chromedp), thanks to [mvdan](https://github.com/mvdan) for dealing with my issues
 * Uses [go-quantize](https://github.com/ericpauley/go-quantize), thanks to [ericpauley](https://github.com/ericpauley) for developing the missing go quantizer
 * Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my rumblings
+* Thanks to [claunia](https://github.com/claunia/) for help with the Python/Webkit version in the past
 
 ## Legal Stuff
 License: Apache 2.0  
