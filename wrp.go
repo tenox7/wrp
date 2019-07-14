@@ -204,7 +204,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	}
 
 	chromedp.Run(
-		ctx, chromedp.Sleep(time.Second*3),
+		ctx, chromedp.Sleep(time.Second*2),
 		chromedp.Location(&w.U),
 	)
 	log.Printf("%s Landed on: %s\n", c, w.U)
