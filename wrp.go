@@ -239,7 +239,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	gifmap[imgpath] = gifbuf
 	ismap[mappath] = w
 	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
-	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" ALT=\"wrp\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
+	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
 	w.printFooter(out)
 	log.Printf("%s Done with caputure for %s\n", c, w.U)
 }
