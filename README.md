@@ -32,7 +32,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 * Later in 2014, version 2.0 became a stand alone http-proxy server, also support for both Linux/MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
 * In 2016 the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and mostly unportable (especially to Windows, even WSL).
 * In 2019 WRP 3.0 has been rewritten in Golang/Chromedp as browser-in-browser instead of http proxy.
-* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks instead of making imagemap of web links. Also in 4.1 added sending keystrokes in to web forms. You can now login to Gmail.
+* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks instead using a href nodes. Also in 4.1 added sending keystrokes in to input boxes. You can now login to Gmail.
 
 ## Credits 
 * Uses [chromedp](https://github.com/chromedp), thanks to [mvdan](https://github.com/mvdan) for dealing with my issues
