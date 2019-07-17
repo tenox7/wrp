@@ -32,7 +32,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 WRP Server / Gateway should run on a modern hardware/os that supports memory hungry Chrome. 
 
-WRP Client / Browser needs to support HTML FORM and ISMAP. Typically Mosaic 2.0 would be minimum version for forms, although ISMAP was supported since 0.6B so you could manually enter url using `?url=...`.
+WRP Client / Browser needs to support forms and ISMAP. Typically Mosaic 2.0 would be minimum version for forms, although ISMAP was supported since 0.6B so you could manually enter url using `?url=...`. 
 
 ## History
 * In 2014, version 1.0 started as a cgi-bin script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
