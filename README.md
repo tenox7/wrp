@@ -1,13 +1,13 @@
 # WRP - Web Rendering Proxy
 
-A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF image. It sends mouse clicks via ISMAP and keystrokes from a text box form input.
+A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF image with ISMAP.
 
 ## Current Status
 
 * This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
 * Beta versiom, but fully supported an maintained.
 * Works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
-* As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail or play web based games from any old browser.
+* As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail.
 
 ## Usage	
 
