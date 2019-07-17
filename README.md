@@ -2,6 +2,8 @@
 
 A HTTP proxy server that allows to use historical and obsolete web browsers on the modern web. It works by rendering the web page in to a GIF image with ISMAP.
 
+![Internet Explorer 1.5 doing Gmail](wrp.png)
+
 ## Current Status
 
 * This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
@@ -18,8 +20,6 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 5. Scroll web page by clicking on the in-image scroll bar.
 6. Do not use client browser history-back, instead use Bk WRP button.
 7. To send keystrokes fill K input box and press Go. There also are buttons for backspace, enter and arrow keys.
-
-![Internet Explorer 1.5 doing Gmail](wrp.png)
 
 ## Flags
 ```
