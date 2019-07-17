@@ -79,6 +79,9 @@ func (w *wrpReq) parseForm(req *http.Request) {
 }
 
 func (w wrpReq) printPage(out http.ResponseWriter) {
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", w.U)
@@ -153,6 +156,9 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	defer delete(gifmap, req.URL.Path)
 	out.Header().Set("Content-Type", "image/gif")
 	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
 	out.Write(gifbuf.Bytes())
 	out.(http.Flusher).Flush()
 }
@@ -249,12 +255,16 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
 	out.Header().Set("Content-Type", "text/text")
 	fmt.Fprintf(out, "Shutting down WRP...\n")
 	out.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
 	cancel()
 	srv.Shutdown(context.Background())
+	os.Exit(1)
 }
 
 func main() {
