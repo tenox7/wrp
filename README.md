@@ -4,7 +4,7 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Current Status
 
-* This is a new reimplementation in GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
+* This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
 * Beta versiom, but fully supported an maintained.
 * Works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
 * As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail or play web based games from any old browser.
@@ -16,7 +16,8 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 3. Type a search string or a http/https URL and click GO.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
 5. Scroll web page by clicking on the in-image scroll bar.
-6. Send keystrokes by filling in K input box and pressing Go. You also have buttons for backspace, enter and arrow keys.
+6. Do not use client browser history-back, instead use Bk WRP button.
+7. To send keystrokes fill K input box and press Go. There also are buttons for backspace, enter and arrow keys.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
@@ -26,6 +27,12 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 -h  headed mode, display browser window
 -d  chromedp debug logging
 ```
+
+## Minimal Requirements
+
+WRP Server / Gateway should run on a modern hardware/os that supports memory hungry Chrome. 
+
+WRP Client / Browser needs to support HTML FORM and ISMAP. Typically Mosaic 2.0 would be minimum version for forms, although ISMAP was supported since 0.6B so you could manually enter url using `?url=...`.
 
 ## History
 * In 2014, version 1.0 started as a cgi-bin script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
