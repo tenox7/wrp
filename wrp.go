@@ -18,8 +18,11 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -246,7 +249,11 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 
 func haltServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
-	defer cancel()
+	out.Header().Set("Content-Type", "text/text")
+	fmt.Fprintf(out, "Shutting down WRP...\n")
+	out.(http.Flusher).Flush()
+	time.Sleep(time.Second * 2)
+	cancel()
 	srv.Shutdown(context.Background())
 }
 
@@ -267,8 +274,8 @@ func main() {
 		chromedp.Flag("headless", headless),
 		chromedp.Flag("hide-scrollbars", false),
 	)
-	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
+	actx, acancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer acancel()
 	if debug {
 		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
 	} else {
@@ -276,6 +283,15 @@ func main() {
 	}
 	defer cancel()
 	rand.Seed(time.Now().UnixNano())
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Printf("Interrupt - shutting down.")
+		cancel()
+		srv.Shutdown(context.Background())
+		os.Exit(1)
+	}()
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/img/", imgServer)
