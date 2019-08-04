@@ -6,14 +6,14 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 
 ## Current Status
 
-* This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp). Python/Webkit being now deprecated.
-* Beta versiom, but fully supported an maintained.
+* This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp) (Python/Webkit is now deprecated).
+* Fully supported an maintained.
 * Works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
-* As of 4.1 supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login and use Gmail.
+* Supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login to Gmail.
 
 ## Usage	
 
-1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP server.
+1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway server.
 2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "Proxy Server" (yet).
 3. Type a search string or a http/https URL and click Go.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
@@ -21,20 +21,18 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 6. Do not use client browser history-back, instead use Bk WRP button.
 7. To send keystrokes fill K input box and press Go. There also are buttons for backspace, enter and arrow keys.
 
+## Docker
+
+```
+docker run -d -p 8080:8080 --name wrp --restart unless-stopped tenox7/wrp
+```
+
 ## Flags
 
 ```
 -l  listen address:port, default :8080
 -h  headed mode, display browser window
 -d  chromedp debug logging
-```
-
-## Docker
-
-```
-docker run -d -p 8080:8080 --name wrp --restart unless-stopped tenox7/wrp
-
-docker logs -f wrp
 ```
 
 ## Minimal Requirements
@@ -48,7 +46,7 @@ docker logs -f wrp
 * Later in 2014, version 2.0 became a stand alone http-proxy server, also support for both Linux/MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
 * In 2016 the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and mostly unportable (especially to Windows, even WSL).
 * In 2019 WRP 3.0 has been rewritten in Golang/Chromedp as browser-in-browser instead of http proxy.
-* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks instead using a href nodes. Also in 4.1 added sending keystrokes in to input boxes. You can now login to Gmail.
+* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks instead using a href nodes. Also in 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container.
 
 ## Credits 
 * Uses [chromedp](https://github.com/chromedp), thanks to [mvdan](https://github.com/mvdan) for dealing with my issues
