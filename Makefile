@@ -1,28 +1,18 @@
-all: linux freebsd openbsd macos windows rpi
+all: wrp
 
-linux: 
-	GOOS=linux GOARCH=amd64 go build -a -o wrp-linux wrp.go
+wrp: wrp.go
+	go build wrp.go
 
-linux-ppc64le:
-	GOOS=linux GOARCH=ppc64le go build -a -o wrp-linux-ppc64le wrp.go
+cross: 
+	GOOS=linux GOARCH=amd64 go build -a -o wrp-amd64-linux wrp.go
+	GOOS=freebsd GOARCH=amd64 go build -a -o wrp-amd64-freebsd wrp.go
+	GOOS=openbsd GOARCH=amd64 go build -a -o wrp-amd64-openbsd wrp.go
+	GOOS=darwin GOARCH=amd64 go build -a -o wrp-amd64-macos wrp.go
+	GOOS=windows GOARCH=amd64 go build -a -o wrp-amd64-windows.exe wrp.go
+	GOOS=linux GOARCH=arm go build -a -o wrp-arm-linux wrp.go
 
-rpi:
-	GOOS=linux GOARCH=arm go build -a -o wrp-linux-rpi wrp.go
-
-freebsd: 
-	GOOS=freebsd GOARCH=amd64 go build -a -o wrp-freebsd wrp.go
-
-openbsd: 
-	GOOS=openbsd GOARCH=amd64 go build -a -o wrp-openbsd wrp.go
-
-macos: 
-	GOOS=darwin GOARCH=amd64 go build -a -o wrp-macos wrp.go
-
-windows: 
-	GOOS=windows GOARCH=amd64 go build -a -o wrp-windows.exe wrp.go
+docker: wrp
+	docker build -t tenox7/wrp:latest .
 
 clean:
-	rm -rf wrp-linux wrp-freebsd wrp-openbsd wrp-macos wrp-windows.exe wrp-linux-rpi
-
-docker:
-	docker build -t tenox7/wrp:latest .
+	rm -rf wrp-* wrp
