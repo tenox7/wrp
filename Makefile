@@ -23,3 +23,6 @@ windows:
 
 clean:
 	rm -rf wrp-linux wrp-freebsd wrp-openbsd wrp-macos wrp-windows.exe wrp-linux-rpi
+
+docker:
+	docker build -t tenox7/wrp:latest .

@@ -22,10 +22,19 @@ A HTTP proxy server that allows to use historical and obsolete web browsers on t
 7. To send keystrokes fill K input box and press Go. There also are buttons for backspace, enter and arrow keys.
 
 ## Flags
+
 ```
 -l  listen address:port, default :8080
 -h  headed mode, display browser window
 -d  chromedp debug logging
+```
+
+## Docker
+
+```
+docker run -d -p 8080:8080 --name wrp --restart unless-stopped tenox7/wrp
+
+docker logs -f wrp
 ```
 
 ## Minimal Requirements
