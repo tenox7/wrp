@@ -258,7 +258,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	out.Header().Set("Cache-Control", "max-age=0")
 	out.Header().Set("Expires", "-1")
 	out.Header().Set("Pragma", "no-cache")
-	out.Header().Set("Content-Type", "text/text")
+	out.Header().Set("Content-Type", "text/plain")
 	fmt.Fprintf(out, "Shutting down WRP...\n")
 	out.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
