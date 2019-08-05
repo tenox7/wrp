@@ -24,7 +24,7 @@ A HTTP proxy server that allows to use historical / vintage web browsers on the 
 ## Docker
 
 ```
-docker run -d -p 8080:8080 --name wrp --restart unless-stopped tenox7/wrp
+docker run -d -p 8080:8080 tenox7/wrp
 ```
 
 ## Flags
