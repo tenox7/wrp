@@ -37,6 +37,7 @@ var (
 	cancel  context.CancelFunc
 	gifmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string]wrpReq)
+	nodel   bool
 )
 
 type wrpReq struct {
@@ -129,7 +130,9 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		log.Printf("Unable to find map %s\n", req.URL.Path)
 		return
 	}
-	defer delete(ismap, req.URL.Path)
+	if !nodel {
+		defer delete(ismap, req.URL.Path)
+	}
 	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.X, &w.Y)
 	if err != nil || n != 2 {
 		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
@@ -153,7 +156,9 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 		log.Printf("Unable to find image %s\n", req.URL.Path)
 		return
 	}
-	defer delete(gifmap, req.URL.Path)
+	if !nodel {
+		defer delete(gifmap, req.URL.Path)
+	}
 	out.Header().Set("Content-Type", "image/gif")
 	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
 	out.Header().Set("Cache-Control", "max-age=0")
@@ -274,6 +279,7 @@ func main() {
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
 	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
+	flag.BoolVar(&nodel, "n", false, "Do not delete maps and gif images in memory")
 	flag.Parse()
 	if head {
 		headless = false
