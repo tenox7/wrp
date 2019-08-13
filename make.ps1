@@ -1,8 +1,7 @@
 param (
     [switch]$clean = $false
 )
-$env:GOARCH="amd64"
-foreach($sys in ("amd64-linux", "arm-linux", "amd64-freebsd", "amd64-openbsd", "amd64-darwin", "amd64-windows")) {
+foreach($sys in ("amd64-linux", "arm-linux", "arm-netbsd", "arm-freebsd", "amd64-freebsd", "amd64-openbsd", "amd64-darwin", "amd64-windows")) {
     $cpu,$os = $sys.split('-')
     $env:GOARCH=$cpu
     $env:GOOS=$os    
