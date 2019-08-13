@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	"github.com/ericpauley/go-quantize/quantize"
@@ -79,13 +80,13 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	log.Printf("%s WrpReq from Form: %+v\n", req.RemoteAddr, w)
 }
 
-func (w wrpReq) printPage(out http.ResponseWriter) {
+func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 	out.Header().Set("Cache-Control", "max-age=0")
 	out.Header().Set("Expires", "-1")
 	out.Header().Set("Pragma", "no-cache")
 	out.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
-	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#F0F0F0\">\n", w.U)
+	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"%s\">\n", w.U, bgcolor)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\" METHOD=\"POST\">\n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"10\">", w.U)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\">\n")
@@ -117,7 +118,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	if len(w.U) > 4 {
 		w.capture(req.RemoteAddr, out)
 	} else {
-		w.printPage(out)
+		w.printPage(out, "#FFFFFF")
 		w.printFooter(out)
 	}
 }
@@ -143,7 +144,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if len(w.U) > 4 {
 		w.capture(req.RemoteAddr, out)
 	} else {
-		w.printPage(out)
+		w.printPage(out, "#FFFFFF")
 		w.printFooter(out)
 	}
 }
@@ -172,6 +173,8 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	var pngbuf []byte
 	var gifbuf bytes.Buffer
 	var err error
+	var styles []*css.ComputedProperty
+	var r, g, b int
 
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
@@ -204,7 +207,6 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 			chromedp.Navigate(w.U),
 		)
 	}
-
 	if err != nil {
 		if err.Error() == "context canceled" {
 			log.Printf("%s Contex cancelled, try again", c)
@@ -216,13 +218,18 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 		return
 	}
-
-	chromedp.Run(
-		ctx, chromedp.Sleep(time.Second*2),
+	chromedp.Run(ctx,
+		chromedp.Sleep(time.Second*2),
+		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.Location(&w.U),
 	)
 	log.Printf("%s Landed on: %s\n", c, w.U)
-	w.printPage(out)
+	for _, style := range styles {
+		if style.Name == "background-color" {
+			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
+		}
+	}
+	w.printPage(out, fmt.Sprintf("#%02X%02X%02X", r, g, b))
 
 	// Process Screenshot Image
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngbuf))
