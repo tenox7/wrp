@@ -36,9 +36,10 @@ var (
 	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
-	gifmap  = make(map[string]bytes.Buffer)
+	imgmap  = make(map[string]bytes.Buffer)
 	ismap   = make(map[string]wrpReq)
 	nodel   bool
+	imgtype string
 )
 
 type wrpReq struct {
@@ -151,31 +152,30 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
-	gifbuf, ok := gifmap[req.URL.Path]
-	if !ok || gifbuf.Bytes() == nil {
+	imgbuf, ok := imgmap[req.URL.Path]
+	if !ok || imgbuf.Bytes() == nil {
 		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
-		log.Printf("Unable to find image %s\n", req.URL.Path)
+		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
 		return
 	}
 	if !nodel {
-		defer delete(gifmap, req.URL.Path)
+		defer delete(imgmap, req.URL.Path)
 	}
-	out.Header().Set("Content-Type", "image/gif")
-	out.Header().Set("Content-Length", strconv.Itoa(len(gifbuf.Bytes())))
+	if strings.HasPrefix(req.URL.Path, ".gif") {
+		out.Header().Set("Content-Type", "image/gif")
+	} else if strings.HasPrefix(req.URL.Path, ".png") {
+		out.Header().Set("Content-Type", "image/png")
+	}
+	out.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
 	out.Header().Set("Cache-Control", "max-age=0")
 	out.Header().Set("Expires", "-1")
 	out.Header().Set("Pragma", "no-cache")
-	out.Write(gifbuf.Bytes())
+	out.Write(imgbuf.Bytes())
 	out.(http.Flusher).Flush()
 }
 
 func (w wrpReq) capture(c string, out http.ResponseWriter) {
-	var pngbuf []byte
-	var gifbuf bytes.Buffer
 	var err error
-	var styles []*css.ComputedProperty
-	var r, g, b int
-
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
 		err = chromedp.Run(ctx, chromedp.MouseClickXY(int64(float64(w.X)/w.S), int64(float64(w.Y)/w.S)))
@@ -218,6 +218,8 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 		return
 	}
+	var styles []*css.ComputedProperty
+	var r, g, b int
 	chromedp.Run(ctx,
 		chromedp.Sleep(time.Second*2),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
@@ -230,36 +232,38 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 	}
 	w.printPage(out, fmt.Sprintf("#%02X%02X%02X", r, g, b))
-
-	// Process Screenshot Image
-	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngbuf))
+	var pngcap []byte
+	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngcap))
 	if err != nil {
 		log.Printf("%s Failed to capture screenshot: %s\n", c, err)
 		fmt.Fprintf(out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
 		return
 	}
-	bytes.NewReader(pngbuf).Seek(0, 0)
-	img, err := png.Decode(bytes.NewReader(pngbuf))
-	if err != nil {
-		log.Printf("%s Failed to decode screenshot: %s\n", c, err)
-		fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
-		return
-	}
-	gifbuf.Reset()
-	err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: int(w.C), Quantizer: quantize.MedianCutQuantizer{}})
-	if err != nil {
-		log.Printf("%s Failed to encode GIF: %s\n", c, err)
-		fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
-		return
-	}
-
-	// Compose map and gif
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.gif", seq)
+	imgpath := fmt.Sprintf("/img/%04d.%s", seq, imgtype)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
-	gifmap[imgpath] = gifbuf
 	ismap[mappath] = w
-	log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
+	if imgtype == "gif" {
+		img, err := png.Decode(bytes.NewReader(pngcap))
+		if err != nil {
+			log.Printf("%s Failed to decode screenshot: %s\n", c, err)
+			fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
+			return
+		}
+		var gifbuf bytes.Buffer
+		err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: int(w.C), Quantizer: quantize.MedianCutQuantizer{}})
+		if err != nil {
+			log.Printf("%s Failed to encode GIF: %s\n", c, err)
+			fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
+			return
+		}
+		imgmap[imgpath] = gifbuf
+		log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
+	} else if imgtype == "png" {
+		pngbuf := bytes.NewBuffer(pngcap)
+		imgmap[imgpath] = *pngbuf
+		log.Printf("%s Got PNG image: %s, Size: %dKB\n", c, imgpath, len(pngbuf.Bytes())/1024)
+	}
 	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
 	w.printFooter(out)
 	log.Printf("%s Done with caputure for %s\n", c, w.U)
@@ -286,7 +290,8 @@ func main() {
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
 	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
-	flag.BoolVar(&nodel, "n", false, "Do not delete maps and gif images in memory")
+	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
+	flag.StringVar(&imgtype, "t", "gif", "Image type: gif|png")
 	flag.Parse()
 	if head {
 		headless = false

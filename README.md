@@ -33,6 +33,8 @@ docker run -d -p 8080:8080 tenox7/wrp
 -l  listen address:port, default :8080
 -h  headed mode, display browser window
 -d  chromedp debug logging
+-n  do not free maps and gif images after use
+-t  image type gif (default) or png, when using PNG number of colors is ignored
 ```
 
 ## Minimal Requirements
