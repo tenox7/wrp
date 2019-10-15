@@ -14,5 +14,12 @@ cross:
 docker: wrp
 	docker build -t tenox7/wrp:latest .
 
+dockerhub:
+	docker push tenox7/wrp:latest
+
+gcrio:
+	docker tag tenox7/wrp:latest gcr.io/tenox7/wrp
+	docker push gcr.io/tenox7/wrp
+
 clean:
 	rm -rf wrp-* wrp
