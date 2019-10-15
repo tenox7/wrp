@@ -23,8 +23,16 @@ A HTTP proxy server that allows to use historical / vintage web browsers on the 
 
 ## Docker
 
+docker hub:
+
 ```
 docker run -d -p 8080:8080 tenox7/wrp
+```
+
+gcr.io:
+
+```
+docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 ```
 
 ## Flags
