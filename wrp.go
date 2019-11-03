@@ -15,6 +15,7 @@ import (
 	"image/gif"
 	"image/png"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -27,12 +28,13 @@ import (
 
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/ericpauley/go-quantize/quantize"
 )
 
 var (
-	version = "4.4"
+	version = "4.5"
 	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -61,11 +63,9 @@ func (w *wrpReq) parseForm(req *http.Request) {
 		w.U = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(w.U))
 	}
 	w.W, _ = strconv.ParseInt(req.FormValue("w"), 10, 64)
-	if w.W < 10 {
-		w.W = 1152
-	}
 	w.H, _ = strconv.ParseInt(req.FormValue("h"), 10, 64)
-	if w.H < 10 {
+	if w.W < 10 && w.H < 10 {
+		w.W = 1152
 		w.H = 600
 	}
 	w.S, _ = strconv.ParseFloat(req.FormValue("s"), 64)
@@ -115,7 +115,6 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
 	var w wrpReq
 	w.parseForm(req)
-
 	if len(w.U) > 4 {
 		w.capture(req.RemoteAddr, out)
 	} else {
@@ -202,10 +201,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		err = chromedp.Run(ctx, chromedp.KeyEvent(w.K))
 	} else {
 		log.Printf("%s Processing Capture Request for %s\n", c, w.U)
-		err = chromedp.Run(ctx,
-			emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), int64(float64(w.H)/w.S), w.S, false),
-			chromedp.Navigate(w.U),
-		)
+		err = chromedp.Run(ctx, chromedp.Navigate(w.U))
 	}
 	if err != nil {
 		if err.Error() == "context canceled" {
@@ -220,19 +216,33 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	}
 	var styles []*css.ComputedProperty
 	var r, g, b int
+	var h int64
+	var pngcap []byte
 	chromedp.Run(ctx,
+		emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), 10, w.S, false),
 		chromedp.Sleep(time.Second*2),
-		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.Location(&w.U),
+		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_, _, s, err := page.GetLayoutMetrics().Do(ctx)
+			if err == nil {
+				h = int64(math.Ceil(s.Height))
+			}
+			return nil
+		}),
 	)
-	log.Printf("%s Landed on: %s\n", c, w.U)
 	for _, style := range styles {
 		if style.Name == "background-color" {
 			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
 		}
 	}
+	log.Printf("%s Landed on: %s, Height: %v\n", c, w.U, h)
 	w.printPage(out, fmt.Sprintf("#%02X%02X%02X", r, g, b))
-	var pngcap []byte
+	if w.H == 0 && h > 0 {
+		chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), h+30, w.S, false))
+	} else {
+		chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.W)/w.S), int64(float64(w.H)/w.S), w.S, false))
+	}
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngcap))
 	if err != nil {
 		log.Printf("%s Failed to capture screenshot: %s\n", c, err)
