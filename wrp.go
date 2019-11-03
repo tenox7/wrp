@@ -89,7 +89,7 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 	fmt.Fprintf(out, "<!-- Web Rendering Proxy Version %s -->\n", version)
 	fmt.Fprintf(out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"%s\">\n", w.U, bgcolor)
 	fmt.Fprintf(out, "<FORM ACTION=\"/\" METHOD=\"POST\">\n")
-	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"10\">", w.U)
+	fmt.Fprintf(out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", w.U)
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\">\n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bk\">\n")
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
