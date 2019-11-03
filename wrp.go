@@ -42,7 +42,14 @@ var (
 	ismap   = make(map[string]wrpReq)
 	nodel   bool
 	imgtype string
+	defgeom geom
 )
+
+type geom struct {
+	w int64
+	h int64
+	c int64
+}
 
 type wrpReq struct {
 	U string  // url
@@ -65,8 +72,8 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	w.W, _ = strconv.ParseInt(req.FormValue("w"), 10, 64)
 	w.H, _ = strconv.ParseInt(req.FormValue("h"), 10, 64)
 	if w.W < 10 && w.H < 10 {
-		w.W = 1152
-		w.H = 600
+		w.W = defgeom.w
+		w.H = defgeom.h
 	}
 	w.S, _ = strconv.ParseFloat(req.FormValue("s"), 64)
 	if w.S < 0.1 {
@@ -74,7 +81,7 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	}
 	w.C, _ = strconv.ParseInt(req.FormValue("c"), 10, 64)
 	if w.C < 2 || w.C > 256 {
-		w.C = 256
+		w.C = defgeom.c
 	}
 	w.K = req.FormValue("k")
 	w.F = req.FormValue("Fn")
@@ -294,19 +301,25 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	var addr string
+	var addr, fgeom string
 	var head, headless bool
 	var debug bool
+	var err error
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
 	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
 	flag.StringVar(&imgtype, "t", "gif", "Image type: gif|png")
+	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.Parse()
 	if head {
 		headless = false
 	} else {
 		headless = true
+	}
+	n, err := fmt.Sscanf(fgeom, "%dx%dx%d", &defgeom.w, &defgeom.h, &defgeom.c)
+	if err != nil || n != 3 {
+		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", headless),
@@ -338,7 +351,7 @@ func main() {
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Starting WRP http server on %s\n", addr)
 	srv.Addr = addr
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
