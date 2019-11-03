@@ -36,7 +36,7 @@ var (
 	srv     http.Server
 	ctx     context.Context
 	cancel  context.CancelFunc
-	imgmap  = make(map[string]bytes.Buffer)
+	img     = make(map[string]bytes.Buffer)
 	ismap   = make(map[string]wrpReq)
 	nodel   bool
 	imgtype string
@@ -152,14 +152,14 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 
 func imgServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
-	imgbuf, ok := imgmap[req.URL.Path]
+	imgbuf, ok := img[req.URL.Path]
 	if !ok || imgbuf.Bytes() == nil {
 		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
 		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
 		return
 	}
 	if !nodel {
-		defer delete(imgmap, req.URL.Path)
+		defer delete(img, req.URL.Path)
 	}
 	if strings.HasPrefix(req.URL.Path, ".gif") {
 		out.Header().Set("Content-Type", "image/gif")
@@ -244,24 +244,24 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = w
 	if imgtype == "gif" {
-		img, err := png.Decode(bytes.NewReader(pngcap))
+		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
 			log.Printf("%s Failed to decode screenshot: %s\n", c, err)
 			fmt.Fprintf(out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 			return
 		}
 		var gifbuf bytes.Buffer
-		err = gif.Encode(&gifbuf, img, &gif.Options{NumColors: int(w.C), Quantizer: quantize.MedianCutQuantizer{}})
+		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(w.C), Quantizer: quantize.MedianCutQuantizer{}})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", c, err)
 			fmt.Fprintf(out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 			return
 		}
-		imgmap[imgpath] = gifbuf
+		img[imgpath] = gifbuf
 		log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
 	} else if imgtype == "png" {
 		pngbuf := bytes.NewBuffer(pngcap)
-		imgmap[imgpath] = *pngbuf
+		img[imgpath] = *pngbuf
 		log.Printf("%s Got PNG image: %s, Size: %dKB\n", c, imgpath, len(pngbuf.Bytes())/1024)
 	}
 	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
