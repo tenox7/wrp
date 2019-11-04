@@ -129,9 +129,9 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 	fmt.Fprintf(out, "</FORM><BR>\n")
 }
 
-func (w wrpReq) printFooter(out http.ResponseWriter) {
+func (w wrpReq) printFooter(out http.ResponseWriter, h string, s string) {
 	fmt.Fprintf(out, "\n<P><FONT SIZE=\"-2\"><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
-		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A></FONT></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, w.T, version)
+		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A> | Page Height: %s | Img Size: %s</FONT></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, w.T, version, h, s)
 }
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
@@ -142,7 +142,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 		w.capture(req.RemoteAddr, out)
 	} else {
 		w.printPage(out, "#FFFFFF")
-		w.printFooter(out)
+		w.printFooter(out, "", "")
 	}
 }
 
@@ -168,7 +168,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		w.capture(req.RemoteAddr, out)
 	} else {
 		w.printPage(out, "#FFFFFF")
-		w.printFooter(out)
+		w.printFooter(out, "", "")
 	}
 }
 
@@ -276,6 +276,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	imgpath := fmt.Sprintf("/img/%04d.%s", seq, w.T)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = w
+	var ssize string
 	if w.T == "gif" {
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
@@ -291,14 +292,16 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 			return
 		}
 		img[imgpath] = gifbuf
-		log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
+		ssize = fmt.Sprintf("%.1f MB", float32(len(gifbuf.Bytes()))/1024.0/1024.0)
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d\n", c, imgpath, ssize, w.C)
 	} else if w.T == "png" {
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
-		log.Printf("%s Got PNG image: %s, Size: %dKB\n", c, imgpath, len(pngbuf.Bytes())/1024)
+		ssize = fmt.Sprintf("%.1f MB", float32(len(pngbuf.Bytes()))/1024.0/1024.0)
+		log.Printf("%s Got PNG image: %s, Size: %s\n", c, imgpath, ssize)
 	}
-	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ISMAP></A>", mappath, imgpath)
-	w.printFooter(out)
+	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ALT=\"Url: %s, Size: %s\" ISMAP></A>", mappath, imgpath, w.U, ssize)
+	w.printFooter(out, fmt.Sprintf("%d PX", h), ssize)
 	log.Printf("%s Done with caputure for %s\n", c, w.U)
 }
 
