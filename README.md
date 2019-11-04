@@ -8,13 +8,13 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 * This is a new version using GoLang/[ChromeDP](https://github.com/chromedp/chromedp) (Python/Webkit is now deprecated).
 * Fully supported an maintained.
-* Works as browser-in-browser. A real http proxy mode is being investigated. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for updates.
-* Supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login to Gmail.
+* Works as browser-in-browser. A real http proxy mode is being investigated but very unlikely to happen. Mostly because a lot of clicable elements are not http links and there is no way to proxy them. Also there is no universal way of stripping SSL that would satisfy all browsers. Check [issue #35](https://github.com/tenox7/wrp/issues/35) for more info.
+* Supports clicking on non-link elements (eg. cookie warnings, dropdown menus, etc.) and sending keystrokes. Yes, you can login to Gmail, etc.
 
 ## Usage	
 
 1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway server.
-2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "Proxy Server" (yet).
+2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "http proxy server".
 3. Type a search string or a http/https URL and click Go.	
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.	
 5. Scroll web page by clicking on the in-image scroll bar.
