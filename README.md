@@ -1,6 +1,6 @@
 # WRP - Web Rendering Proxy
 
-A HTTP proxy server that allows to use historical / vintage web browsers on the modern web. It works by rendering a web page in to a GIF image with clickable imagemap.
+A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It works by rendering a web page in to a GIF or PNG image with clickable imagemap.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
