@@ -94,6 +94,7 @@ func (w *wrpReq) parseForm(req *http.Request) {
 }
 
 func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
+	var s string
 	out.Header().Set("Cache-Control", "max-age=0")
 	out.Header().Set("Expires", "-1")
 	out.Header().Set("Pragma", "no-cache")
@@ -106,9 +107,17 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bk\">\n")
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.H)
-	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", w.S)
+	fmt.Fprintf(out, "S <SELECT NAME=\"s\">\n")
+	for _, v := range []float64{0.65, 0.75, 0.85, 0.95, 1.0, 1.05, 1.15, 1.25} {
+		if v == w.S {
+			s = "SELECTED"
+		} else {
+			s = ""
+		}
+		fmt.Fprintf(out, "<OPTION VALUE=\"%1.2f\" %s>%1.2f</OPTION>\n", v, s, v)
+	}
+	fmt.Fprintf(out, "</SELECT>\n")
 	fmt.Fprintf(out, "T <SELECT NAME=\"t\">\n")
-	var s string
 	for _, v := range []string{"gif", "png"} {
 		if v == w.T {
 			s = "SELECTED"
