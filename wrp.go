@@ -41,7 +41,7 @@ var (
 	img     = make(map[string]bytes.Buffer)
 	ismap   = make(map[string]wrpReq)
 	nodel   bool
-	imgtype string
+	deftype string
 	defgeom geom
 )
 
@@ -61,6 +61,7 @@ type wrpReq struct {
 	Y int64   // mouseY
 	K string  // keys to send
 	F string  // Fn buttons
+	T string  // imgtype
 }
 
 func (w *wrpReq) parseForm(req *http.Request) {
@@ -85,6 +86,10 @@ func (w *wrpReq) parseForm(req *http.Request) {
 	}
 	w.K = req.FormValue("k")
 	w.F = req.FormValue("Fn")
+	w.T = req.FormValue("t")
+	if w.T != "gif" && w.T != "png" {
+		w.T = deftype
+	}
 	log.Printf("%s WrpReq from Form: %+v\n", req.RemoteAddr, w)
 }
 
@@ -102,6 +107,17 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 	fmt.Fprintf(out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.W)
 	fmt.Fprintf(out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.H)
 	fmt.Fprintf(out, "S <INPUT TYPE=\"TEXT\" NAME=\"s\" VALUE=\"%1.2f\" SIZE=\"3\"> \n", w.S)
+	fmt.Fprintf(out, "T <SELECT NAME=\"t\">\n")
+	var s string
+	for _, v := range []string{"gif", "png"} {
+		if v == w.T {
+			s = "SELECTED"
+		} else {
+			s = ""
+		}
+		fmt.Fprintf(out, "<OPTION VALUE=\"%s\" %s>%s</OPTION>\n", v, s, strings.ToUpper(v))
+	}
+	fmt.Fprintf(out, "T </SELECT>\n")
 	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\">\n", w.C)
 	fmt.Fprintf(out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"4\"> \n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bs\">\n")
@@ -257,10 +273,10 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		return
 	}
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.%s", seq, imgtype)
+	imgpath := fmt.Sprintf("/img/%04d.%s", seq, w.T)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = w
-	if imgtype == "gif" {
+	if w.T == "gif" {
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
 			log.Printf("%s Failed to decode screenshot: %s\n", c, err)
@@ -276,7 +292,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 		img[imgpath] = gifbuf
 		log.Printf("%s Encoded GIF image: %s, Size: %dKB, Colors: %d\n", c, imgpath, len(gifbuf.Bytes())/1024, w.C)
-	} else if imgtype == "png" {
+	} else if w.T == "png" {
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		log.Printf("%s Got PNG image: %s, Size: %dKB\n", c, imgpath, len(pngbuf.Bytes())/1024)
@@ -309,7 +325,7 @@ func main() {
 	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
-	flag.StringVar(&imgtype, "t", "gif", "Image type: gif|png")
+	flag.StringVar(&deftype, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.Parse()
 	if head {
