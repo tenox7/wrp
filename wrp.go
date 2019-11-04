@@ -140,7 +140,8 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 
 func (w wrpReq) printFooter(out http.ResponseWriter, h string, s string) {
 	fmt.Fprintf(out, "\n<P><FONT SIZE=\"-2\"><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
-		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A> | Page Height: %s | Img Size: %s</FONT></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, w.T, version, h, s)
+		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A> | "+
+		"<A HREF=\"/\">Page Height: %s</A> | <A HREF=\"/\">Img Size: %s</A></FONT></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, w.T, version, h, s)
 }
 
 func pageServer(out http.ResponseWriter, req *http.Request) {
