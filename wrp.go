@@ -117,7 +117,7 @@ func (w wrpReq) printPage(out http.ResponseWriter, bgcolor string) {
 		}
 		fmt.Fprintf(out, "<OPTION VALUE=\"%s\" %s>%s</OPTION>\n", v, s, strings.ToUpper(v))
 	}
-	fmt.Fprintf(out, "T </SELECT>\n")
+	fmt.Fprintf(out, "</SELECT>\n")
 	fmt.Fprintf(out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\">\n", w.C)
 	fmt.Fprintf(out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"4\"> \n")
 	fmt.Fprintf(out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bs\">\n")
