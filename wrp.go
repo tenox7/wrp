@@ -12,6 +12,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"image"
 	"image/gif"
 	"image/png"
 	"log"
@@ -287,6 +288,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = w
 	var ssize string
+	var sw, sh int
 	if w.T == "gif" {
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
@@ -303,14 +305,19 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 		img[imgpath] = gifbuf
 		ssize = fmt.Sprintf("%.1f MB", float32(len(gifbuf.Bytes()))/1024.0/1024.0)
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d\n", c, imgpath, ssize, w.C)
+		sw = i.Bounds().Max.X
+		sh = i.Bounds().Max.Y
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", c, imgpath, ssize, w.C, sw, sh)
 	} else if w.T == "png" {
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
+		cfg, _, _ := image.DecodeConfig(pngbuf)
 		ssize = fmt.Sprintf("%.1f MB", float32(len(pngbuf.Bytes()))/1024.0/1024.0)
-		log.Printf("%s Got PNG image: %s, Size: %s\n", c, imgpath, ssize)
+		sw = cfg.Width
+		sh = cfg.Height
+		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", c, imgpath, ssize, sw, sh)
 	}
-	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ALT=\"Url: %s, Size: %s\" ISMAP></A>", mappath, imgpath, w.U, ssize)
+	fmt.Fprintf(out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ALT=\"Url: %s, Size: %s\" WIDTH=\"%d\" HEIGHT=\"%d\" ISMAP></A>", mappath, imgpath, w.U, ssize, sw, sh)
 	w.printFooter(out, fmt.Sprintf("%d PX", h), ssize)
 	log.Printf("%s Done with caputure for %s\n", c, w.U)
 }
