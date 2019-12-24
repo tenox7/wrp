@@ -39,10 +39,11 @@ docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 
 ```flags
 -l  listen address:port, default :8080
+-t  image type gif (default) or png, when using PNG number of colors is ignored
+-g  image geometry, WxHXC, height can be 0 for unlimited, default 1152x600x256"
 -h  headed mode, display browser window
 -d  chromedp debug logging
 -n  do not free maps and gif images after use
--t  image type gif (default) or png, when using PNG number of colors is ignored
 ```
 
 ## Minimal Requirements
