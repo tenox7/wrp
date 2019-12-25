@@ -13,7 +13,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 5. Scroll web page by clicking on the in-image scroll bar.
 6. Do not use client browser history-back, instead use **Bk** button in the app.
 7. To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-8. Experimentally you can set height **H** to `0` to render pages in to one tall image without the vertical scrollbar. Note it will be large, slow to process, download and display on client browser.
+8. You can set height **H** to `0` to render pages in to one tall image without the vertical scrollbar. This feature is experimental and your mileage will vary depending ong many factors.
 9. Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
 
 ## Docker
