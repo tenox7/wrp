@@ -211,7 +211,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 	var err error
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", c, w.X, w.Y)
-		err = chromedp.Run(ctx, chromedp.MouseClickXY(int64(float64(w.X)/float64(w.S)), int64(float64(w.Y)/float64(w.S))))
+		err = chromedp.Run(ctx, chromedp.MouseClickXY(float64(w.X)/float64(w.S), float64(w.Y)/float64(w.S)))
 	} else if len(w.F) > 0 {
 		log.Printf("%s Button %v\n", c, w.F)
 		switch w.F {
