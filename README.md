@@ -77,4 +77,4 @@ $ ./wrp-amd64-macos -t png
 
 License: Apache 2.0  
 Copyright (c) 2013-2018 Antoni Sawicki  
-Copyright (c) 2019-2002 Google LLC
+Copyright (c) 2019-2020 Google LLC
