@@ -248,7 +248,7 @@ func (w wrpReq) capture(c string, out http.ResponseWriter) {
 		}
 		return
 	}
-	var styles []*css.ComputedProperty
+	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
 	var pngcap []byte
