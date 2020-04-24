@@ -52,6 +52,7 @@ type geom struct {
 	c int64
 }
 
+// WRP Request
 type wrpReq struct {
 	U string  // url
 	W int64   // width
@@ -67,6 +68,7 @@ type wrpReq struct {
 	r *http.Request
 }
 
+// Parse HTML Form, Process Input Boxes, Etc.
 func (w *wrpReq) parseForm() {
 	w.r.ParseForm()
 	w.U = w.r.FormValue("url")
@@ -96,6 +98,8 @@ func (w *wrpReq) parseForm() {
 	log.Printf("%s WrpReq from Form: %+v\n", w.r.RemoteAddr, w)
 }
 
+// Display WP UI
+// TODO: make this in to an external template
 func (w wrpReq) printPage(bgcolor string) {
 	var s string
 	w.o.Header().Set("Cache-Control", "max-age=0")
@@ -141,12 +145,14 @@ func (w wrpReq) printPage(bgcolor string) {
 	fmt.Fprintf(w.o, "</FORM><BR>\n")
 }
 
+// Status bar below captured image
 func (w wrpReq) printFooter(h string, s string) {
 	fmt.Fprintf(w.o, "\n<P><FONT SIZE=\"-2\"><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
 		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A> | "+
 		"<A HREF=\"/\">Page Height: %s</A> | <A HREF=\"/\">Img Size: %s</A></FONT></BODY>\n</HTML>\n", w.W, w.H, w.S, w.C, w.T, version, h, s)
 }
 
+// Process HTTP requests to WRP '/' url
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
 	var w wrpReq
@@ -162,6 +168,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Process HTTP requests to ISMAP '/map/' url
 func mapServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
 	w, ok := ismap[req.URL.Path]
@@ -191,6 +198,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Process HTTP requests for images '/img/' url
 func imgServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
 	imgbuf, ok := img[req.URL.Path]
@@ -215,6 +223,22 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	out.(http.Flusher).Flush()
 }
 
+// Process HTTP requests for Shutdown via '/shutdown/' url
+func haltServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
+	out.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(out, "Shutting down WRP...\n")
+	out.(http.Flusher).Flush()
+	time.Sleep(time.Second * 2)
+	cancel()
+	srv.Shutdown(context.Background())
+	os.Exit(1)
+}
+
+// Process Keyboard and Mouse events before Capture
 func (w wrpReq) kbdmouse() {
 	var err error
 	if w.X > 0 && w.Y > 0 {
@@ -258,6 +282,7 @@ func (w wrpReq) kbdmouse() {
 	}
 }
 
+// Capture currently rendered web page to an image and fake ISMAP
 func (w wrpReq) capture() {
 	var err error
 	var styles []*css.ComputedStyleProperty
@@ -334,20 +359,7 @@ func (w wrpReq) capture() {
 	log.Printf("%s Done with caputure for %s\n", w.r.RemoteAddr, w.U)
 }
 
-func haltServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
-	out.Header().Set("Cache-Control", "max-age=0")
-	out.Header().Set("Expires", "-1")
-	out.Header().Set("Pragma", "no-cache")
-	out.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(out, "Shutting down WRP...\n")
-	out.(http.Flusher).Flush()
-	time.Sleep(time.Second * 2)
-	cancel()
-	srv.Shutdown(context.Background())
-	os.Exit(1)
-}
-
+// Main...
 func main() {
 	var addr, fgeom string
 	var head, headless bool
