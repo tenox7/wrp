@@ -154,6 +154,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	w.o = out
 	w.parseForm()
 	if len(w.U) > 4 {
+		w.kbdmouse()
 		w.capture()
 	} else {
 		w.printPage("#FFFFFF")
@@ -182,6 +183,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
 	if len(w.U) > 4 {
+		w.kbdmouse()
 		w.capture()
 	} else {
 		w.printPage("#FFFFFF")
@@ -213,7 +215,7 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	out.(http.Flusher).Flush()
 }
 
-func (w wrpReq) capture() {
+func (w wrpReq) kbdmouse() {
 	var err error
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", w.r.RemoteAddr, w.X, w.Y)
@@ -254,6 +256,10 @@ func (w wrpReq) capture() {
 		}
 		return
 	}
+}
+
+func (w wrpReq) capture() {
+	var err error
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
