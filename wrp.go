@@ -160,7 +160,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	w.o = out
 	w.parseForm()
 	if len(w.U) > 4 {
-		w.kbdmouse()
+		w.navigate()
 		w.capture()
 	} else {
 		w.printPage("#FFFFFF")
@@ -190,7 +190,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
 	if len(w.U) > 4 {
-		w.kbdmouse()
+		w.navigate()
 		w.capture()
 	} else {
 		w.printPage("#FFFFFF")
@@ -238,12 +238,14 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(1)
 }
 
-// Process Keyboard and Mouse events before Capture
-func (w wrpReq) kbdmouse() {
+// Process Keyboard and Mouse events or Navigate to the desired URL.
+func (w wrpReq) navigate() {
 	var err error
+	// Mouse Click
 	if w.X > 0 && w.Y > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", w.r.RemoteAddr, w.X, w.Y)
 		err = chromedp.Run(ctx, chromedp.MouseClickXY(float64(w.X)/float64(w.S), float64(w.Y)/float64(w.S)))
+		// Buttons
 	} else if len(w.F) > 0 {
 		log.Printf("%s Button %v\n", w.r.RemoteAddr, w.F)
 		switch w.F {
@@ -262,9 +264,11 @@ func (w wrpReq) kbdmouse() {
 		case ">":
 			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0303"))
 		}
+		// Keys
 	} else if len(w.K) > 0 {
 		log.Printf("%s Sending Keys: %#v\n", w.r.RemoteAddr, w.K)
 		err = chromedp.Run(ctx, chromedp.KeyEvent(w.K))
+		// Navigate to URL
 	} else {
 		log.Printf("%s Processing Capture Request for %s\n", w.r.RemoteAddr, w.U)
 		err = chromedp.Run(ctx, chromedp.Navigate(w.U))
