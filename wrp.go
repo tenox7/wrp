@@ -95,7 +95,7 @@ func (w *wrpReq) parseForm() {
 	if w.imgType != "gif" && w.imgType != "png" {
 		w.imgType = deftype
 	}
-	log.Printf("%s WrpReq from Form: %+v\n", w.req.RemoteAddr, w)
+	log.Printf("%s WrpReq from UI Form: %+v\n", w.req.RemoteAddr, w)
 }
 
 // Display WP UI
