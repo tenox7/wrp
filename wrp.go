@@ -147,9 +147,22 @@ func (w wrpReq) printPage(bgcolor string) {
 
 // Status bar below captured image
 func (w wrpReq) printFooter(h string, s string) {
-	fmt.Fprintf(w.out, "\n<P><FONT SIZE=\"-2\"><A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
-		"Web Rendering Proxy Version %s</A> | <A HREF=\"/shutdown/\">Shutdown WRP</A> | "+
-		"<A HREF=\"/\">Page Height: %s</A> | <A HREF=\"/\">Img Size: %s</A></FONT></BODY>\n</HTML>\n", w.width, w.height, w.scale, w.colors, w.imgType, version, h, s)
+	fmt.Fprintf(w.out,
+		"\n<P><FONT SIZE=\"-2\">"+
+			"<A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
+			"Web Rendering Proxy Version %s</A> | "+
+			"<A HREF=\"/shutdown/\">Shutdown WRP</A> | "+
+			"<A HREF=\"/\">Page Height: %s</A> |"+
+			"<A HREF=\"/\">Img Size: %s</A> "+
+			"</FONT></BODY>\n</HTML>\n",
+		w.width,
+		w.height,
+		w.scale,
+		w.colors,
+		w.imgType,
+		version,
+		h,
+		s)
 }
 
 // Process HTTP requests to WRP '/' url
