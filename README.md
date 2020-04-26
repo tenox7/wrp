@@ -6,14 +6,15 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 ## Usage
 
-1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. Google Chrome Browser is required.
-2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "http proxy server".
+1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
+This machine should be modern and Google Chrome Browser is required to be preinstalled.
+2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
 3. Type a search string or a http/https URL and click **Go**.
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.
 5. Scroll web page by clicking on the in-image scroll bar.
 6. Do not use client browser history-back, instead use **Bk** button in the app.
 7. To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-8. You can set height **H** to `0` to render pages in to one tall image without the vertical scrollbar. This feature is experimental and your mileage will vary depending ong many factors.
+8. You can set height **H** to `0` to render pages in to one tall image without the vertical scrollbar. This should not be used with old and low spec clients. Such images will be very large and take long time to encode/decode, especially for GIF.
 9. Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
 
 ## Docker
