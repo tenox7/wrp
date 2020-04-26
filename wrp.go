@@ -352,7 +352,7 @@ func (w wrpReq) capture() {
 			return
 		}
 		img[imgpath] = gifbuf
-		ssize = fmt.Sprintf("%.1f MB", float32(len(gifbuf.Bytes()))/1024.0/1024.0)
+		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
 		sw = i.Bounds().Max.X
 		sh = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, w.colors, sw, sh)
@@ -360,7 +360,7 @@ func (w wrpReq) capture() {
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		cfg, _, _ := image.DecodeConfig(pngbuf)
-		ssize = fmt.Sprintf("%.1f MB", float32(len(pngbuf.Bytes()))/1024.0/1024.0)
+		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
 		sw = cfg.Width
 		sh = cfg.Height
 		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, sw, sh)
