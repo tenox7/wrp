@@ -7,7 +7,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 ## Usage
 
 1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
-This machine should be modern and Google Chrome Browser is required to be preinstalled.
+This machine should be pretty modern, high spec and Google Chrome Browser is required to be preinstalled.
 2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
 3. Type a search string or a http/https URL and click **Go**.
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.
