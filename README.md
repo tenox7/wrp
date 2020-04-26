@@ -51,10 +51,10 @@ docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 
 ### I can't get it to open
 
-This program does not have a GUI and is run from the command line. You may need to enable executable bit, for example on Mac:
+This program does not have a GUI and is run from the command line. You may need to enable executable bit on Unix systems, for example:
 
 ```bash
-$ cd ~/your-download-directory
+$ cd ~/Downloads
 $ chmod +x wrp-amd64-macos
 $ ./wrp-amd64-macos -t png
 ```
