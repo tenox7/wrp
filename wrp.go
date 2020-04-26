@@ -318,11 +318,17 @@ func (w wrpReq) capture() {
 	} else {
 		chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), int64(float64(w.height)/w.scale), w.scale, false))
 	}
+	// Capture screenshot...
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngcap))
 	if err != nil {
-		// TODO: process context cancelled here
-		log.Printf("%s Failed to capture screenshot: %s\n", w.req.RemoteAddr, err)
-		fmt.Fprintf(w.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+		if err.Error() == "context canceled" {
+			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
+			fmt.Fprintf(w.out, "<BR>%s<BR> -- restarting, try again", err)
+			ctx, cancel = chromedp.NewContext(context.Background())
+		} else {
+			log.Printf("%s Failed to capture screenshot: %s\n", w.req.RemoteAddr, err)
+			fmt.Fprintf(w.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+		}
 		return
 	}
 	seq := rand.Intn(9999)
