@@ -44,12 +44,12 @@ docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 
 ## Minimal Requirements
 
-* Server Gateway should run on a modern hardware/os that supports memory hungry Chrome.
-* Client Browser needs to support `HTML FORMs` and `ISMAP`. Typically Mosaic 2.0 would be minimum version for forms. However ISMAP was supported since 0.6B, so if you manually enter url using `?url=...`, you can use the earlier version.
+* Server/Gateway should run on a modern hardware/os that supports memory hungry Chrome. The Google Chrome Browser must be installed.
+* Client Browser needs to support `HTML FORMs` and `ISMAP`. Typically [Mosaic 2.0](http://www.ncsa.illinois.edu/enabling/mosaic/versions) would be minimum version for forms. However ISMAP was supported since 0.6B, so if you manually enter url using `?url=...`, you can use the earlier version.
 
 ## Troubleshooting
 
-### I can't get it to open
+### I can't get it to run
 
 This program does not have a GUI and is run from the command line. You may need to enable executable bit on Unix systems, for example:
 
