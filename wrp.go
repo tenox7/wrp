@@ -401,6 +401,9 @@ func main() {
 	} else {
 		headless = true
 	}
+	if len(os.Getenv("PORT")) > 0 {
+		addr = ":" + os.Getenv(("PORT"))
+	}
 	n, err := fmt.Sscanf(fgeom, "%dx%dx%d", &defgeom.w, &defgeom.h, &defgeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
