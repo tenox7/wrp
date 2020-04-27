@@ -436,7 +436,7 @@ func main() {
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	log.Printf("Web Rendering Proxy Version %s\n", version)
-	log.Print(os.Args)
+	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", deftype, defgeom)
 	log.Printf("Starting WRP http server on %s\n", addr)
 	srv.Addr = addr
