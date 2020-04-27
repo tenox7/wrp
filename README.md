@@ -7,7 +7,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 ## Usage
 
 1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
-This machine should be pretty modern, high spec and Google Chrome Browser is required to be preinstalled.
+This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
 2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
 3. Type a search string or a http/https URL and click **Go**.
 4. Adjust your screen width/height/scale/#colors to fit in your old browser.
@@ -55,7 +55,7 @@ Note that Cloud Run forces https. Your browser support of encryption protocols a
 
 ## Minimal Requirements
 
-* Server/Gateway should run on a modern hardware/os that supports memory hungry Chrome. The Google Chrome Browser must be installed.
+* Server/Gateway requires modern, decent spec hardware and operating system that is supported by [Go language](https://github.com/golang/go/wiki/MinimumRequirements) and Chrome/Chromium Browser, which must be installed.
 * Client Browser needs to support `HTML FORMs` and `ISMAP`. Typically [Mosaic 2.0](http://www.ncsa.illinois.edu/enabling/mosaic/versions) would be minimum version for forms. However ISMAP was supported since 0.6B, so if you manually enter url using `?url=...`, you can use the earlier version.
 
 ## Troubleshooting
