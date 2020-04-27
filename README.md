@@ -31,6 +31,17 @@ gcr.io:
 docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 ```
 
+## Cloud Run
+
+```shell
+gcloud run deploy --image gcr.io/tenox7/wrp --platform managed
+```
+
+Or from [Web UI](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp` as container image URL.
+
+Note that Cloud Run forces redirect to https. Your browser support of encryption protocols and certification authorities will vary.
+
+
 ## Flags
 
 ```flags
