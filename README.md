@@ -39,7 +39,7 @@ gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --args='-t
 
 Or from [Web UI](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp` as container image URL.
 
-Note that Cloud Run forces https. Your browser support of encryption protocols and certification authorities will vary.
+Note that Cloud Run forces https. Your browser support of encryption protocols and certification authorities will vary. Also the container needs 2 GB RAM or it will keep crashing and complaining about memory limit exceeded.
 
 
 ## Flags
