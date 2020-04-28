@@ -19,8 +19,6 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 
 ## Docker
 
-docker hub:
-
 ```shell
 $ docker run -d -p 8080:8080 tenox7/wrp
 ```
