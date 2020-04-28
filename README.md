@@ -22,29 +22,31 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 docker hub:
 
 ```shell
-docker run -d -p 8080:8080 tenox7/wrp
+$ docker run -d -p 8080:8080 tenox7/wrp
 ```
 
-gcr.io:
+## Google Cloud Run
 
 ```shell
-docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
-```
-
-## Cloud Run
-
-```shell
-gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --args='-t=png','-g=1280x0x256'
+$ gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --memory=2Gi --args='-t=png','-g=1280x0x256'
 ```
 
 Or from [Web UI](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp` as container image URL.
 
-Note that Cloud Run forces https. Your browser support of encryption protocols and certification authorities will vary. Also the container needs 2 GB RAM or it will keep crashing and complaining about memory limit exceeded.
+Note that unfortunately GCR forces https. Your browser support of encryption protocols and certification authorities will vary. 
+
+## Azure Container Instances
+
+```shell
+$ az container create --resource-group wrp --name wrp --image gcr.io/tenox7/wrp:latest --cpu 1 --memory 2 --ports 80 --protocol tcp --os-type Linux --ip-address Public --command-line '/wrp -l :80 -t png -g 1280x0x256'
+```
+
+Fortunately ACI allows port 80 without encryption.
 
 
 ## Flags
 
-```flags
+```
 -l  listen address:port, default :8080
 -t  image type gif (default) or png, when using PNG number of colors is ignored
 -g  image geometry, WxHxC, height can be 0 for unlimited, default 1152x600x256
