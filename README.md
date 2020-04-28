@@ -34,7 +34,7 @@ docker run -d -p 8080:8080 gcr.io/tenox7/wrp:latest
 ## Cloud Run
 
 ```shell
-gcloud run deploy --image gcr.io/tenox7/wrp --platform managed
+gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --args='-t=png','-g=1280x0x256'
 ```
 
 Or from [Web UI](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp` as container image URL.
