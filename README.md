@@ -20,7 +20,7 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 ## Docker
 
 ```shell
-$ docker run -d -p 8080:8080 tenox7/wrp
+$ docker run -d -p 80:8080 tenox7/wrp
 ```
 
 ## Google Cloud Run
@@ -29,7 +29,7 @@ $ docker run -d -p 8080:8080 tenox7/wrp
 $ gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --memory=2Gi --args='-t=png','-g=1280x0x256'
 ```
 
-Or from [Web UI](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp` as container image URL.
+Or from [Gcloud Console](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp:latest` as container image URL.
 
 Note that unfortunately GCR forces https. Your browser support of encryption protocols and certification authorities will vary. 
 
@@ -38,6 +38,8 @@ Note that unfortunately GCR forces https. Your browser support of encryption pro
 ```shell
 $ az container create --resource-group wrp --name wrp --image gcr.io/tenox7/wrp:latest --cpu 1 --memory 2 --ports 80 --protocol tcp --os-type Linux --ip-address Public --command-line '/wrp -l :80 -t png -g 1280x0x256'
 ```
+
+Or from the [Azure Console](https://portal.azure.com/#create/Microsoft.ContainerInstances). Use `gcr.io/tenox7/wrp:latest` or `tenox7/wrp:latest` for image name.
 
 Fortunately ACI allows port 80 without encryption.
 
