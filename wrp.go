@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
@@ -356,6 +357,10 @@ func (w wrpReq) capture() {
 			log.Printf("%s Failed to decode screenshot: %s\n", w.req.RemoteAddr, err)
 			fmt.Fprintf(w.out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 			return
+		}
+		if w.colors == 2 {
+			gray := halfgone.ImageToGray(i)
+			i = halfgone.FloydSteinbergDitherer{}.Apply(gray)
 		}
 		var gifbuf bytes.Buffer
 		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(w.colors), Quantizer: quantize.MedianCutQuantizer{}})
