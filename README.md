@@ -86,6 +86,7 @@ $ ./wrp-amd64-macos -t png
 * Uses [go-quantize](https://github.com/ericpauley/go-quantize), thanks to [ericpauley](https://github.com/ericpauley) for developing the missing go quantizer
 * Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my rumblings
 * Thanks to [claunia](https://github.com/claunia/) for help with the Python/Webkit version in the past
+* Historical Python/Webkit versions and prior art can be seen in [wrp-old](https://github.com/tenox7/wrp-old) repo
 
 ## Legal Stuff
 
