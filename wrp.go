@@ -331,11 +331,11 @@ func (w wrpReq) capture() {
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", w.req.RemoteAddr, w.url, h)
 	w.printPage(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+	height := int64(float64(w.height) / w.scale)
 	if w.height == 0 && h > 0 {
-		chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), h+30, w.scale, false))
-	} else {
-		chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), int64(float64(w.height)/w.scale), w.scale, false))
+		height = h + 30
 	}
+	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), height, w.scale, false))
 	// Capture screenshot...
 	err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&pngcap))
 	if err != nil {
