@@ -173,13 +173,13 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	w.req = req
 	w.out = out
 	w.parseForm()
-	if len(w.url) > 4 {
-		w.navigate()
-		w.capture()
-	} else {
+	if len(w.url) < 4 {
 		w.printPage("#FFFFFF")
 		w.printFooter("", "")
+		return
 	}
+	w.navigate()
+	w.capture()
 }
 
 // Process HTTP requests to ISMAP '/map/' url
@@ -203,13 +203,12 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		return
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
-	if len(w.url) > 4 {
-		w.navigate()
-		w.capture()
-	} else {
+	if len(w.url) < 4 {
 		w.printPage("#FFFFFF")
 		w.printFooter("", "")
 	}
+	w.navigate()
+	w.capture()
 }
 
 // Process HTTP requests for images '/img/' url
