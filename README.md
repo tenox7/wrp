@@ -47,12 +47,12 @@ Fortunately ACI allows port 80 without encryption.
 ## Flags
 
 ```
--l  listen address:port, default :8080
--t  image type gif (default) or png, when using PNG number of colors is ignored
--g  image geometry, WxHxC, height can be 0 for unlimited, default 1152x600x256
--h  headed mode, display browser window on the server
--d  chromedp debug logging
--n  do not free maps and gif images after use
+-l  listen address:port (default :8080)
+-t  image type gif or png (default git) 
+-g  image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x256)
+-h  headless mode, hide browser window on the server (default true)
+-d  chromedp debug logging (default false)
+-n  do not free maps and gif images after use (default false)
 ```
 
 ## Minimal Requirements
