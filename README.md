@@ -14,7 +14,7 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 5. Scroll web page by clicking on the in-image scroll bar.
 6. Do not use client browser history-back, instead use **Bk** button in the app.
 7. To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-8. You can set height **H** to `0` to render pages in to one tall image without the vertical scrollbar. This should not be used with old and low spec clients. Such images will be very large and take long time to encode/decode, especially for GIF.
+8. You can set height **H** to `0` to render pages in to **a single tall image without the vertical scrollbar** and use client scrolling. However this should not be used with old and low spec clients. Such tall images will be very large and take long time to process, especially for GIFs.
 9. Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
 
 ## Docker
