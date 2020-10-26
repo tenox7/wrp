@@ -397,21 +397,16 @@ func (w wrpReq) capture() {
 // Main...
 func main() {
 	var addr, fgeom string
-	var head, headless bool
+	var headless bool
 	var debug bool
 	var err error
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
-	flag.BoolVar(&head, "h", false, "Headed mode - display browser window")
+	flag.BoolVar(&headless, "h", true, "Headless mode - hide browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
 	flag.StringVar(&deftype, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.Parse()
-	if head {
-		headless = false
-	} else {
-		headless = true
-	}
 	if len(os.Getenv("PORT")) > 0 {
 		addr = ":" + os.Getenv(("PORT"))
 	}
