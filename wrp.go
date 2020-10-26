@@ -252,51 +252,55 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 	os.Exit(1)
 }
 
-// Process Keyboard and Mouse events or Navigate to the desired URL.
-func (w wrpReq) navigate() {
-	var err error
+// Determine what action to take
+func (w wrpReq) action() chromedp.Action {
 	// Mouse Click
 	if w.mouseX > 0 && w.mouseY > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", w.req.RemoteAddr, w.mouseX, w.mouseY)
-		err = chromedp.Run(ctx, chromedp.MouseClickXY(float64(w.mouseX)/float64(w.scale), float64(w.mouseY)/float64(w.scale)))
-		// Buttons
-	} else if len(w.buttons) > 0 {
+		return chromedp.MouseClickXY(float64(w.mouseX)/float64(w.scale), float64(w.mouseY)/float64(w.scale))
+	}
+	// Buttons
+	if len(w.buttons) > 0 {
 		log.Printf("%s Button %v\n", w.req.RemoteAddr, w.buttons)
 		switch w.buttons {
 		case "Bk":
-			err = chromedp.Run(ctx, chromedp.NavigateBack())
+			return chromedp.NavigateBack()
 		case "Bs":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\b"))
+			return chromedp.KeyEvent("\b")
 		case "Rt":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+			return chromedp.KeyEvent("\r")
 		case "<":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0302"))
+			return chromedp.KeyEvent("\u0302")
 		case "^":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0304"))
+			return chromedp.KeyEvent("\u0304")
 		case "v":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0301"))
+			return chromedp.KeyEvent("\u0301")
 		case ">":
-			err = chromedp.Run(ctx, chromedp.KeyEvent("\u0303"))
+			return chromedp.KeyEvent("\u0303")
 		}
-		// Keys
-	} else if len(w.keys) > 0 {
-		log.Printf("%s Sending Keys: %#v\n", w.req.RemoteAddr, w.keys)
-		err = chromedp.Run(ctx, chromedp.KeyEvent(w.keys))
-		// Navigate to URL
-	} else {
-		log.Printf("%s Processing Capture Request for %s\n", w.req.RemoteAddr, w.url)
-		err = chromedp.Run(ctx, chromedp.Navigate(w.url))
 	}
+	// Keys
+	if len(w.keys) > 0 {
+		log.Printf("%s Sending Keys: %#v\n", w.req.RemoteAddr, w.keys)
+		return chromedp.KeyEvent(w.keys)
+	}
+	// Navigate to URL
+	log.Printf("%s Processing Capture Request for %s\n", w.req.RemoteAddr, w.url)
+	return chromedp.Navigate(w.url)
+}
+
+// Process Keyboard and Mouse events or Navigate to the desired URL.
+func (w wrpReq) navigate() {
+	err := chromedp.Run(ctx, w.action())
 	if err != nil {
 		if err.Error() == "context canceled" {
 			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
 			fmt.Fprintf(w.out, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
-		} else {
-			log.Printf("%s %s", w.req.RemoteAddr, err)
-			fmt.Fprintf(w.out, "<BR>%s<BR>", err)
+			return
 		}
-		return
+		log.Printf("%s %s", w.req.RemoteAddr, err)
+		fmt.Fprintf(w.out, "<BR>%s<BR>", err)
 	}
 }
 
@@ -339,10 +343,10 @@ func (w wrpReq) capture() {
 			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
 			fmt.Fprintf(w.out, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
-		} else {
-			log.Printf("%s Failed to capture screenshot: %s\n", w.req.RemoteAddr, err)
-			fmt.Fprintf(w.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+			return
 		}
+		log.Printf("%s Failed to capture screenshot: %s\n", w.req.RemoteAddr, err)
+		fmt.Fprintf(w.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
 		return
 	}
 	seq := rand.Intn(9999)
