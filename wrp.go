@@ -224,9 +224,10 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 	if !nodel {
 		defer delete(img, req.URL.Path)
 	}
-	if strings.HasPrefix(req.URL.Path, ".gif") {
+	switch {
+	case strings.HasPrefix(req.URL.Path, ".gif"):
 		out.Header().Set("Content-Type", "image/gif")
-	} else if strings.HasPrefix(req.URL.Path, ".png") {
+	case strings.HasPrefix(req.URL.Path, ".png"):
 		out.Header().Set("Content-Type", "image/png")
 	}
 	out.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
