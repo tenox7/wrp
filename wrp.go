@@ -356,7 +356,8 @@ func (w wrpReq) capture() {
 	ismap[mappath] = w
 	var ssize string
 	var sw, sh int
-	if w.imgType == "gif" {
+	switch w.imgType {
+	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
 			log.Printf("%s Failed to decode screenshot: %s\n", w.req.RemoteAddr, err)
@@ -379,7 +380,7 @@ func (w wrpReq) capture() {
 		sw = i.Bounds().Max.X
 		sh = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, w.colors, sw, sh)
-	} else if w.imgType == "png" {
+	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		cfg, _, _ := image.DecodeConfig(pngbuf)
