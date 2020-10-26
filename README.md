@@ -75,10 +75,12 @@ $ ./wrp-amd64-macos -t png
 ## History
 
 * In 2014, version 1.0 started as a *cgi-bin* script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
-* Later in 2014, version 2.0 became a stand alone http-proxy server, also supporting both Linux and MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
-* In 2016 the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and mostly unportable (especially to Windows, even WSL).
-* In 2019 WRP 3.0 has been rewritten in Golang/Chromedp as browser-in-browser instead of http proxy.
-* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes. Also in 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container. Version 4.5 introduces rendering whole pages in to one tall image image.
+* A bit Later in 2014, version 2.0 became a stand alone http-proxy server, supporting both Linux and MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
+* In 2016 thanks to EFF/Certbot the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and there was no way to make it work on Windows, even under WSL.
+* In 2019 WRP 3.0 has been rewritten in [Go](https://golang.org/) using [Chromedp](https://github.com/chromedp) as browser-in-browser instead of http-proxy. The initial version was [less than 100 lines of code](https://gist.github.com/tenox7/b0f03c039b0a8b67f6c1bf47e2dd0df0).
+* Later in 2019, WRP 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes. 
+* Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers. 
+* Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
 
 ## Credits
 
