@@ -206,6 +206,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if len(w.url) < 4 {
 		w.printPage("#FFFFFF")
 		w.printFooter("", "")
+		return
 	}
 	w.navigate()
 	w.capture()
