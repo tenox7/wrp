@@ -1,0 +1,38 @@
+<HTML>
+    <HEAD>
+        <TITLE>WRP {{.URL}}</TITLE>
+    </HEAD>
+    <BODY BGCOLOR="{{.Bgcolor}}">
+        <FORM ACTION="/" METHOD="POST">
+            <INPUT TYPE="TEXT" NAME="url" VALUE="{{.URL}}" SIZE="20">
+            <INPUT TYPE="SUBMIT" VALUE="Go">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bk">
+            W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
+            H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
+            S <INPUT TYPE="TEXT" NAME="s" VALUE="{{ printf "%.1f" .Scale}}" SIZE="4">
+            T <SELECT NAME="t">
+                <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
+                <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
+            </SELECT>
+            C <INPUT TYPE="TEXT" NAME="c" VALUE="{{.NColors}}" SIZE="3">
+            K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Rt">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="&lt;">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="^">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="v">
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="&gt;" SIZE="1">
+        </FORM>
+        <BR>
+        {{if .ImgUrl}} 
+        <A HREF="{{.MapUrl}}"><IMG SRC="{{.ImgUrl}}" BORDER="0" ALT="Url: {{.URL}}, Size: {{.ImgSize}} PageHeight: {{.PageHeight}}" WIDTH="{{.ImgWidth}}" HEIGHT="{{.ImgHeight}}" ISMAP></A>
+        <P>
+        {{end}}
+		<FONT SIZE="-2">
+		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Scale}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
+		<A HREF="/shutdown/">Shutdown WRP</A> |
+		<A HREF="/">Page Height: {{.PageHeight}}</A> |
+		<A HREF="/">Img Size: {{.ImgSize}}</A>
+		</FONT>
+    </BODY>
+</HTML>

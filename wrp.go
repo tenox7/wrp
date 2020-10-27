@@ -12,6 +12,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"html/template"
 	"image"
 	"image/gif"
 	"image/png"
@@ -36,21 +37,51 @@ import (
 )
 
 var (
-	version = "4.5"
-	srv     http.Server
-	ctx     context.Context
-	cancel  context.CancelFunc
-	img     = make(map[string]bytes.Buffer)
-	ismap   = make(map[string]wrpReq)
-	nodel   bool
-	deftype string
-	defgeom geom
+	version  = "4.5"
+	srv      http.Server
+	ctx      context.Context
+	cancel   context.CancelFunc
+	img      = make(map[string]bytes.Buffer)
+	ismap    = make(map[string]wrpReq)
+	nodel    bool
+	deftype  string
+	defgeom  geom
+	htmlTmpl *template.Template
 )
 
 type geom struct {
 	w int64
 	h int64
 	c int64
+}
+
+// Data for html template
+type uiData struct {
+	Version    string
+	URL        string
+	Bgcolor    string
+	NColors    int64
+	Width      int64
+	Height     int64
+	Scale      float64
+	ImgType    string
+	ImgUrl     string
+	ImgSize    string
+	ImgWidth   int
+	ImgHeight  int
+	MapUrl     string
+	PageHeight string
+}
+
+// Parameters for HTML print function
+type printParams struct {
+	bgcolor    string
+	pageheight string
+	imgsize    string
+	imgurl     string
+	mapurl     string
+	imgwidth   int
+	imgheight  int
 }
 
 // WRP Request
@@ -101,69 +132,31 @@ func (w *wrpReq) parseForm() {
 
 // Display WP UI
 // TODO: make this in to an external template
-func (w wrpReq) printPage(bgcolor string) {
-	var s string
+func (w wrpReq) printHtml(p printParams) {
 	w.out.Header().Set("Cache-Control", "max-age=0")
 	w.out.Header().Set("Expires", "-1")
 	w.out.Header().Set("Pragma", "no-cache")
 	w.out.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w.out, "<!-- Web Rendering Proxy Version %s -->\n", version)
-	fmt.Fprintf(w.out, "<HTML>\n<HEAD><TITLE>WRP %s</TITLE></HEAD>\n<BODY BGCOLOR=\"%s\">\n", w.url, bgcolor)
-	fmt.Fprintf(w.out, "<FORM ACTION=\"/\" METHOD=\"POST\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"TEXT\" NAME=\"url\" VALUE=\"%s\" SIZE=\"20\">", w.url)
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" VALUE=\"Go\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bk\">\n")
-	fmt.Fprintf(w.out, "W <INPUT TYPE=\"TEXT\" NAME=\"w\" VALUE=\"%d\" SIZE=\"4\"> \n", w.width)
-	fmt.Fprintf(w.out, "H <INPUT TYPE=\"TEXT\" NAME=\"h\" VALUE=\"%d\" SIZE=\"4\"> \n", w.height)
-	fmt.Fprintf(w.out, "S <SELECT NAME=\"s\">\n")
-	for _, v := range []float64{0.65, 0.75, 0.85, 0.95, 1.0, 1.05, 1.15, 1.25} {
-		if v == w.scale {
-			s = "SELECTED"
-		} else {
-			s = ""
-		}
-		fmt.Fprintf(w.out, "<OPTION VALUE=\"%1.2f\" %s>%1.2f</OPTION>\n", v, s, v)
+	data := uiData{
+		Version:    version,
+		URL:        w.url,
+		Bgcolor:    p.bgcolor,
+		Width:      w.width,
+		Height:     w.height,
+		NColors:    w.colors,
+		Scale:      w.scale,
+		ImgType:    w.imgType,
+		ImgSize:    p.imgsize,
+		ImgWidth:   p.imgwidth,
+		ImgHeight:  p.imgheight,
+		ImgUrl:     p.imgurl,
+		MapUrl:     p.mapurl,
+		PageHeight: p.pageheight,
 	}
-	fmt.Fprintf(w.out, "</SELECT>\n")
-	fmt.Fprintf(w.out, "T <SELECT NAME=\"t\">\n")
-	for _, v := range []string{"gif", "png"} {
-		if v == w.imgType {
-			s = "SELECTED"
-		} else {
-			s = ""
-		}
-		fmt.Fprintf(w.out, "<OPTION VALUE=\"%s\" %s>%s</OPTION>\n", v, s, strings.ToUpper(v))
+	err := htmlTmpl.Execute(w.out, data)
+	if err != nil {
+		log.Fatal(err)
 	}
-	fmt.Fprintf(w.out, "</SELECT>\n")
-	fmt.Fprintf(w.out, "C <INPUT TYPE=\"TEXT\" NAME=\"c\" VALUE=\"%d\" SIZE=\"3\">\n", w.colors)
-	fmt.Fprintf(w.out, "K <INPUT TYPE=\"TEXT\" NAME=\"k\" VALUE=\"\" SIZE=\"4\"> \n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Bs\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"Rt\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"&lt;\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"^\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"v\">\n")
-	fmt.Fprintf(w.out, "<INPUT TYPE=\"SUBMIT\" NAME=\"Fn\" VALUE=\"&gt;\" SIZE=\"1\">\n")
-	fmt.Fprintf(w.out, "</FORM><BR>\n")
-}
-
-// Status bar below captured image
-func (w wrpReq) printFooter(h string, s string) {
-	fmt.Fprintf(w.out,
-		"\n<P><FONT SIZE=\"-2\">"+
-			"<A HREF=\"/?url=https://github.com/tenox7/wrp/&w=%d&h=%d&s=%1.2f&c=%d&t=%s\">"+
-			"Web Rendering Proxy Version %s</A> | "+
-			"<A HREF=\"/shutdown/\">Shutdown WRP</A> | "+
-			"<A HREF=\"/\">Page Height: %s</A> |"+
-			"<A HREF=\"/\">Img Size: %s</A> "+
-			"</FONT></BODY>\n</HTML>\n",
-		w.width,
-		w.height,
-		w.scale,
-		w.colors,
-		w.imgType,
-		version,
-		h,
-		s)
 }
 
 // Process HTTP requests to WRP '/' url
@@ -174,8 +167,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	w.out = out
 	w.parseForm()
 	if len(w.url) < 4 {
-		w.printPage("#FFFFFF")
-		w.printFooter("", "")
+		w.printHtml(printParams{bgcolor: "#FFFFFF"})
 		return
 	}
 	w.navigate()
@@ -204,8 +196,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
 	if len(w.url) < 4 {
-		w.printPage("#FFFFFF")
-		w.printFooter("", "")
+		w.printHtml(printParams{bgcolor: "#FFFFFF"})
 		return
 	}
 	w.navigate()
@@ -314,6 +305,7 @@ func (w wrpReq) capture() {
 	var pngcap []byte
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), 10, w.scale, false),
+		chromedp.Sleep(time.Second*1),
 		chromedp.Location(&w.url),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -330,7 +322,6 @@ func (w wrpReq) capture() {
 		}
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", w.req.RemoteAddr, w.url, h)
-	w.printPage(fmt.Sprintf("#%02X%02X%02X", r, g, b))
 	height := int64(float64(w.height) / w.scale)
 	if w.height == 0 && h > 0 {
 		height = h + 30
@@ -338,7 +329,7 @@ func (w wrpReq) capture() {
 	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), height, w.scale, false))
 	// Capture screenshot...
 	err = chromedp.Run(ctx,
-		chromedp.Sleep(time.Second*2),
+		chromedp.Sleep(time.Second*1),
 		chromedp.CaptureScreenshot(&pngcap),
 	)
 	if err != nil {
@@ -357,7 +348,7 @@ func (w wrpReq) capture() {
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = w
 	var ssize string
-	var sw, sh int
+	var iw, ih int
 	switch w.imgType {
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
@@ -379,21 +370,28 @@ func (w wrpReq) capture() {
 		}
 		img[imgpath] = gifbuf
 		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
-		sw = i.Bounds().Max.X
-		sh = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, w.colors, sw, sh)
+		iw = i.Bounds().Max.X
+		ih = i.Bounds().Max.Y
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, w.colors, iw, ih)
 	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		cfg, _, _ := image.DecodeConfig(pngbuf)
 		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
-		sw = cfg.Width
-		sh = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, sw, sh)
+		iw = cfg.Width
+		ih = cfg.Height
+		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, iw, ih)
 	}
-	fmt.Fprintf(w.out, "<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" ALT=\"Url: %s, Size: %s\" WIDTH=\"%d\" HEIGHT=\"%d\" ISMAP></A>", mappath, imgpath, w.url, ssize, sw, sh)
-	w.printFooter(fmt.Sprintf("%d PX", h), ssize)
-	log.Printf("%s Done with caputure for %s\n", w.req.RemoteAddr, w.url)
+	w.printHtml(printParams{
+		bgcolor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
+		pageheight: fmt.Sprintf("%d PX", h),
+		imgsize:    ssize,
+		imgurl:     imgpath,
+		mapurl:     mappath,
+		imgwidth:   iw,
+		imgheight:  ih,
+	})
+	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
 }
 
 // Main...
@@ -443,6 +441,10 @@ func main() {
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
+	htmlTmpl, err = template.New("wrp.html").ParseFiles("wrp.html")
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", deftype, defgeom)
