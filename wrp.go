@@ -305,7 +305,6 @@ func (w wrpReq) capture() {
 	var pngcap []byte
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), 10, w.scale, false),
-		chromedp.Sleep(time.Second*1),
 		chromedp.Location(&w.url),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -329,7 +328,7 @@ func (w wrpReq) capture() {
 	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), height, w.scale, false))
 	// Capture screenshot...
 	err = chromedp.Run(ctx,
-		chromedp.Sleep(time.Second*1),
+		chromedp.Sleep(time.Second*2),
 		chromedp.CaptureScreenshot(&pngcap),
 	)
 	if err != nil {
