@@ -5,6 +5,8 @@
 // Copyright (c) 2019-2020 Google LLC
 //
 
+//go:generate statik -f -src=. -include=wrp.html
+
 package main
 
 import (
@@ -16,6 +18,7 @@ import (
 	"image"
 	"image/gif"
 	"image/png"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
@@ -34,6 +37,8 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/rakyll/statik/fs"
+	_ "github.com/tenox7/wrp/statik"
 )
 
 var (
@@ -393,9 +398,40 @@ func (w wrpReq) capture() {
 	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
 }
 
+func tmpl(t string) string {
+	var tmpl []byte
+	fh, err := os.Open(t)
+	if err != nil {
+		goto statik
+	}
+	tmpl, err = ioutil.ReadAll(fh)
+	if err != nil {
+		goto statik
+	}
+	log.Printf("Got UI template from %v file\n", t)
+	return string(tmpl)
+
+statik:
+	sfs, err := fs.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fhs, err := sfs.Open("/wrp.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tmpl, err = ioutil.ReadAll(fhs)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Got UI template from built-in\n")
+	return string(tmpl)
+}
+
 // Main...
 func main() {
-	var addr, fgeom string
+	var addr, fgeom, tHtml string
 	var headless bool
 	var debug bool
 	var err error
@@ -405,6 +441,7 @@ func main() {
 	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
 	flag.StringVar(&deftype, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
+	flag.StringVar(&tHtml, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
 		addr = ":" + os.Getenv(("PORT"))
@@ -440,13 +477,13 @@ func main() {
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
-	htmlTmpl, err = template.New("wrp.html").ParseFiles("wrp.html")
-	if err != nil {
-		log.Fatal(err)
-	}
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", deftype, defgeom)
+	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHtml))
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Starting WRP http server on %s\n", addr)
 	srv.Addr = addr
 	err = srv.ListenAndServe()
