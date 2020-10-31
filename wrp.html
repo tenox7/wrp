@@ -2,7 +2,7 @@
     <HEAD>
         <TITLE>WRP {{.URL}}</TITLE>
     </HEAD>
-    <BODY BGCOLOR="{{.Bgcolor}}">
+    <BODY BGCOLOR="{{.BgColor}}">
         <FORM ACTION="/" METHOD="POST">
             <INPUT TYPE="TEXT" NAME="url" VALUE="{{.URL}}" SIZE="20">
             <INPUT TYPE="SUBMIT" VALUE="Go">
@@ -38,9 +38,9 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="&gt;" SIZE="1">
         </FORM>
         <BR>
-        {{if .ImgUrl}} 
-        <A HREF="{{.MapUrl}}">
-            <IMG SRC="{{.ImgUrl}}" BORDER="0" ALT="Url: {{.URL}}, Size: {{.ImgSize}} PageHeight: {{.PageHeight}}" WIDTH="{{.ImgWidth}}" HEIGHT="{{.ImgHeight}}" ISMAP>
+        {{if .ImgURL}}
+        <A HREF="{{.MapURL}}">
+            <IMG SRC="{{.ImgURL}}" BORDER="0" ALT="Url: {{.URL}}, Size: {{.ImgSize}} PageHeight: {{.PageHeight}}" WIDTH="{{.ImgWidth}}" HEIGHT="{{.ImgHeight}}" ISMAP>
         </A>
         <P>
         {{end}}

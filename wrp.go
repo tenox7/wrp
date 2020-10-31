@@ -48,9 +48,9 @@ var (
 	cancel   context.CancelFunc
 	img      = make(map[string]bytes.Buffer)
 	ismap    = make(map[string]wrpReq)
-	nodel    bool
-	deftype  string
-	defgeom  geom
+	noDel    bool
+	defType  string
+	defGeom  geom
 	htmlTmpl *template.Template
 )
 
@@ -64,29 +64,29 @@ type geom struct {
 type uiData struct {
 	Version    string
 	URL        string
-	Bgcolor    string
+	BgColor    string
 	NColors    int64
 	Width      int64
 	Height     int64
 	Scale      float64
 	ImgType    string
-	ImgUrl     string
+	ImgURL     string
 	ImgSize    string
 	ImgWidth   int
 	ImgHeight  int
-	MapUrl     string
+	MapURL     string
 	PageHeight string
 }
 
 // Parameters for HTML print function
 type printParams struct {
-	bgcolor    string
-	pageheight string
-	imgsize    string
-	imgurl     string
-	mapurl     string
-	imgwidth   int
-	imgheight  int
+	bgColor    string
+	pageHeight string
+	imgSize    string
+	imgURL     string
+	mapURL     string
+	imgWidth   int
+	imgHeight  int
 }
 
 // WRP Request
@@ -115,8 +115,8 @@ func (w *wrpReq) parseForm() {
 	w.width, _ = strconv.ParseInt(w.req.FormValue("w"), 10, 64)
 	w.height, _ = strconv.ParseInt(w.req.FormValue("h"), 10, 64)
 	if w.width < 10 && w.height < 10 {
-		w.width = defgeom.w
-		w.height = defgeom.h
+		w.width = defGeom.w
+		w.height = defGeom.h
 	}
 	w.scale, _ = strconv.ParseFloat(w.req.FormValue("s"), 64)
 	if w.scale < 0.1 {
@@ -124,20 +124,19 @@ func (w *wrpReq) parseForm() {
 	}
 	w.colors, _ = strconv.ParseInt(w.req.FormValue("c"), 10, 64)
 	if w.colors < 2 || w.colors > 256 {
-		w.colors = defgeom.c
+		w.colors = defGeom.c
 	}
 	w.keys = w.req.FormValue("k")
 	w.buttons = w.req.FormValue("Fn")
 	w.imgType = w.req.FormValue("t")
 	if w.imgType != "gif" && w.imgType != "png" {
-		w.imgType = deftype
+		w.imgType = defType
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", w.req.RemoteAddr, w)
 }
 
 // Display WP UI
-// TODO: make this in to an external template
-func (w wrpReq) printHtml(p printParams) {
+func (w wrpReq) printHTML(p printParams) {
 	w.out.Header().Set("Cache-Control", "max-age=0")
 	w.out.Header().Set("Expires", "-1")
 	w.out.Header().Set("Pragma", "no-cache")
@@ -145,18 +144,18 @@ func (w wrpReq) printHtml(p printParams) {
 	data := uiData{
 		Version:    version,
 		URL:        w.url,
-		Bgcolor:    p.bgcolor,
+		BgColor:    p.bgColor,
 		Width:      w.width,
 		Height:     w.height,
 		NColors:    w.colors,
 		Scale:      w.scale,
 		ImgType:    w.imgType,
-		ImgSize:    p.imgsize,
-		ImgWidth:   p.imgwidth,
-		ImgHeight:  p.imgheight,
-		ImgUrl:     p.imgurl,
-		MapUrl:     p.mapurl,
-		PageHeight: p.pageheight,
+		ImgSize:    p.imgSize,
+		ImgWidth:   p.imgWidth,
+		ImgHeight:  p.imgHeight,
+		ImgURL:     p.imgURL,
+		MapURL:     p.mapURL,
+		PageHeight: p.pageHeight,
 	}
 	err := htmlTmpl.Execute(w.out, data)
 	if err != nil {
@@ -172,7 +171,7 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	w.out = out
 	w.parseForm()
 	if len(w.url) < 4 {
-		w.printHtml(printParams{bgcolor: "#FFFFFF"})
+		w.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
 	w.navigate()
@@ -190,7 +189,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 		log.Printf("Unable to find map %s\n", req.URL.Path)
 		return
 	}
-	if !nodel {
+	if !noDel {
 		defer delete(ismap, req.URL.Path)
 	}
 	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.mouseX, &w.mouseY)
@@ -201,7 +200,7 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
 	if len(w.url) < 4 {
-		w.printHtml(printParams{bgcolor: "#FFFFFF"})
+		w.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
 	w.navigate()
@@ -217,7 +216,7 @@ func imgServer(out http.ResponseWriter, req *http.Request) {
 		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
 		return
 	}
-	if !nodel {
+	if !noDel {
 		defer delete(img, req.URL.Path)
 	}
 	switch {
@@ -386,14 +385,14 @@ func (w wrpReq) capture() {
 		ih = cfg.Height
 		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, iw, ih)
 	}
-	w.printHtml(printParams{
-		bgcolor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
-		pageheight: fmt.Sprintf("%d PX", h),
-		imgsize:    ssize,
-		imgurl:     imgpath,
-		mapurl:     mappath,
-		imgwidth:   iw,
-		imgheight:  ih,
+	w.printHTML(printParams{
+		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
+		pageHeight: fmt.Sprintf("%d PX", h),
+		imgSize:    ssize,
+		imgURL:     imgpath,
+		mapURL:     mappath,
+		imgWidth:   iw,
+		imgHeight:  ih,
 	})
 	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
 }
@@ -438,15 +437,15 @@ func main() {
 	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
 	flag.BoolVar(&headless, "h", true, "Headless mode - hide browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
-	flag.BoolVar(&nodel, "n", false, "Do not free maps and images after use")
-	flag.StringVar(&deftype, "t", "gif", "Image type: gif|png")
+	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
+	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.StringVar(&tHtml, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
 		addr = ":" + os.Getenv(("PORT"))
 	}
-	n, err := fmt.Sscanf(fgeom, "%dx%dx%d", &defgeom.w, &defgeom.h, &defgeom.c)
+	n, err := fmt.Sscanf(fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
@@ -479,7 +478,7 @@ func main() {
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Args: %q", os.Args)
-	log.Printf("Default Img Type: %v, Geometry: %+v", deftype, defgeom)
+	log.Printf("Default Img Type: %v, Geometry: %+v", defType, defGeom)
 	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHtml))
 	if err != nil {
 		log.Fatal(err)
