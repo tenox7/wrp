@@ -9,12 +9,26 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bk">
             W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
             H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
-            S <INPUT TYPE="TEXT" NAME="s" VALUE="{{ printf "%.1f" .Scale}}" SIZE="4">
+            S <SELECT NAME="s">
+                <OPTION VALUE="0.7" {{ if eq .Scale 0.7}}SELECTED{{end}}>0.7</OPTION>
+                <OPTION VALUE="0.8" {{ if eq .Scale 0.8}}SELECTED{{end}}>0.8</OPTION>
+                <OPTION VALUE="0.9" {{ if eq .Scale 0.9}}SELECTED{{end}}>0.9</OPTION>
+                <OPTION VALUE="1.0" {{ if eq .Scale 1.0}}SELECTED{{end}}>1.0</OPTION>
+                <OPTION VALUE="1.1" {{ if eq .Scale 1.1}}SELECTED{{end}}>1.1</OPTION>
+                <OPTION VALUE="1.2" {{ if eq .Scale 1.2}}SELECTED{{end}}>1.2</OPTION>
+                <OPTION VALUE="1.3" {{ if eq .Scale 1.3}}SELECTED{{end}}>1.3</OPTION>
+            </SELECT>
             T <SELECT NAME="t">
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
             </SELECT>
-            C <INPUT TYPE="TEXT" NAME="c" VALUE="{{.NColors}}" SIZE="3">
+            C <SELECT NAME="c">
+                <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
+                <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
+                <OPTION VALUE="64" {{ if eq .NColors 64}}SELECTED{{end}}>64</OPTION>
+                <OPTION VALUE="128" {{ if eq .NColors 128}}SELECTED{{end}}>128</OPTION>
+                <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
+            </SELECT>
             K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Rt">
@@ -25,7 +39,9 @@
         </FORM>
         <BR>
         {{if .ImgUrl}} 
-        <A HREF="{{.MapUrl}}"><IMG SRC="{{.ImgUrl}}" BORDER="0" ALT="Url: {{.URL}}, Size: {{.ImgSize}} PageHeight: {{.PageHeight}}" WIDTH="{{.ImgWidth}}" HEIGHT="{{.ImgHeight}}" ISMAP></A>
+        <A HREF="{{.MapUrl}}">
+            <IMG SRC="{{.ImgUrl}}" BORDER="0" ALT="Url: {{.URL}}, Size: {{.ImgSize}} PageHeight: {{.PageHeight}}" WIDTH="{{.ImgWidth}}" HEIGHT="{{.ImgHeight}}" ISMAP>
+        </A>
         <P>
         {{end}}
 		<FONT SIZE="-2">
