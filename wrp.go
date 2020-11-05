@@ -106,7 +106,7 @@ type wrpReq struct {
 }
 
 // Parse HTML Form, Process Input Boxes, Etc.
-func (w *wrpReq) parseForm() {
+func parseForm(w *wrpReq) {
 	w.req.ParseForm()
 	w.url = w.req.FormValue("url")
 	if len(w.url) > 1 && !strings.HasPrefix(w.url, "http") {
@@ -136,7 +136,7 @@ func (w *wrpReq) parseForm() {
 }
 
 // Display WP UI
-func (w wrpReq) printHTML(p printParams) {
+func printHTML(w wrpReq, p printParams) {
 	w.out.Header().Set("Cache-Control", "max-age=0")
 	w.out.Header().Set("Expires", "-1")
 	w.out.Header().Set("Pragma", "no-cache")
@@ -169,13 +169,13 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 	var w wrpReq
 	w.req = req
 	w.out = out
-	w.parseForm()
+	parseForm(&w)
 	if len(w.url) < 4 {
-		w.printHTML(printParams{bgColor: "#FFFFFF"})
+		printHTML(w, printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	w.navigate()
-	w.capture()
+	navigate(w)
+	capture(w)
 }
 
 // Process HTTP requests to ISMAP '/map/' url
@@ -200,11 +200,11 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
 	if len(w.url) < 4 {
-		w.printHTML(printParams{bgColor: "#FFFFFF"})
+		printHTML(w, printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	w.navigate()
-	w.capture()
+	navigate(w)
+	capture(w)
 }
 
 // Process HTTP requests for images '/img/' url
@@ -249,7 +249,7 @@ func haltServer(out http.ResponseWriter, req *http.Request) {
 }
 
 // Determine what action to take
-func (w wrpReq) action() chromedp.Action {
+func action(w wrpReq) chromedp.Action {
 	// Mouse Click
 	if w.mouseX > 0 && w.mouseY > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", w.req.RemoteAddr, w.mouseX, w.mouseY)
@@ -286,8 +286,8 @@ func (w wrpReq) action() chromedp.Action {
 }
 
 // Process Keyboard and Mouse events or Navigate to the desired URL.
-func (w wrpReq) navigate() {
-	err := chromedp.Run(ctx, w.action())
+func navigate(w wrpReq) {
+	err := chromedp.Run(ctx, action(w))
 	if err != nil {
 		if err.Error() == "context canceled" {
 			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
@@ -301,7 +301,7 @@ func (w wrpReq) navigate() {
 }
 
 // Capture currently rendered web page to an image and fake ISMAP
-func (w wrpReq) capture() {
+func capture(w wrpReq) {
 	var err error
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
@@ -385,7 +385,7 @@ func (w wrpReq) capture() {
 		ih = cfg.Height
 		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, iw, ih)
 	}
-	w.printHTML(printParams{
+	printHTML(w, printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
 		pageHeight: fmt.Sprintf("%d PX", h),
 		imgSize:    ssize,
@@ -397,6 +397,7 @@ func (w wrpReq) capture() {
 	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
 }
 
+// returns html template, either from html file or built-in
 func tmpl(t string) string {
 	var tmpl []byte
 	fh, err := os.Open(t)
