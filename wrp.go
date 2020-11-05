@@ -163,91 +163,6 @@ func printHTML(w wrpReq, p printParams) {
 	}
 }
 
-// Process HTTP requests to WRP '/' url
-func pageServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	var w wrpReq
-	w.req = req
-	w.out = out
-	parseForm(&w)
-	if len(w.url) < 4 {
-		printHTML(w, printParams{bgColor: "#FFFFFF"})
-		return
-	}
-	navigate(w)
-	capture(w)
-}
-
-// Process HTTP requests to ISMAP '/map/' url
-func mapServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	w, ok := ismap[req.URL.Path]
-	w.req = req
-	w.out = out
-	if !ok {
-		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
-		log.Printf("Unable to find map %s\n", req.URL.Path)
-		return
-	}
-	if !noDel {
-		defer delete(ismap, req.URL.Path)
-	}
-	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.mouseX, &w.mouseY)
-	if err != nil || n != 2 {
-		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
-		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
-		return
-	}
-	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
-	if len(w.url) < 4 {
-		printHTML(w, printParams{bgColor: "#FFFFFF"})
-		return
-	}
-	navigate(w)
-	capture(w)
-}
-
-// Process HTTP requests for images '/img/' url
-func imgServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
-	imgbuf, ok := img[req.URL.Path]
-	if !ok || imgbuf.Bytes() == nil {
-		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
-		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
-		return
-	}
-	if !noDel {
-		defer delete(img, req.URL.Path)
-	}
-	switch {
-	case strings.HasPrefix(req.URL.Path, ".gif"):
-		out.Header().Set("Content-Type", "image/gif")
-	case strings.HasPrefix(req.URL.Path, ".png"):
-		out.Header().Set("Content-Type", "image/png")
-	}
-	out.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
-	out.Header().Set("Cache-Control", "max-age=0")
-	out.Header().Set("Expires", "-1")
-	out.Header().Set("Pragma", "no-cache")
-	out.Write(imgbuf.Bytes())
-	out.(http.Flusher).Flush()
-}
-
-// Process HTTP requests for Shutdown via '/shutdown/' url
-func haltServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
-	out.Header().Set("Cache-Control", "max-age=0")
-	out.Header().Set("Expires", "-1")
-	out.Header().Set("Pragma", "no-cache")
-	out.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(out, "Shutting down WRP...\n")
-	out.(http.Flusher).Flush()
-	time.Sleep(time.Second * 2)
-	cancel()
-	srv.Shutdown(context.Background())
-	os.Exit(1)
-}
-
 // Determine what action to take
 func action(w wrpReq) chromedp.Action {
 	// Mouse Click
@@ -397,6 +312,91 @@ func capture(w wrpReq) {
 	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
 }
 
+// Process HTTP requests to WRP '/' url
+func pageServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
+	var w wrpReq
+	w.req = req
+	w.out = out
+	parseForm(&w)
+	if len(w.url) < 4 {
+		printHTML(w, printParams{bgColor: "#FFFFFF"})
+		return
+	}
+	navigate(w)
+	capture(w)
+}
+
+// Process HTTP requests to ISMAP '/map/' url
+func mapServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
+	w, ok := ismap[req.URL.Path]
+	w.req = req
+	w.out = out
+	if !ok {
+		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
+		log.Printf("Unable to find map %s\n", req.URL.Path)
+		return
+	}
+	if !noDel {
+		defer delete(ismap, req.URL.Path)
+	}
+	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.mouseX, &w.mouseY)
+	if err != nil || n != 2 {
+		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
+		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
+		return
+	}
+	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
+	if len(w.url) < 4 {
+		printHTML(w, printParams{bgColor: "#FFFFFF"})
+		return
+	}
+	navigate(w)
+	capture(w)
+}
+
+// Process HTTP requests for images '/img/' url
+func imgServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
+	imgbuf, ok := img[req.URL.Path]
+	if !ok || imgbuf.Bytes() == nil {
+		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
+		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
+		return
+	}
+	if !noDel {
+		defer delete(img, req.URL.Path)
+	}
+	switch {
+	case strings.HasPrefix(req.URL.Path, ".gif"):
+		out.Header().Set("Content-Type", "image/gif")
+	case strings.HasPrefix(req.URL.Path, ".png"):
+		out.Header().Set("Content-Type", "image/png")
+	}
+	out.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
+	out.Write(imgbuf.Bytes())
+	out.(http.Flusher).Flush()
+}
+
+// Process HTTP requests for Shutdown via '/shutdown/' url
+func haltServer(out http.ResponseWriter, req *http.Request) {
+	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
+	out.Header().Set("Cache-Control", "max-age=0")
+	out.Header().Set("Expires", "-1")
+	out.Header().Set("Pragma", "no-cache")
+	out.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(out, "Shutting down WRP...\n")
+	out.(http.Flusher).Flush()
+	time.Sleep(time.Second * 2)
+	cancel()
+	srv.Shutdown(context.Background())
+	os.Exit(1)
+}
+
 // returns html template, either from html file or built-in
 func tmpl(t string) string {
 	var tmpl []byte
@@ -450,6 +450,7 @@ func main() {
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", headless),
 		chromedp.Flag("hide-scrollbars", false),
@@ -462,7 +463,9 @@ func main() {
 		ctx, cancel = chromedp.NewContext(actx)
 	}
 	defer cancel()
+
 	rand.Seed(time.Now().UnixNano())
+
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -472,18 +475,22 @@ func main() {
 		srv.Shutdown(context.Background())
 		os.Exit(1)
 	}()
+
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/img/", imgServer)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
+
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", defType, defGeom)
+
 	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHtml))
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	log.Printf("Starting WRP http server on %s\n", addr)
 	srv.Addr = addr
 	err = srv.ListenAndServe()
