@@ -57,7 +57,7 @@ Fortunately ACI allows port 80 without encryption.
 
 ## UI explanation
 
-The firs unnamed input box is either search (google) or URL starting with http/https
+The first unnamed input box is either search (google) or URL starting with http/https
 
 **Go** instructs browser to navigate to the url or perform search
 
