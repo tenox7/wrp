@@ -59,28 +59,28 @@ Fortunately ACI allows port 80 without encryption.
 
 The firs unnamed input box is either search (google) or URL starting with http/https
 
-Go instructs browser to navigate to the url or perform search
+**Go** instructs browser to navigate to the url or perform search
 
-Bk is History Back
+**Bk** is History Back
 
-W is width in pixels, adjust it to get rid of horizontal scroll bar
+**W** is width in pixels, adjust it to get rid of horizontal scroll bar
 
-H is height in pixels, adjust it to get rid of vertical scroll bar.
+**H** is height in pixels, adjust it to get rid of vertical scroll bar.
 It can also be set to 0 to produce one very tall image and use
 client scroll. This 0 size is experimental, buggy and should be
 used with PNG and lots of memory on a client side.
 
-S is scale or zoom
+**S** is scale or zoom
 
-C is colors, for GIF images only (unused in PNG)
+**C** is colors, for GIF images only (unused in PNG)
 
-K is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
+**K** is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 
-Bs is backspace
+**Bs** is backspace
 
-Rt is return / enter
+**Rt** is return / enter
 
-< ^ v > are arrow keys, typically for navigating a map, buggy.
+**< ^ v >** are arrow keys, typically for navigating a map, buggy.
 
 ## Minimal Requirements
 
