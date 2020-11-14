@@ -10,7 +10,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
 2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
 3. Type a search string or a http/https URL and click **Go**.
-4. Adjust your screen width/height/scale/#colors to fit in your old browser.
+4. Adjust your screen **W**idth/**H**eight/**Scale/**C**olors to fit in your old browser.
 5. Scroll web page by clicking on the in-image scroll bar.
 6. Do not use client browser history-back, instead use **Bk** button in the app.
 7. To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
@@ -54,6 +54,33 @@ Fortunately ACI allows port 80 without encryption.
 -d  chromedp debug logging (default false)
 -n  do not free maps and gif images after use (default false)
 ```
+
+## UI explanation
+
+The firs unnamed input box is either search (google) or URL starting with http/https
+
+Go instructs browser to navigate to the url or perform search
+
+Bk is History Back
+
+W is width in pixels, adjust it to get rid of horizontal scroll bar
+
+H is height in pixels, adjust it to get rid of vertical scroll bar.
+It can also be set to 0 to produce one very tall image and use
+client scroll. This 0 size is experimental, buggy and should be
+used with PNG and lots of memory on a client side.
+
+S is scale or zoom
+
+C is colors, for GIF images only (unused in PNG)
+
+K is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
+
+Bs is backspace
+
+Rt is return / enter
+
+< ^ v > are arrow keys, typically for navigating a map, buggy.
 
 ## Minimal Requirements
 
