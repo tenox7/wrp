@@ -17,6 +17,10 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 8. You can set height **H** to `0` to render pages in to **a single tall image without the vertical scrollbar** and use client scrolling. However this should not be used with old and low spec clients. Such tall images will be very large and take long time to process, especially for GIFs.
 9. Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
 
+## Customization
+
+Since 4.5.1 WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
+
 ## Docker
 
 ```shell
