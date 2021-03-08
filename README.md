@@ -10,7 +10,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
 * Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
 * Type a search string or a http/https URL and click **Go**.
-* Adjust your screen **W**idth/**H**eight/**Scale/**C**olors to fit in your old browser.
+* Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
 * Scroll web page by clicking on the in-image scroll bar.
 * Do not use client browser history-back, instead use **Bk** button in the app.
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
