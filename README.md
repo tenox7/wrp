@@ -69,6 +69,10 @@ The first unnamed input box is either search (google) or URL starting with http/
 
 **Bk** is History Back
 
+**St** is Stop, also re-capture screenshot without refreshing page
+
+**Re** is Reload
+
 **W** is width in pixels, adjust it to get rid of horizontal scroll bar
 
 **H** is height in pixels, adjust it to get rid of vertical scroll bar.
@@ -76,7 +80,7 @@ It can also be set to 0 to produce one very tall image and use
 client scroll. This 0 size is experimental, buggy and should be
 used with PNG and lots of memory on a client side.
 
-**S** is scale or zoom
+**Z** is zoom or scale
 
 **C** is colors, for GIF images only (unused in PNG)
 
