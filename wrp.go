@@ -176,6 +176,10 @@ func action(w wrpReq) chromedp.Action {
 		switch w.buttons {
 		case "Bk":
 			return chromedp.NavigateBack()
+		case "St":
+			return chromedp.Stop()
+		case "Re":
+			return chromedp.Reload()
 		case "Bs":
 			return chromedp.KeyEvent("\b")
 		case "Rt":

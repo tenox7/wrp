@@ -6,16 +6,18 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 ## Usage
 
-1. [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
+* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
 This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
-2. Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
-3. Type a search string or a http/https URL and click **Go**.
-4. Adjust your screen **W**idth/**H**eight/**Scale/**C**olors to fit in your old browser.
-5. Scroll web page by clicking on the in-image scroll bar.
-6. Do not use client browser history-back, instead use **Bk** button in the app.
-7. To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-8. You can set height **H** to `0` to render pages in to **a single tall image without the vertical scrollbar** and use client scrolling. However this should not be used with old and low spec clients. Such tall images will be very large and take long time to process, especially for GIFs.
-9. Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
+* Point your legacy browser to `http://address:port` of WRP server. Do not set or use it as a "proxy server".
+* Type a search string or a http/https URL and click **Go**.
+* Adjust your screen **W**idth/**H**eight/**Scale/**C**olors to fit in your old browser.
+* Scroll web page by clicking on the in-image scroll bar.
+* Do not use client browser history-back, instead use **Bk** button in the app.
+* To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
+* You can set height **H** to `0` to render pages in to **a single tall image without the vertical scrollbar** and use client scrolling. However this should not be used with old and low spec clients. Such tall images will be very large and take long time to process, especially for GIFs.
+* Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server.
+* You can re-capture page screenshot without reloading by using **St** (Stop).
+* You can also reload and re-capture current page with **Re** (Reload).
 
 ## Customization
 
