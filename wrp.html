@@ -11,14 +11,14 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Re">
             W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
             H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
-            S <SELECT NAME="s">
-                <OPTION VALUE="0.7" {{ if eq .Scale 0.7}}SELECTED{{end}}>0.7</OPTION>
-                <OPTION VALUE="0.8" {{ if eq .Scale 0.8}}SELECTED{{end}}>0.8</OPTION>
-                <OPTION VALUE="0.9" {{ if eq .Scale 0.9}}SELECTED{{end}}>0.9</OPTION>
-                <OPTION VALUE="1.0" {{ if eq .Scale 1.0}}SELECTED{{end}}>1.0</OPTION>
-                <OPTION VALUE="1.1" {{ if eq .Scale 1.1}}SELECTED{{end}}>1.1</OPTION>
-                <OPTION VALUE="1.2" {{ if eq .Scale 1.2}}SELECTED{{end}}>1.2</OPTION>
-                <OPTION VALUE="1.3" {{ if eq .Scale 1.3}}SELECTED{{end}}>1.3</OPTION>
+            Z <SELECT NAME="z">
+                <OPTION VALUE="0.7" {{ if eq .Zoom 0.7}}SELECTED{{end}}>0.7 x</OPTION>
+                <OPTION VALUE="0.8" {{ if eq .Zoom 0.8}}SELECTED{{end}}>0.8 x</OPTION>
+                <OPTION VALUE="0.9" {{ if eq .Zoom 0.9}}SELECTED{{end}}>0.9 x</OPTION>
+                <OPTION VALUE="1.0" {{ if eq .Zoom 1.0}}SELECTED{{end}}>1.0 x</OPTION>
+                <OPTION VALUE="1.1" {{ if eq .Zoom 1.1}}SELECTED{{end}}>1.1 x</OPTION>
+                <OPTION VALUE="1.2" {{ if eq .Zoom 1.2}}SELECTED{{end}}>1.2 x</OPTION>
+                <OPTION VALUE="1.3" {{ if eq .Zoom 1.3}}SELECTED{{end}}>1.3 x</OPTION>
             </SELECT>
             T <SELECT NAME="t">
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
@@ -47,7 +47,7 @@
         <P>
         {{end}}
 		<FONT SIZE="-2">
-		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Scale}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
+		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
 		<A HREF="/shutdown/">Shutdown WRP</A> |
 		<A HREF="/">Page Height: {{.PageHeight}}</A> |
 		<A HREF="/">Img Size: {{.ImgSize}}</A>

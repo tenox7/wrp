@@ -68,7 +68,7 @@ type uiData struct {
 	NColors    int64
 	Width      int64
 	Height     int64
-	Scale      float64
+	Zoom       float64
 	ImgType    string
 	ImgURL     string
 	ImgSize    string
@@ -94,7 +94,7 @@ type wrpReq struct {
 	url     string  // url
 	width   int64   // width
 	height  int64   // height
-	scale   float64 // scale
+	zoom    float64 // zoom/scale
 	colors  int64   // #colors
 	mouseX  int64   // mouseX
 	mouseY  int64   // mouseY
@@ -118,9 +118,9 @@ func parseForm(w *wrpReq) {
 		w.width = defGeom.w
 		w.height = defGeom.h
 	}
-	w.scale, _ = strconv.ParseFloat(w.req.FormValue("s"), 64)
-	if w.scale < 0.1 {
-		w.scale = 1.0
+	w.zoom, _ = strconv.ParseFloat(w.req.FormValue("z"), 64)
+	if w.zoom < 0.1 {
+		w.zoom = 1.0
 	}
 	w.colors, _ = strconv.ParseInt(w.req.FormValue("c"), 10, 64)
 	if w.colors < 2 || w.colors > 256 {
@@ -148,7 +148,7 @@ func printHTML(w wrpReq, p printParams) {
 		Width:      w.width,
 		Height:     w.height,
 		NColors:    w.colors,
-		Scale:      w.scale,
+		Zoom:       w.zoom,
 		ImgType:    w.imgType,
 		ImgSize:    p.imgSize,
 		ImgWidth:   p.imgWidth,
@@ -168,7 +168,7 @@ func action(w wrpReq) chromedp.Action {
 	// Mouse Click
 	if w.mouseX > 0 && w.mouseY > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", w.req.RemoteAddr, w.mouseX, w.mouseY)
-		return chromedp.MouseClickXY(float64(w.mouseX)/float64(w.scale), float64(w.mouseY)/float64(w.scale))
+		return chromedp.MouseClickXY(float64(w.mouseX)/float64(w.zoom), float64(w.mouseY)/float64(w.zoom))
 	}
 	// Buttons
 	if len(w.buttons) > 0 {
@@ -227,7 +227,7 @@ func capture(w wrpReq) {
 	var h int64
 	var pngcap []byte
 	chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), 10, w.scale, false),
+		emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), 10, w.zoom, false),
 		chromedp.Location(&w.url),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -244,11 +244,11 @@ func capture(w wrpReq) {
 		}
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", w.req.RemoteAddr, w.url, h)
-	height := int64(float64(w.height) / w.scale)
+	height := int64(float64(w.height) / w.zoom)
 	if w.height == 0 && h > 0 {
 		height = h + 30
 	}
-	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.scale), height, w.scale, false))
+	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), height, w.zoom, false))
 	// Capture screenshot...
 	err = chromedp.Run(ctx,
 		chromedp.Sleep(time.Second*2),
