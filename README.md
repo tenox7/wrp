@@ -69,7 +69,8 @@ The first unnamed input box is either search (google) or URL starting with http/
 
 **Bk** is History Back
 
-**St** is Stop, also re-capture screenshot without refreshing page
+**St** is Stop, also re-capture screenshot without refreshing page, for example if page
+render takes a long time or it changes periodically
 
 **Re** is Reload
 
