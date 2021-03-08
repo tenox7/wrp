@@ -2,7 +2,7 @@
 // WRP - Web Rendering Proxy
 //
 // Copyright (c) 2013-2018 Antoni Sawicki
-// Copyright (c) 2019-2020 Google LLC
+// Copyright (c) 2019-2021 Google LLC
 //
 
 //go:generate statik -f -src=. -include=wrp.html
@@ -42,7 +42,7 @@ import (
 )
 
 var (
-	version  = "4.5"
+	version  = "4.5.2"
 	srv      http.Server
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -431,7 +431,7 @@ statik:
 
 // Main...
 func main() {
-	var addr, fgeom, tHtml string
+	var addr, fgeom, tHTML string
 	var headless bool
 	var debug bool
 	var err error
@@ -441,7 +441,7 @@ func main() {
 	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
 	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
-	flag.StringVar(&tHtml, "ui", "wrp.html", "HTML template file for the UI")
+	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
 		addr = ":" + os.Getenv(("PORT"))
@@ -486,7 +486,7 @@ func main() {
 	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", defType, defGeom)
 
-	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHtml))
+	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHTML))
 	if err != nil {
 		log.Fatal(err)
 	}
