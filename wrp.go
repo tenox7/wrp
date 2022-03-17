@@ -5,13 +5,12 @@
 // Copyright (c) 2019-2021 Google LLC
 //
 
-//go:generate statik -f -src=. -include=wrp.html
-
 package main
 
 import (
 	"bytes"
 	"context"
+	"embed"
 	"flag"
 	"fmt"
 	"html/template"
@@ -37,8 +36,6 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/ericpauley/go-quantize/quantize"
-	"github.com/rakyll/statik/fs"
-	_ "github.com/tenox7/wrp/statik"
 )
 
 var (
@@ -53,6 +50,9 @@ var (
 	defGeom  geom
 	htmlTmpl *template.Template
 )
+
+// go:embed *.html
+var fs embed.FS
 
 type geom struct {
 	w int64
@@ -416,11 +416,7 @@ func tmpl(t string) string {
 	return string(tmpl)
 
 statik:
-	sfs, err := fs.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fhs, err := sfs.Open("/wrp.html")
+	fhs, err := fs.Open("/wrp.html")
 	if err != nil {
 		log.Fatal(err)
 	}
