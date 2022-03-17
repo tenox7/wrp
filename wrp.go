@@ -5,8 +5,6 @@
 // Copyright (c) 2019-2021 Google LLC
 //
 
-//go:generate statik -f -src=. -include=wrp.html
-
 package main
 
 import (
