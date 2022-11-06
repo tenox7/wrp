@@ -106,50 +106,50 @@ type wrpReq struct {
 }
 
 // Parse HTML Form, Process Input Boxes, Etc.
-func (w *wrpReq) parseForm() {
-	w.req.ParseForm()
-	w.url = w.req.FormValue("url")
-	if len(w.url) > 1 && !strings.HasPrefix(w.url, "http") {
-		w.url = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(w.url))
+func (rq *wrpReq) parseForm() {
+	rq.req.ParseForm()
+	rq.url = rq.req.FormValue("url")
+	if len(rq.url) > 1 && !strings.HasPrefix(rq.url, "http") {
+		rq.url = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(rq.url))
 	}
-	w.width, _ = strconv.ParseInt(w.req.FormValue("w"), 10, 64)
-	w.height, _ = strconv.ParseInt(w.req.FormValue("h"), 10, 64)
-	if w.width < 10 && w.height < 10 {
-		w.width = defGeom.w
-		w.height = defGeom.h
+	rq.width, _ = strconv.ParseInt(rq.req.FormValue("w"), 10, 64)
+	rq.height, _ = strconv.ParseInt(rq.req.FormValue("h"), 10, 64)
+	if rq.width < 10 && rq.height < 10 {
+		rq.width = defGeom.w
+		rq.height = defGeom.h
 	}
-	w.zoom, _ = strconv.ParseFloat(w.req.FormValue("z"), 64)
-	if w.zoom < 0.1 {
-		w.zoom = 1.0
+	rq.zoom, _ = strconv.ParseFloat(rq.req.FormValue("z"), 64)
+	if rq.zoom < 0.1 {
+		rq.zoom = 1.0
 	}
-	w.colors, _ = strconv.ParseInt(w.req.FormValue("c"), 10, 64)
-	if w.colors < 2 || w.colors > 256 {
-		w.colors = defGeom.c
+	rq.colors, _ = strconv.ParseInt(rq.req.FormValue("c"), 10, 64)
+	if rq.colors < 2 || rq.colors > 256 {
+		rq.colors = defGeom.c
 	}
-	w.keys = w.req.FormValue("k")
-	w.buttons = w.req.FormValue("Fn")
-	w.imgType = w.req.FormValue("t")
-	if w.imgType != "gif" && w.imgType != "png" {
-		w.imgType = defType
+	rq.keys = rq.req.FormValue("k")
+	rq.buttons = rq.req.FormValue("Fn")
+	rq.imgType = rq.req.FormValue("t")
+	if rq.imgType != "gif" && rq.imgType != "png" {
+		rq.imgType = defType
 	}
-	log.Printf("%s WrpReq from UI Form: %+v\n", w.req.RemoteAddr, w)
+	log.Printf("%s WrpReq from UI Form: %+v\n", rq.req.RemoteAddr, rq)
 }
 
 // Display WP UI
-func (w *wrpReq) printHTML(p printParams) {
-	w.out.Header().Set("Cache-Control", "max-age=0")
-	w.out.Header().Set("Expires", "-1")
-	w.out.Header().Set("Pragma", "no-cache")
-	w.out.Header().Set("Content-Type", "text/html")
+func (rq *wrpReq) printHTML(p printParams) {
+	rq.out.Header().Set("Cache-Control", "max-age=0")
+	rq.out.Header().Set("Expires", "-1")
+	rq.out.Header().Set("Pragma", "no-cache")
+	rq.out.Header().Set("Content-Type", "text/html")
 	data := uiData{
 		Version:    version,
-		URL:        w.url,
+		URL:        rq.url,
 		BgColor:    p.bgColor,
-		Width:      w.width,
-		Height:     w.height,
-		NColors:    w.colors,
-		Zoom:       w.zoom,
-		ImgType:    w.imgType,
+		Width:      rq.width,
+		Height:     rq.height,
+		NColors:    rq.colors,
+		Zoom:       rq.zoom,
+		ImgType:    rq.imgType,
 		ImgSize:    p.imgSize,
 		ImgWidth:   p.imgWidth,
 		ImgHeight:  p.imgHeight,
@@ -157,23 +157,23 @@ func (w *wrpReq) printHTML(p printParams) {
 		MapURL:     p.mapURL,
 		PageHeight: p.pageHeight,
 	}
-	err := htmlTmpl.Execute(w.out, data)
+	err := htmlTmpl.Execute(rq.out, data)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 // Determine what action to take
-func (w *wrpReq) action() chromedp.Action {
+func (rq *wrpReq) action() chromedp.Action {
 	// Mouse Click
-	if w.mouseX > 0 && w.mouseY > 0 {
-		log.Printf("%s Mouse Click %d,%d\n", w.req.RemoteAddr, w.mouseX, w.mouseY)
-		return chromedp.MouseClickXY(float64(w.mouseX)/float64(w.zoom), float64(w.mouseY)/float64(w.zoom))
+	if rq.mouseX > 0 && rq.mouseY > 0 {
+		log.Printf("%s Mouse Click %d,%d\n", rq.req.RemoteAddr, rq.mouseX, rq.mouseY)
+		return chromedp.MouseClickXY(float64(rq.mouseX)/float64(rq.zoom), float64(rq.mouseY)/float64(rq.zoom))
 	}
 	// Buttons
-	if len(w.buttons) > 0 {
-		log.Printf("%s Button %v\n", w.req.RemoteAddr, w.buttons)
-		switch w.buttons {
+	if len(rq.buttons) > 0 {
+		log.Printf("%s Button %v\n", rq.req.RemoteAddr, rq.buttons)
+		switch rq.buttons {
 		case "Bk":
 			return chromedp.NavigateBack()
 		case "St":
@@ -195,27 +195,27 @@ func (w *wrpReq) action() chromedp.Action {
 		}
 	}
 	// Keys
-	if len(w.keys) > 0 {
-		log.Printf("%s Sending Keys: %#v\n", w.req.RemoteAddr, w.keys)
-		return chromedp.KeyEvent(w.keys)
+	if len(rq.keys) > 0 {
+		log.Printf("%s Sending Keys: %#v\n", rq.req.RemoteAddr, rq.keys)
+		return chromedp.KeyEvent(rq.keys)
 	}
 	// Navigate to URL
-	log.Printf("%s Processing Capture Request for %s\n", w.req.RemoteAddr, w.url)
-	return chromedp.Navigate(w.url)
+	log.Printf("%s Processing Capture Request for %s\n", rq.req.RemoteAddr, rq.url)
+	return chromedp.Navigate(rq.url)
 }
 
 // Process Keyboard and Mouse events or Navigate to the desired URL.
-func (w *wrpReq) navigate() {
-	err := chromedp.Run(ctx, w.action())
+func (rq *wrpReq) navigate() {
+	err := chromedp.Run(ctx, rq.action())
 	if err != nil {
 		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
-			fmt.Fprintf(w.out, "<BR>%s<BR> -- restarting, try again", err)
+			log.Printf("%s Contex cancelled, try again", rq.req.RemoteAddr)
+			fmt.Fprintf(rq.out, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
 			return
 		}
-		log.Printf("%s %s", w.req.RemoteAddr, err)
-		fmt.Fprintf(w.out, "<BR>%s<BR>", err)
+		log.Printf("%s %s", rq.req.RemoteAddr, err)
+		fmt.Fprintf(rq.out, "<BR>%s<BR>", err)
 	}
 }
 
@@ -236,15 +236,15 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 }
 
 // Capture currently rendered web page to an image and fake ISMAP
-func (w *wrpReq) capture() {
+func (rq *wrpReq) capture() {
 	var err error
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
 	var pngcap []byte
 	chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), 10, w.zoom, false),
-		chromedp.Location(&w.url),
+		emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), 10, rq.zoom, false),
+		chromedp.Location(&rq.url),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, _, _, _, _, s, err := page.GetLayoutMetrics().Do(ctx)
@@ -259,59 +259,59 @@ func (w *wrpReq) capture() {
 			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
 		}
 	}
-	log.Printf("%s Landed on: %s, Height: %v\n", w.req.RemoteAddr, w.url, h)
-	height := int64(float64(w.height) / w.zoom)
-	if w.height == 0 && h > 0 {
+	log.Printf("%s Landed on: %s, Height: %v\n", rq.req.RemoteAddr, rq.url, h)
+	height := int64(float64(rq.height) / rq.zoom)
+	if rq.height == 0 && h > 0 {
 		height = h + 30
 	}
 	chromedp.Run(
-		ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), height, w.zoom, false),
+		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
 		chromedp.Sleep(time.Second*2),
 	)
 	// Capture screenshot...
-	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, w.height))
+	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
 	if err != nil {
 		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
-			fmt.Fprintf(w.out, "<BR>%s<BR> -- restarting, try again", err)
+			log.Printf("%s Contex cancelled, try again", rq.req.RemoteAddr)
+			fmt.Fprintf(rq.out, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
 			return
 		}
-		log.Printf("%s Failed to capture screenshot: %s\n", w.req.RemoteAddr, err)
-		fmt.Fprintf(w.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+		log.Printf("%s Failed to capture screenshot: %s\n", rq.req.RemoteAddr, err)
+		fmt.Fprintf(rq.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
 		return
 	}
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.%s", seq, w.imgType)
+	imgpath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
-	ismap[mappath] = *w
+	ismap[mappath] = *rq
 	var ssize string
 	var iw, ih int
-	switch w.imgType {
+	switch rq.imgType {
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
-			log.Printf("%s Failed to decode screenshot: %s\n", w.req.RemoteAddr, err)
-			fmt.Fprintf(w.out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
+			log.Printf("%s Failed to decode screenshot: %s\n", rq.req.RemoteAddr, err)
+			fmt.Fprintf(rq.out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 			return
 		}
-		if w.colors == 2 {
+		if rq.colors == 2 {
 			gray := halfgone.ImageToGray(i)
 			i = halfgone.FloydSteinbergDitherer{}.Apply(gray)
 		}
 		var gifbuf bytes.Buffer
 		st := time.Now()
-		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(w.colors), Quantizer: quantize.MedianCutQuantizer{}})
+		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(rq.colors), Quantizer: quantize.MedianCutQuantizer{}})
 		if err != nil {
-			log.Printf("%s Failed to encode GIF: %s\n", w.req.RemoteAddr, err)
-			fmt.Fprintf(w.out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
+			log.Printf("%s Failed to encode GIF: %s\n", rq.req.RemoteAddr, err)
+			fmt.Fprintf(rq.out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 			return
 		}
 		img[imgpath] = gifbuf
 		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
 		iw = i.Bounds().Max.X
 		ih = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", w.req.RemoteAddr, imgpath, ssize, w.colors, iw, ih, time.Since(st).Milliseconds())
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.req.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
@@ -319,9 +319,9 @@ func (w *wrpReq) capture() {
 		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
 		iw = cfg.Width
 		ih = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, iw, ih)
+		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", rq.req.RemoteAddr, imgpath, ssize, iw, ih)
 	}
-	w.printHTML(printParams{
+	rq.printHTML(printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
 		pageHeight: fmt.Sprintf("%d PX", h),
 		imgSize:    ssize,
@@ -330,31 +330,31 @@ func (w *wrpReq) capture() {
 		imgWidth:   iw,
 		imgHeight:  ih,
 	})
-	log.Printf("%s Done with capture for %s\n", w.req.RemoteAddr, w.url)
+	log.Printf("%s Done with capture for %s\n", rq.req.RemoteAddr, rq.url)
 }
 
 // Process HTTP requests to WRP '/' url
 func pageServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	w := wrpReq{
+	rq := wrpReq{
 		req: req,
 		out: out,
 	}
-	w.parseForm()
-	if len(w.url) < 4 {
-		w.printHTML(printParams{bgColor: "#FFFFFF"})
+	rq.parseForm()
+	if len(rq.url) < 4 {
+		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	w.navigate()
-	w.capture()
+	rq.navigate()
+	rq.capture()
 }
 
 // Process HTTP requests to ISMAP '/map/' url
 func mapServer(out http.ResponseWriter, req *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	w, ok := ismap[req.URL.Path]
-	w.req = req
-	w.out = out
+	rq, ok := ismap[req.URL.Path]
+	rq.req = req
+	rq.out = out
 	if !ok {
 		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
 		log.Printf("Unable to find map %s\n", req.URL.Path)
@@ -363,19 +363,19 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 	if !noDel {
 		defer delete(ismap, req.URL.Path)
 	}
-	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &w.mouseX, &w.mouseY)
+	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &rq.mouseX, &rq.mouseY)
 	if err != nil || n != 2 {
 		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
 		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
 		return
 	}
-	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, w)
-	if len(w.url) < 4 {
-		w.printHTML(printParams{bgColor: "#FFFFFF"})
+	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, rq)
+	if len(rq.url) < 4 {
+		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	w.navigate()
-	w.capture()
+	rq.navigate()
+	rq.capture()
 }
 
 // Process HTTP requests for images '/img/' url
