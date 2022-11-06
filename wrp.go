@@ -219,6 +219,22 @@ func navigate(w wrpReq) {
 	}
 }
 
+// https://github.com/chromedp/chromedp/issues/979
+func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
+	if res == nil {
+		panic("res cannot be nil")
+	}
+	if h == 0 {
+		return chromedp.CaptureScreenshot(res)
+	}
+
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		var err error
+		*res, err = page.CaptureScreenshot().Do(ctx)
+		return err
+	})
+}
+
 // Capture currently rendered web page to an image and fake ISMAP
 func capture(w wrpReq) {
 	var err error
@@ -248,12 +264,12 @@ func capture(w wrpReq) {
 	if w.height == 0 && h > 0 {
 		height = h + 30
 	}
-	chromedp.Run(ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), height, w.zoom, false))
-	// Capture screenshot...
-	err = chromedp.Run(ctx,
+	chromedp.Run(
+		ctx, emulation.SetDeviceMetricsOverride(int64(float64(w.width)/w.zoom), height, w.zoom, false),
 		chromedp.Sleep(time.Second*2),
-		chromedp.CaptureScreenshot(&pngcap),
 	)
+	// Capture screenshot...
+	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, w.height))
 	if err != nil {
 		if err.Error() == "context canceled" {
 			log.Printf("%s Contex cancelled, try again", w.req.RemoteAddr)
