@@ -475,9 +475,10 @@ func main() {
 	)
 	actx, acancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer acancel()
-	if debug {
+	switch debug {
+	case true:
 		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
-	} else {
+	default:
 		ctx, cancel = chromedp.NewContext(actx)
 	}
 	defer cancel()
