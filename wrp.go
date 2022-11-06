@@ -424,16 +424,16 @@ func tmpl(t string) string {
 	var tmpl []byte
 	fh, err := os.Open(t)
 	if err != nil {
-		goto statik
+		goto builtin
 	}
 	tmpl, err = ioutil.ReadAll(fh)
 	if err != nil {
-		goto statik
+		goto builtin
 	}
 	log.Printf("Got UI template from %v file\n", t)
 	return string(tmpl)
 
-statik:
+builtin:
 	fhs, err := fs.Open("/wrp.html")
 	if err != nil {
 		log.Fatal(err)
