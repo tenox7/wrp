@@ -101,46 +101,46 @@ type wrpReq struct {
 	keys    string  // keys to send
 	buttons string  // Fn buttons
 	imgType string  // imgtype
-	out     http.ResponseWriter
-	req     *http.Request
+	w       http.ResponseWriter
+	r       *http.Request
 }
 
 // Parse HTML Form, Process Input Boxes, Etc.
 func (rq *wrpReq) parseForm() {
-	rq.req.ParseForm()
-	rq.url = rq.req.FormValue("url")
+	rq.r.ParseForm()
+	rq.url = rq.r.FormValue("url")
 	if len(rq.url) > 1 && !strings.HasPrefix(rq.url, "http") {
 		rq.url = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(rq.url))
 	}
-	rq.width, _ = strconv.ParseInt(rq.req.FormValue("w"), 10, 64)
-	rq.height, _ = strconv.ParseInt(rq.req.FormValue("h"), 10, 64)
+	rq.width, _ = strconv.ParseInt(rq.r.FormValue("w"), 10, 64)
+	rq.height, _ = strconv.ParseInt(rq.r.FormValue("h"), 10, 64)
 	if rq.width < 10 && rq.height < 10 {
 		rq.width = defGeom.w
 		rq.height = defGeom.h
 	}
-	rq.zoom, _ = strconv.ParseFloat(rq.req.FormValue("z"), 64)
+	rq.zoom, _ = strconv.ParseFloat(rq.r.FormValue("z"), 64)
 	if rq.zoom < 0.1 {
 		rq.zoom = 1.0
 	}
-	rq.colors, _ = strconv.ParseInt(rq.req.FormValue("c"), 10, 64)
+	rq.colors, _ = strconv.ParseInt(rq.r.FormValue("c"), 10, 64)
 	if rq.colors < 2 || rq.colors > 256 {
 		rq.colors = defGeom.c
 	}
-	rq.keys = rq.req.FormValue("k")
-	rq.buttons = rq.req.FormValue("Fn")
-	rq.imgType = rq.req.FormValue("t")
+	rq.keys = rq.r.FormValue("k")
+	rq.buttons = rq.r.FormValue("Fn")
+	rq.imgType = rq.r.FormValue("t")
 	if rq.imgType != "gif" && rq.imgType != "png" {
 		rq.imgType = defType
 	}
-	log.Printf("%s WrpReq from UI Form: %+v\n", rq.req.RemoteAddr, rq)
+	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
 }
 
 // Display WP UI
 func (rq *wrpReq) printHTML(p printParams) {
-	rq.out.Header().Set("Cache-Control", "max-age=0")
-	rq.out.Header().Set("Expires", "-1")
-	rq.out.Header().Set("Pragma", "no-cache")
-	rq.out.Header().Set("Content-Type", "text/html")
+	rq.w.Header().Set("Cache-Control", "max-age=0")
+	rq.w.Header().Set("Expires", "-1")
+	rq.w.Header().Set("Pragma", "no-cache")
+	rq.w.Header().Set("Content-Type", "text/html")
 	data := uiData{
 		Version:    version,
 		URL:        rq.url,
@@ -157,7 +157,7 @@ func (rq *wrpReq) printHTML(p printParams) {
 		MapURL:     p.mapURL,
 		PageHeight: p.pageHeight,
 	}
-	err := htmlTmpl.Execute(rq.out, data)
+	err := htmlTmpl.Execute(rq.w, data)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -167,12 +167,12 @@ func (rq *wrpReq) printHTML(p printParams) {
 func (rq *wrpReq) action() chromedp.Action {
 	// Mouse Click
 	if rq.mouseX > 0 && rq.mouseY > 0 {
-		log.Printf("%s Mouse Click %d,%d\n", rq.req.RemoteAddr, rq.mouseX, rq.mouseY)
+		log.Printf("%s Mouse Click %d,%d\n", rq.r.RemoteAddr, rq.mouseX, rq.mouseY)
 		return chromedp.MouseClickXY(float64(rq.mouseX)/float64(rq.zoom), float64(rq.mouseY)/float64(rq.zoom))
 	}
 	// Buttons
 	if len(rq.buttons) > 0 {
-		log.Printf("%s Button %v\n", rq.req.RemoteAddr, rq.buttons)
+		log.Printf("%s Button %v\n", rq.r.RemoteAddr, rq.buttons)
 		switch rq.buttons {
 		case "Bk":
 			return chromedp.NavigateBack()
@@ -196,11 +196,11 @@ func (rq *wrpReq) action() chromedp.Action {
 	}
 	// Keys
 	if len(rq.keys) > 0 {
-		log.Printf("%s Sending Keys: %#v\n", rq.req.RemoteAddr, rq.keys)
+		log.Printf("%s Sending Keys: %#v\n", rq.r.RemoteAddr, rq.keys)
 		return chromedp.KeyEvent(rq.keys)
 	}
 	// Navigate to URL
-	log.Printf("%s Processing Capture Request for %s\n", rq.req.RemoteAddr, rq.url)
+	log.Printf("%s Processing Capture Request for %s\n", rq.r.RemoteAddr, rq.url)
 	return chromedp.Navigate(rq.url)
 }
 
@@ -209,13 +209,13 @@ func (rq *wrpReq) navigate() {
 	err := chromedp.Run(ctx, rq.action())
 	if err != nil {
 		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", rq.req.RemoteAddr)
-			fmt.Fprintf(rq.out, "<BR>%s<BR> -- restarting, try again", err)
+			log.Printf("%s Contex cancelled, try again", rq.r.RemoteAddr)
+			fmt.Fprintf(rq.w, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
 			return
 		}
-		log.Printf("%s %s", rq.req.RemoteAddr, err)
-		fmt.Fprintf(rq.out, "<BR>%s<BR>", err)
+		log.Printf("%s %s", rq.r.RemoteAddr, err)
+		fmt.Fprintf(rq.w, "<BR>%s<BR>", err)
 	}
 }
 
@@ -259,7 +259,7 @@ func (rq *wrpReq) capture() {
 			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
 		}
 	}
-	log.Printf("%s Landed on: %s, Height: %v\n", rq.req.RemoteAddr, rq.url, h)
+	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
 		height = h + 30
@@ -272,13 +272,13 @@ func (rq *wrpReq) capture() {
 	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
 	if err != nil {
 		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", rq.req.RemoteAddr)
-			fmt.Fprintf(rq.out, "<BR>%s<BR> -- restarting, try again", err)
+			log.Printf("%s Contex cancelled, try again", rq.r.RemoteAddr)
+			fmt.Fprintf(rq.w, "<BR>%s<BR> -- restarting, try again", err)
 			ctx, cancel = chromedp.NewContext(context.Background())
 			return
 		}
-		log.Printf("%s Failed to capture screenshot: %s\n", rq.req.RemoteAddr, err)
-		fmt.Fprintf(rq.out, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
+		log.Printf("%s Failed to capture screenshot: %s\n", rq.r.RemoteAddr, err)
+		fmt.Fprintf(rq.w, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
 		return
 	}
 	seq := rand.Intn(9999)
@@ -291,8 +291,8 @@ func (rq *wrpReq) capture() {
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
-			log.Printf("%s Failed to decode screenshot: %s\n", rq.req.RemoteAddr, err)
-			fmt.Fprintf(rq.out, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
+			log.Printf("%s Failed to decode screenshot: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
 			return
 		}
 		if rq.colors == 2 {
@@ -303,15 +303,15 @@ func (rq *wrpReq) capture() {
 		st := time.Now()
 		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(rq.colors), Quantizer: quantize.MedianCutQuantizer{}})
 		if err != nil {
-			log.Printf("%s Failed to encode GIF: %s\n", rq.req.RemoteAddr, err)
-			fmt.Fprintf(rq.out, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
+			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 			return
 		}
 		img[imgpath] = gifbuf
 		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
 		iw = i.Bounds().Max.X
 		ih = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.req.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
@@ -319,7 +319,7 @@ func (rq *wrpReq) capture() {
 		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
 		iw = cfg.Width
 		ih = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", rq.req.RemoteAddr, imgpath, ssize, iw, ih)
+		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", rq.r.RemoteAddr, imgpath, ssize, iw, ih)
 	}
 	rq.printHTML(printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
@@ -330,15 +330,15 @@ func (rq *wrpReq) capture() {
 		imgWidth:   iw,
 		imgHeight:  ih,
 	})
-	log.Printf("%s Done with capture for %s\n", rq.req.RemoteAddr, rq.url)
+	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
 // Process HTTP requests to WRP '/' url
-func pageServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Page Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
+func pageServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s Page Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
 	rq := wrpReq{
-		req: req,
-		out: out,
+		r: r,
+		w: w,
 	}
 	rq.parseForm()
 	if len(rq.url) < 4 {
@@ -350,26 +350,26 @@ func pageServer(out http.ResponseWriter, req *http.Request) {
 }
 
 // Process HTTP requests to ISMAP '/map/' url
-func mapServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s ISMAP Request for %s [%+v]\n", req.RemoteAddr, req.URL.Path, req.URL.RawQuery)
-	rq, ok := ismap[req.URL.Path]
-	rq.req = req
-	rq.out = out
+func mapServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s ISMAP Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
+	rq, ok := ismap[r.URL.Path]
+	rq.r = r
+	rq.w = w
 	if !ok {
-		fmt.Fprintf(out, "Unable to find map %s\n", req.URL.Path)
-		log.Printf("Unable to find map %s\n", req.URL.Path)
+		fmt.Fprintf(w, "Unable to find map %s\n", r.URL.Path)
+		log.Printf("Unable to find map %s\n", r.URL.Path)
 		return
 	}
 	if !noDel {
-		defer delete(ismap, req.URL.Path)
+		defer delete(ismap, r.URL.Path)
 	}
-	n, err := fmt.Sscanf(req.URL.RawQuery, "%d,%d", &rq.mouseX, &rq.mouseY)
+	n, err := fmt.Sscanf(r.URL.RawQuery, "%d,%d", &rq.mouseX, &rq.mouseY)
 	if err != nil || n != 2 {
-		fmt.Fprintf(out, "n=%d, err=%s\n", n, err)
-		log.Printf("%s ISMAP n=%d, err=%s\n", req.RemoteAddr, n, err)
+		fmt.Fprintf(w, "n=%d, err=%s\n", n, err)
+		log.Printf("%s ISMAP n=%d, err=%s\n", r.RemoteAddr, n, err)
 		return
 	}
-	log.Printf("%s WrpReq from ISMAP: %+v\n", req.RemoteAddr, rq)
+	log.Printf("%s WrpReq from ISMAP: %+v\n", r.RemoteAddr, rq)
 	if len(rq.url) < 4 {
 		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
@@ -379,40 +379,40 @@ func mapServer(out http.ResponseWriter, req *http.Request) {
 }
 
 // Process HTTP requests for images '/img/' url
-func imgServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s IMG Request for %s\n", req.RemoteAddr, req.URL.Path)
-	imgbuf, ok := img[req.URL.Path]
+func imgServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
+	imgbuf, ok := img[r.URL.Path]
 	if !ok || imgbuf.Bytes() == nil {
-		fmt.Fprintf(out, "Unable to find image %s\n", req.URL.Path)
-		log.Printf("%s Unable to find image %s\n", req.RemoteAddr, req.URL.Path)
+		fmt.Fprintf(w, "Unable to find image %s\n", r.URL.Path)
+		log.Printf("%s Unable to find image %s\n", r.RemoteAddr, r.URL.Path)
 		return
 	}
 	if !noDel {
-		defer delete(img, req.URL.Path)
+		defer delete(img, r.URL.Path)
 	}
 	switch {
-	case strings.HasPrefix(req.URL.Path, ".gif"):
-		out.Header().Set("Content-Type", "image/gif")
-	case strings.HasPrefix(req.URL.Path, ".png"):
-		out.Header().Set("Content-Type", "image/png")
+	case strings.HasPrefix(r.URL.Path, ".gif"):
+		w.Header().Set("Content-Type", "image/gif")
+	case strings.HasPrefix(r.URL.Path, ".png"):
+		w.Header().Set("Content-Type", "image/png")
 	}
-	out.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
-	out.Header().Set("Cache-Control", "max-age=0")
-	out.Header().Set("Expires", "-1")
-	out.Header().Set("Pragma", "no-cache")
-	out.Write(imgbuf.Bytes())
-	out.(http.Flusher).Flush()
+	w.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
+	w.Header().Set("Cache-Control", "max-age=0")
+	w.Header().Set("Expires", "-1")
+	w.Header().Set("Pragma", "no-cache")
+	w.Write(imgbuf.Bytes())
+	w.(http.Flusher).Flush()
 }
 
 // Process HTTP requests for Shutdown via '/shutdown/' url
-func haltServer(out http.ResponseWriter, req *http.Request) {
-	log.Printf("%s Shutdown Request for %s\n", req.RemoteAddr, req.URL.Path)
-	out.Header().Set("Cache-Control", "max-age=0")
-	out.Header().Set("Expires", "-1")
-	out.Header().Set("Pragma", "no-cache")
-	out.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(out, "Shutting down WRP...\n")
-	out.(http.Flusher).Flush()
+func haltServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s Shutdown Request for %s\n", r.RemoteAddr, r.URL.Path)
+	w.Header().Set("Cache-Control", "max-age=0")
+	w.Header().Set("Expires", "-1")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(w, "Shutting down WRP...\n")
+	w.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
 	cancel()
 	srv.Shutdown(context.Background())
