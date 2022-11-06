@@ -39,7 +39,7 @@ import (
 )
 
 var (
-	version  = "4.5.2"
+	version  = "4.5.3"
 	srv      http.Server
 	ctx      context.Context
 	cancel   context.CancelFunc
