@@ -266,7 +266,7 @@ func (rq *wrpReq) capture() {
 	}
 	chromedp.Run(
 		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
-		chromedp.Sleep(time.Second*2),
+		chromedp.Sleep(time.Second*2), // TODO(tenox): totally lame, find a better way to determine if page is rendered
 	)
 	// Capture screenshot...
 	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
