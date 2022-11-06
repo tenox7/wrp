@@ -284,6 +284,7 @@ func capture(w wrpReq) {
 			i = halfgone.FloydSteinbergDitherer{}.Apply(gray)
 		}
 		var gifbuf bytes.Buffer
+		st := time.Now()
 		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(w.colors), Quantizer: quantize.MedianCutQuantizer{}})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", w.req.RemoteAddr, err)
@@ -294,7 +295,7 @@ func capture(w wrpReq) {
 		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
 		iw = i.Bounds().Max.X
 		ih = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d\n", w.req.RemoteAddr, imgpath, ssize, w.colors, iw, ih)
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", w.req.RemoteAddr, imgpath, ssize, w.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
