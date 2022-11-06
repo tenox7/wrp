@@ -231,7 +231,7 @@ func capture(w wrpReq) {
 		chromedp.Location(&w.url),
 		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			_, _, s, err := page.GetLayoutMetrics().Do(ctx)
+			_, _, _, _, _, s, err := page.GetLayoutMetrics().Do(ctx)
 			if err == nil {
 				h = int64(math.Ceil(s.Height))
 			}
