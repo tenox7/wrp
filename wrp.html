@@ -25,11 +25,11 @@
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
             </SELECT>
             C <SELECT NAME="c">
-                <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
-                <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
-                <OPTION VALUE="64" {{ if eq .NColors 64}}SELECTED{{end}}>64</OPTION>
-                <OPTION VALUE="128" {{ if eq .NColors 128}}SELECTED{{end}}>128</OPTION>
                 <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
+                <OPTION VALUE="128" {{ if eq .NColors 128}}SELECTED{{end}}>128</OPTION>
+                <OPTION VALUE="64" {{ if eq .NColors 64}}SELECTED{{end}}>64</OPTION>
+                <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
+                <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
             </SELECT>
             K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
