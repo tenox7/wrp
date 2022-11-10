@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"html/template"
 	"image"
+	"image/color/palette"
 	"image/gif"
 	"image/png"
 	"io/ioutil"
@@ -129,7 +130,7 @@ func (rq *wrpReq) parseForm() {
 	rq.keys = rq.r.FormValue("k")
 	rq.buttons = rq.r.FormValue("Fn")
 	rq.imgType = rq.r.FormValue("t")
-	if rq.imgType != "gif" && rq.imgType != "png" {
+	if rq.imgType != "fastgif" && rq.imgType != "gif" && rq.imgType != "png" {
 		rq.imgType = defType
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
@@ -288,6 +289,8 @@ func (rq *wrpReq) capture() {
 	var ssize string
 	var iw, ih int
 	switch rq.imgType {
+	case "fastgif":
+		fallthrough
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
@@ -301,8 +304,25 @@ func (rq *wrpReq) capture() {
 		}
 		var gifbuf bytes.Buffer
 		st := time.Now()
-		q := median.Quantizer(rq.colors)
-		p := q.Paletted(i)
+		var p *image.Paletted
+		if rq.imgType == "fastgif" {
+			r := i.Bounds()
+			// NOTE: the color index computation below works only for palette.WebSafe!
+			p = image.NewPaletted(r, palette.WebSafe)
+			for y := 0; y != r.Dy(); y++ {
+				for x := 0; x != r.Dx(); x++ {
+					c := i.At(x, y)
+					r, g, b, _ := c.RGBA()
+					r6 := FastGifLut[r&0xff]
+					g6 := FastGifLut[g&0xff]
+					b6 := FastGifLut[b&0xff]
+					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+				}
+			}
+		} else {
+			q := median.Quantizer(rq.colors)
+			p = q.Paletted(i)
+		}
 		err = gif.Encode(&gifbuf, p, &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)

@@ -21,6 +21,7 @@
                 <OPTION VALUE="1.3" {{ if eq .Zoom 1.3}}SELECTED{{end}}>1.3 x</OPTION>
             </SELECT>
             T <SELECT NAME="t">
+                <OPTION VALUE="fastgif" {{ if eq .ImgType "fastgif"}}SELECTED{{end}}>Fast GIF</OPTION>
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
             </SELECT>
