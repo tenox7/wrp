@@ -35,7 +35,7 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
-	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/soniakeys/quant/median"
 )
 
 var (
@@ -301,7 +301,9 @@ func (rq *wrpReq) capture() {
 		}
 		var gifbuf bytes.Buffer
 		st := time.Now()
-		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(rq.colors), Quantizer: quantize.MedianCutQuantizer{}})
+		q := median.Quantizer(rq.colors)
+		p := q.Paletted(i)
+		err = gif.Encode(&gifbuf, p, &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -457,7 +459,7 @@ func main() {
 	flag.BoolVar(&headless, "h", true, "Headless mode - hide browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
-	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
+	flag.StringVar(&defType, "t", "png", "Image type: fastgif|gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
