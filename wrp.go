@@ -283,7 +283,7 @@ func (rq *wrpReq) capture() {
 		return
 	}
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
+	var imgpath string
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = *rq
 	var ssize string
@@ -292,6 +292,7 @@ func (rq *wrpReq) capture() {
 	case "fastgif":
 		fallthrough
 	case "gif":
+		imgpath = fmt.Sprintf("/img/%04d.gif", seq)
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
 			log.Printf("%s Failed to decode screenshot: %s\n", rq.r.RemoteAddr, err)
@@ -309,14 +310,26 @@ func (rq *wrpReq) capture() {
 			r := i.Bounds()
 			// NOTE: the color index computation below works only for palette.WebSafe!
 			p = image.NewPaletted(r, palette.WebSafe)
-			for y := 0; y != r.Dy(); y++ {
-				for x := 0; x != r.Dx(); x++ {
-					c := i.At(x, y)
-					r, g, b, _ := c.RGBA()
-					r6 := FastGifLut[r&0xff]
-					g6 := FastGifLut[g&0xff]
-					b6 := FastGifLut[b&0xff]
-					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+			if i64, ok := i.(image.RGBA64Image); ok {
+				for y := r.Min.Y; y < r.Max.Y; y++ {
+					for x := r.Min.X; x < r.Max.X; x++ {
+						c := i64.RGBA64At(x, y)
+						r6 := FastGifLut[c.R>>8]
+						g6 := FastGifLut[c.G>>8]
+						b6 := FastGifLut[c.B>>8]
+						p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+					}
+				}
+			} else {
+				for y := r.Min.Y; y < r.Max.Y; y++ {
+					for x := r.Min.X; x < r.Max.X; x++ {
+						c := i.At(x, y)
+						r, g, b, _ := c.RGBA()
+						r6 := FastGifLut[r&0xff]
+						g6 := FastGifLut[g&0xff]
+						b6 := FastGifLut[b&0xff]
+						p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+					}
 				}
 			}
 		} else {
@@ -335,6 +348,7 @@ func (rq *wrpReq) capture() {
 		ih = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
+		imgpath = fmt.Sprintf("/img/%04d.png", seq)
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		cfg, _, _ := image.DecodeConfig(pngbuf)
