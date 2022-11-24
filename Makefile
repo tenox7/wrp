@@ -10,7 +10,6 @@ cross:
 	GOOS=darwin GOARCH=amd64 go build -a -o wrp-amd64-macos wrp.go
 	GOOS=darwin GOARCH=arm64 go build -a -o wrp-arm64-macos wrp.go
 	GOOS=windows GOARCH=amd64 go build -a -o wrp-amd64-windows.exe wrp.go
-	GOOS=windows GOARCH=386 go build -a -o wrp-386-windows.exe wrp.go
 	GOOS=linux GOARCH=arm go build -a -o wrp-arm-linux wrp.go
 	GOOS=linux GOARCH=arm64 go build -a -o wrp-arm64-linux wrp.go
 
