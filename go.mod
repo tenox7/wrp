@@ -6,6 +6,6 @@ require (
 	github.com/MaxHalford/halfgone v0.0.0-20171017091812-482157b86ccb
 	github.com/chromedp/cdproto v0.0.0-20221029224954-108014bf7279
 	github.com/chromedp/chromedp v0.8.6
-	github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4
+	github.com/soniakeys/quant v1.0.0
 	golang.org/x/sys v0.1.0 // indirect
 )

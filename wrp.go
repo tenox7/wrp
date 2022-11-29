@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"html/template"
 	"image"
+	"image/color/palette"
 	"image/gif"
 	"image/png"
 	"io/ioutil"
@@ -35,7 +36,7 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
-	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/soniakeys/quant/median"
 )
 
 var (
@@ -129,7 +130,7 @@ func (rq *wrpReq) parseForm() {
 	rq.keys = rq.r.FormValue("k")
 	rq.buttons = rq.r.FormValue("Fn")
 	rq.imgType = rq.r.FormValue("t")
-	if rq.imgType != "gif" && rq.imgType != "png" {
+	if rq.imgType != "fastgif" && rq.imgType != "gif" && rq.imgType != "png" {
 		rq.imgType = defType
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
@@ -282,13 +283,16 @@ func (rq *wrpReq) capture() {
 		return
 	}
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
+	var imgpath string
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
 	ismap[mappath] = *rq
 	var ssize string
 	var iw, ih int
 	switch rq.imgType {
+	case "fastgif":
+		fallthrough
 	case "gif":
+		imgpath = fmt.Sprintf("/img/%04d.gif", seq)
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
 			log.Printf("%s Failed to decode screenshot: %s\n", rq.r.RemoteAddr, err)
@@ -301,7 +305,38 @@ func (rq *wrpReq) capture() {
 		}
 		var gifbuf bytes.Buffer
 		st := time.Now()
-		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(rq.colors), Quantizer: quantize.MedianCutQuantizer{}})
+		var p *image.Paletted
+		if rq.imgType == "fastgif" {
+			r := i.Bounds()
+			// NOTE: the color index computation below works only for palette.WebSafe!
+			p = image.NewPaletted(r, palette.WebSafe)
+			if i64, ok := i.(image.RGBA64Image); ok {
+				for y := r.Min.Y; y < r.Max.Y; y++ {
+					for x := r.Min.X; x < r.Max.X; x++ {
+						c := i64.RGBA64At(x, y)
+						r6 := FastGifLut[c.R>>8]
+						g6 := FastGifLut[c.G>>8]
+						b6 := FastGifLut[c.B>>8]
+						p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+					}
+				}
+			} else {
+				for y := r.Min.Y; y < r.Max.Y; y++ {
+					for x := r.Min.X; x < r.Max.X; x++ {
+						c := i.At(x, y)
+						r, g, b, _ := c.RGBA()
+						r6 := FastGifLut[r&0xff]
+						g6 := FastGifLut[g&0xff]
+						b6 := FastGifLut[b&0xff]
+						p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+					}
+				}
+			}
+		} else {
+			q := median.Quantizer(rq.colors)
+			p = q.Paletted(i)
+		}
+		err = gif.Encode(&gifbuf, p, &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -313,6 +348,7 @@ func (rq *wrpReq) capture() {
 		ih = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
+		imgpath = fmt.Sprintf("/img/%04d.png", seq)
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
 		cfg, _, _ := image.DecodeConfig(pngbuf)
@@ -457,7 +493,7 @@ func main() {
 	flag.BoolVar(&headless, "h", true, "Headless mode - hide browser window")
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
-	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
+	flag.StringVar(&defType, "t", "png", "Image type: fastgif|gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
