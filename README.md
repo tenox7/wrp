@@ -18,8 +18,7 @@ This machine should be pretty modern, high spec and Google Chrome / Chromium Bro
 * You can re-capture page screenshot without reloading by using **St** (Stop).
 * You can also reload and re-capture current page with **Re** (Reload).
 * Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode.
-* GIF images are encoded with 216 "web safe" palette with ultra fast but not accurate color mapping. If you want
-better color representation switch to 256 color mode.
+* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
 ## Customization
 
