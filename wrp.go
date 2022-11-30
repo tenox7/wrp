@@ -50,6 +50,7 @@ var (
 	defType  string
 	defGeom  geom
 	htmlTmpl *template.Template
+	delay    time.Duration
 )
 
 // go:embed *.html
@@ -306,7 +307,7 @@ func (rq *wrpReq) capture() {
 	}
 	chromedp.Run(
 		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
-		chromedp.Sleep(time.Second*2), // TODO(tenox): totally lame, find a better way to determine if page is rendered
+		chromedp.Sleep(delay), // TODO(tenox): find a better way to determine if page is rendered
 	)
 	// Capture screenshot...
 	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
@@ -496,6 +497,7 @@ func main() {
 	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
 	flag.StringVar(&fgeom, "g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
+	flag.DurationVar(&delay, "s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
 		addr = ":" + os.Getenv(("PORT"))

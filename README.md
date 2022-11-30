@@ -50,16 +50,18 @@ Or from the [Azure Console](https://portal.azure.com/#create/Microsoft.Container
 
 Fortunately ACI allows port 80 without encryption.
 
-
 ## Flags
 
-```
--l  listen address:port (default :8080)
--t  image type gif or png (default gif) 
--g  image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x256)
--h  headless mode, hide browser window on the server (default true)
--d  chromedp debug logging (default false)
--n  do not free maps and gif images after use (default false)
+```text
+-l   listen address:port (default :8080)
+-t   image type gif or png (default gif)
+-g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
+     C (number of colors) is only used for GIF
+-h   headless mode, hide browser window on the server (default true)
+-d   chromedp debug logging (default false)
+-n   do not free maps and gif images after use (default false)
+-ui  html template file (default "wrp.html")
+-s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 ```
 
 ## UI explanation
