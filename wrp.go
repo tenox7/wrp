@@ -53,7 +53,7 @@ var (
 	delay    time.Duration
 )
 
-// go:embed *.html
+//go:embed *.html
 var fs embed.FS
 
 type geom struct {
@@ -471,7 +471,7 @@ func tmpl(t string) string {
 	return string(tmpl)
 
 builtin:
-	fhs, err := fs.Open("/wrp.html")
+	fhs, err := fs.Open("wrp.html")
 	if err != nil {
 		log.Fatal(err)
 	}
