@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"html/template"
 	"image"
+	"image/color/palette"
 	"image/gif"
 	"image/png"
 	"io/ioutil"
@@ -35,7 +36,7 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
-	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/soniakeys/quant/median"
 )
 
 var (
@@ -235,6 +236,45 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 	})
 }
 
+func gifPalette(i image.Image, n int64) image.Image {
+	switch n {
+	case 2:
+		i = halfgone.FloydSteinbergDitherer{}.Apply(halfgone.ImageToGray(i))
+	case 216:
+		var FastGifLut = [256]int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
+		r := i.Bounds()
+		// NOTE: the color index computation below works only for palette.WebSafe!
+		p := image.NewPaletted(r, palette.WebSafe)
+		if i64, ok := i.(image.RGBA64Image); ok {
+			for y := r.Min.Y; y < r.Max.Y; y++ {
+				for x := r.Min.X; x < r.Max.X; x++ {
+					c := i64.RGBA64At(x, y)
+					r6 := FastGifLut[c.R>>8]
+					g6 := FastGifLut[c.G>>8]
+					b6 := FastGifLut[c.B>>8]
+					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+				}
+			}
+		} else {
+			for y := r.Min.Y; y < r.Max.Y; y++ {
+				for x := r.Min.X; x < r.Max.X; x++ {
+					c := i.At(x, y)
+					r, g, b, _ := c.RGBA()
+					r6 := FastGifLut[r&0xff]
+					g6 := FastGifLut[g&0xff]
+					b6 := FastGifLut[b&0xff]
+					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
+				}
+			}
+		}
+		i = p
+	default:
+		q := median.Quantizer(n)
+		i = q.Paletted(i)
+	}
+	return i
+}
+
 // Capture currently rendered web page to an image and fake ISMAP
 func (rq *wrpReq) capture() {
 	var err error
@@ -291,17 +331,13 @@ func (rq *wrpReq) capture() {
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngcap))
 		if err != nil {
-			log.Printf("%s Failed to decode screenshot: %s\n", rq.r.RemoteAddr, err)
-			fmt.Fprintf(rq.w, "<BR>Unable to decode page screenshot:<BR>%s<BR>\n", err)
+			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
 			return
 		}
-		if rq.colors == 2 {
-			gray := halfgone.ImageToGray(i)
-			i = halfgone.FloydSteinbergDitherer{}.Apply(gray)
-		}
-		var gifbuf bytes.Buffer
 		st := time.Now()
-		err = gif.Encode(&gifbuf, i, &gif.Options{NumColors: int(rq.colors), Quantizer: quantize.MedianCutQuantizer{}})
+		var gifbuf bytes.Buffer
+		err = gif.Encode(&gifbuf, gifPalette(i, rq.colors), &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -311,7 +347,7 @@ func (rq *wrpReq) capture() {
 		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
 		iw = i.Bounds().Max.X
 		ih = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
 	case "png":
 		pngbuf := bytes.NewBuffer(pngcap)
 		img[imgpath] = *pngbuf
@@ -319,7 +355,7 @@ func (rq *wrpReq) capture() {
 		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
 		iw = cfg.Width
 		ih = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, %dx%d\n", rq.r.RemoteAddr, imgpath, ssize, iw, ih)
+		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgpath, ssize, iw, ih)
 	}
 	rq.printHTML(printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
@@ -458,7 +494,7 @@ func main() {
 	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
 	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
 	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
-	flag.StringVar(&fgeom, "g", "1152x600x256", "Geometry: width x height x colors, height can be 0 for unlimited")
+	flag.StringVar(&fgeom, "g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
