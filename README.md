@@ -6,23 +6,23 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 ## Usage
 
-* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. 
-This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
+* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. This machine should be pretty modern, high spec and Google Chrome / Chromium Browser is required to be preinstalled.
+* Make sure you don't have a firewall enabled or open up the port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server. Do not set or use it as a "proxy server".
-* Type a search string or a http/https URL and click **Go**.
+* Type a search string or a full http/https URL and click **Go**.
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
 * Scroll web page by clicking on the in-image scroll bar.
+* WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` . However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
 * Do not use client browser history-back, instead use **Bk** button in the app.
-* To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-* You can set height **H** to `0` to render pages in to **a single tall image without the vertical scrollbar** and use client scrolling. However this should not be used with old and low spec clients. Such tall images will be very large and take long time to process, especially for GIFs.
 * You can re-capture page screenshot without reloading by using **St** (Stop).
 * You can also reload and re-capture current page with **Re** (Reload).
+* To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
 * Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
 ## Customization
 
-Since 4.5.1 WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
+WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
 
 ## Docker
 
@@ -118,7 +118,7 @@ $ ./wrp-amd64-macos -t png
 * In 2016 thanks to EFF/Certbot the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and there was no easy way to make it work on Windows, even under WSL.
 * Version 3.0 (2019) has been rewritten in [Go](https://golang.org/) using [Chromedp](https://github.com/chromedp) as browser-in-browser instead of http-proxy. The initial version was [less than 100 lines of code](https://gist.github.com/tenox7/b0f03c039b0a8b67f6c1bf47e2dd0df0).
 * Version 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes. 
-* Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers. 
+* Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers.
 * Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
 
@@ -128,6 +128,7 @@ $ ./wrp-amd64-macos -t png
 * Uses [go-quantize](https://github.com/ericpauley/go-quantize), thanks to [ericpauley](https://github.com/ericpauley) for developing the missing go quantizer
 * Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my rumblings
 * Thanks to [claunia](https://github.com/claunia/) for help with the Python/Webkit version in the past
+* Thanks to [Hill Ma](https://github.com/mahiuchun) for ultra fast gif encoding algorithm
 * Historical Python/Webkit versions and prior art can be seen in [wrp-old](https://github.com/tenox7/wrp-old) repo
 
 ## Legal Stuff
