@@ -336,6 +336,14 @@ func (rq *wrpReq) capture() {
 	var sSize string
 	var iW, iH int
 	switch rq.imgType {
+	case "png":
+		pngBuf := bytes.NewBuffer(pngCap)
+		img[imgPath] = *pngBuf
+		cfg, _, _ := image.DecodeConfig(pngBuf)
+		sSize = fmt.Sprintf("%.0f KB", float32(len(pngBuf.Bytes()))/1024.0)
+		iW = cfg.Width
+		iH = cfg.Height
+		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH)
 	case "gif":
 		i, err := png.Decode(bytes.NewReader(pngCap))
 		if err != nil {
@@ -376,14 +384,6 @@ func (rq *wrpReq) capture() {
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *jpgQual, iW, iH, time.Since(st).Milliseconds())
-	case "png":
-		pngBuf := bytes.NewBuffer(pngCap)
-		img[imgPath] = *pngBuf
-		cfg, _, _ := image.DecodeConfig(pngBuf)
-		sSize = fmt.Sprintf("%.0f KB", float32(len(pngBuf.Bytes()))/1024.0)
-		iW = cfg.Width
-		iH = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH)
 	}
 	rq.printHTML(printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
