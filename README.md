@@ -17,7 +17,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 * You can re-capture page screenshot without reloading by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload and re-capture current page with **Re** (Reload).
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-* Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode.
+* Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode. Jpeg encoding is also quite fast.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
 ## Customization
@@ -54,12 +54,12 @@ Fortunately ACI allows port 80 without encryption.
 
 ```text
 -l   listen address:port (default :8080)
--t   image type gif or png (default gif)
+-t   image type gif, png or jpg (default gif)
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
 -h   headless mode, hide browser window on the server (default true)
 -d   chromedp debug logging (default false)
--n   do not free maps and gif images after use (default false)
+-n   do not free maps and images after use (default false)
 -ui  html template file (default "wrp.html")
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 ```
@@ -86,7 +86,7 @@ used with PNG and lots of memory on a client side.
 
 **Z** is zoom or scale
 
-**C** is colors, for GIF images only (unused in PNG)
+**C** is colors, for GIF images only (unused in PNG, JPG)
 
 **K** is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 

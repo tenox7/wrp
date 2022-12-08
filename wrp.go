@@ -17,6 +17,7 @@ import (
 	"image"
 	"image/color/palette"
 	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"io/ioutil"
@@ -46,7 +47,8 @@ var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
 	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
 	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
-	defType     = flag.String("t", "gif", "Image type: gif|png")
+	defType     = flag.String("t", "gif", "Image type: png|gif|jpg")
+	jpgQual     = flag.Int("q", 80, "Jpeg image quality, default 80%")
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay       = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
@@ -137,7 +139,11 @@ func (rq *wrpReq) parseForm() {
 	rq.keys = rq.r.FormValue("k")
 	rq.buttons = rq.r.FormValue("Fn")
 	rq.imgType = rq.r.FormValue("t")
-	if rq.imgType != "gif" && rq.imgType != "png" {
+	switch rq.imgType {
+	case "png":
+	case "gif":
+	case "jpg":
+	default:
 		rq.imgType = *defType
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
@@ -294,7 +300,7 @@ func (rq *wrpReq) capture() {
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
-	var pngcap []byte
+	var pngCap []byte
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), 10, rq.zoom, false),
 		chromedp.Location(&rq.url),
@@ -322,51 +328,71 @@ func (rq *wrpReq) capture() {
 		chromedp.Sleep(*delay), // TODO(tenox): find a better way to determine if page is rendered
 	)
 	// Capture screenshot...
-	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height)), rq.w)
+	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
 	seq := rand.Intn(9999)
-	imgpath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
-	mappath := fmt.Sprintf("/map/%04d.map", seq)
-	ismap[mappath] = *rq
-	var ssize string
-	var iw, ih int
+	imgPath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
+	mapPath := fmt.Sprintf("/map/%04d.map", seq)
+	ismap[mapPath] = *rq
+	var sSize string
+	var iW, iH int
 	switch rq.imgType {
 	case "gif":
-		i, err := png.Decode(bytes.NewReader(pngcap))
+		i, err := png.Decode(bytes.NewReader(pngCap))
 		if err != nil {
 			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
 			return
 		}
 		st := time.Now()
-		var gifbuf bytes.Buffer
-		err = gif.Encode(&gifbuf, gifPalette(i, rq.colors), &gif.Options{})
+		var gifBuf bytes.Buffer
+		err = gif.Encode(&gifBuf, gifPalette(i, rq.colors), &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 			return
 		}
-		img[imgpath] = gifbuf
-		ssize = fmt.Sprintf("%.0f KB", float32(len(gifbuf.Bytes()))/1024.0)
-		iw = i.Bounds().Max.X
-		ih = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgpath, ssize, rq.colors, iw, ih, time.Since(st).Milliseconds())
+		img[imgPath] = gifBuf
+		sSize = fmt.Sprintf("%.0f KB", float32(len(gifBuf.Bytes()))/1024.0)
+		iW = i.Bounds().Max.X
+		iH = i.Bounds().Max.Y
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, rq.colors, iW, iH, time.Since(st).Milliseconds())
+	case "jpg":
+		i, err := png.Decode(bytes.NewReader(pngCap))
+		if err != nil {
+			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
+			return
+		}
+		st := time.Now()
+		var jpgBuf bytes.Buffer
+		err = jpeg.Encode(&jpgBuf, i, &jpeg.Options{Quality: *jpgQual})
+		if err != nil {
+			log.Printf("%s Failed to encode JPG: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to encode JPG:<BR>%s<BR>\n", err)
+			return
+		}
+		img[imgPath] = jpgBuf
+		sSize = fmt.Sprintf("%.0f KB", float32(len(jpgBuf.Bytes()))/1024.0)
+		iW = i.Bounds().Max.X
+		iH = i.Bounds().Max.Y
+		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *jpgQual, iW, iH, time.Since(st).Milliseconds())
 	case "png":
-		pngbuf := bytes.NewBuffer(pngcap)
-		img[imgpath] = *pngbuf
-		cfg, _, _ := image.DecodeConfig(pngbuf)
-		ssize = fmt.Sprintf("%.0f KB", float32(len(pngbuf.Bytes()))/1024.0)
-		iw = cfg.Width
-		ih = cfg.Height
-		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgpath, ssize, iw, ih)
+		pngBuf := bytes.NewBuffer(pngCap)
+		img[imgPath] = *pngBuf
+		cfg, _, _ := image.DecodeConfig(pngBuf)
+		sSize = fmt.Sprintf("%.0f KB", float32(len(pngBuf.Bytes()))/1024.0)
+		iW = cfg.Width
+		iH = cfg.Height
+		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH)
 	}
 	rq.printHTML(printParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
 		pageHeight: fmt.Sprintf("%d PX", h),
-		imgSize:    ssize,
-		imgURL:     imgpath,
-		mapURL:     mappath,
-		imgWidth:   iw,
-		imgHeight:  ih,
+		imgSize:    sSize,
+		imgURL:     imgPath,
+		mapURL:     mapPath,
+		imgWidth:   iW,
+		imgHeight:  iH,
 	})
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
@@ -419,8 +445,8 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 // Process HTTP requests for images '/img/' url
 func imgServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
-	imgbuf, ok := img[r.URL.Path]
-	if !ok || imgbuf.Bytes() == nil {
+	imgBuf, ok := img[r.URL.Path]
+	if !ok || imgBuf.Bytes() == nil {
 		fmt.Fprintf(w, "Unable to find image %s\n", r.URL.Path)
 		log.Printf("%s Unable to find image %s\n", r.RemoteAddr, r.URL.Path)
 		return
@@ -433,12 +459,14 @@ func imgServer(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/gif")
 	case strings.HasPrefix(r.URL.Path, ".png"):
 		w.Header().Set("Content-Type", "image/png")
+	case strings.HasPrefix(r.URL.Path, ".jpg"):
+		w.Header().Set("Content-Type", "image/jpeg")
 	}
-	w.Header().Set("Content-Length", strconv.Itoa(len(imgbuf.Bytes())))
+	w.Header().Set("Content-Length", strconv.Itoa(len(imgBuf.Bytes())))
 	w.Header().Set("Cache-Control", "max-age=0")
 	w.Header().Set("Expires", "-1")
 	w.Header().Set("Pragma", "no-cache")
-	w.Write(imgbuf.Bytes())
+	w.Write(imgBuf.Bytes())
 	w.(http.Flusher).Flush()
 }
 
