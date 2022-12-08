@@ -219,6 +219,8 @@ func (rq *wrpReq) navigate() {
 
 // Handle context errors
 func ctxErr(err error, w io.Writer) {
+	// TODO: callers should have retry logic, perhaps create another function
+	// that takes ...chromedp.Action and retries with give up
 	if err == nil {
 		return
 	}
@@ -381,7 +383,7 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	rq.navigate()
+	rq.navigate() // TODO: if error from navigate do not capture
 	rq.capture()
 }
 
@@ -410,7 +412,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
-	rq.navigate()
+	rq.navigate() // TODO: if error from navigate do not capture
 	rq.capture()
 }
 
