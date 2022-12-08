@@ -24,6 +24,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -517,13 +518,42 @@ builtin:
 	return string(tmpl)
 }
 
-// Main...
+// Print my own IP addresses
+func printIPs(b string) {
+	ap := strings.Split(b, ":")
+	if len(ap) < 1 {
+		log.Fatal("Wrong format of ipaddress:port")
+	}
+	log.Printf("Listen address: %v", b)
+	if ap[0] != "" && ap[0] != "0.0.0.0" {
+		return
+	}
+	a, err := net.InterfaceAddrs()
+	if err != nil {
+		log.Print("Unable to get interfaces: ", err)
+		return
+	}
+	var m string
+	for _, i := range a {
+		n, ok := i.(*net.IPNet)
+		if !ok || n.IP.IsLoopback() || strings.Contains(n.IP.String(), ":") {
+			continue
+		}
+		m = m + n.IP.String() + " "
+	}
+	log.Print("My IP addresses: ", m)
+}
+
+// Main
 func main() {
 	var err error
 	flag.Parse()
+	log.Printf("Web Rendering Proxy Version %s\n", version)
+	log.Printf("Args: %q", os.Args)
 	if len(os.Getenv("PORT")) > 0 {
 		*addr = ":" + os.Getenv(("PORT"))
 	}
+	printIPs(*addr)
 	n, err := fmt.Sscanf(*fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
@@ -557,8 +587,6 @@ func main() {
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
-	log.Printf("Web Rendering Proxy Version %s\n", version)
-	log.Printf("Args: %q", os.Args)
 	log.Printf("Default Img Type: %v, Geometry: %+v", *defType, defGeom)
 
 	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(*htmFnam))
@@ -566,7 +594,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Starting WRP http server on %s\n", *addr)
+	log.Print("Starting WRP http server")
 	srv.Addr = *addr
 	err = srv.ListenAndServe()
 	if err != nil {
