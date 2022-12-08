@@ -43,8 +43,7 @@ const version = "4.6.0"
 
 var (
 	addr     = flag.String("l", ":8080", "Listen address:port, default :8080")
-	headless = flag.Bool("h", true, "Headless mode - hide browser window")
-	debug    = flag.Bool("d", false, "Debug ChromeDP")
+	headless = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
 	noDel    = flag.Bool("n", false, "Do not free maps and images after use")
 	defType  = flag.String("t", "gif", "Image type: gif|png")
 	fgeom    = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
@@ -511,12 +510,7 @@ func main() {
 	)
 	actx, acancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer acancel()
-	switch *debug {
-	case true:
-		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
-	default:
-		ctx, cancel = chromedp.NewContext(actx)
-	}
+	ctx, cancel = chromedp.NewContext(actx)
 	defer cancel()
 
 	rand.Seed(time.Now().UnixNano())
