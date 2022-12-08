@@ -39,18 +39,24 @@ import (
 	"github.com/soniakeys/quant/median"
 )
 
+const version = "4.6.0"
+
 var (
-	version  = "4.6.0"
+	addr     = flag.String("l", ":8080", "Listen address:port, default :8080")
+	headless = flag.Bool("h", true, "Headless mode - hide browser window")
+	debug    = flag.Bool("d", false, "Debug ChromeDP")
+	noDel    = flag.Bool("n", false, "Do not free maps and images after use")
+	defType  = flag.String("t", "gif", "Image type: gif|png")
+	fgeom    = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
+	htmFnam  = flag.String("ui", "wrp.html", "HTML template file for the UI")
+	delay    = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
 	srv      http.Server
 	ctx      context.Context
 	cancel   context.CancelFunc
 	img      = make(map[string]bytes.Buffer)
 	ismap    = make(map[string]wrpReq)
-	noDel    bool
-	defType  string
 	defGeom  geom
 	htmlTmpl *template.Template
-	delay    time.Duration
 )
 
 //go:embed *.html
@@ -132,7 +138,7 @@ func (rq *wrpReq) parseForm() {
 	rq.buttons = rq.r.FormValue("Fn")
 	rq.imgType = rq.r.FormValue("t")
 	if rq.imgType != "gif" && rq.imgType != "png" {
-		rq.imgType = defType
+		rq.imgType = *defType
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
 }
@@ -307,7 +313,7 @@ func (rq *wrpReq) capture() {
 	}
 	chromedp.Run(
 		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
-		chromedp.Sleep(delay), // TODO(tenox): find a better way to determine if page is rendered
+		chromedp.Sleep(*delay), // TODO(tenox): find a better way to determine if page is rendered
 	)
 	// Capture screenshot...
 	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
@@ -397,7 +403,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Unable to find map %s\n", r.URL.Path)
 		return
 	}
-	if !noDel {
+	if !*noDel {
 		defer delete(ismap, r.URL.Path)
 	}
 	n, err := fmt.Sscanf(r.URL.RawQuery, "%d,%d", &rq.mouseX, &rq.mouseY)
@@ -424,7 +430,7 @@ func imgServer(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s Unable to find image %s\n", r.RemoteAddr, r.URL.Path)
 		return
 	}
-	if !noDel {
+	if !*noDel {
 		defer delete(img, r.URL.Path)
 	}
 	switch {
@@ -486,34 +492,23 @@ builtin:
 
 // Main...
 func main() {
-	var addr, fgeom, tHTML string
-	var headless bool
-	var debug bool
 	var err error
-	flag.StringVar(&addr, "l", ":8080", "Listen address:port, default :8080")
-	flag.BoolVar(&headless, "h", true, "Headless mode - hide browser window")
-	flag.BoolVar(&debug, "d", false, "Debug ChromeDP")
-	flag.BoolVar(&noDel, "n", false, "Do not free maps and images after use")
-	flag.StringVar(&defType, "t", "gif", "Image type: gif|png")
-	flag.StringVar(&fgeom, "g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
-	flag.StringVar(&tHTML, "ui", "wrp.html", "HTML template file for the UI")
-	flag.DurationVar(&delay, "s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
 	flag.Parse()
 	if len(os.Getenv("PORT")) > 0 {
-		addr = ":" + os.Getenv(("PORT"))
+		*addr = ":" + os.Getenv(("PORT"))
 	}
-	n, err := fmt.Sscanf(fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
+	n, err := fmt.Sscanf(*fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", headless),
+		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
 	)
 	actx, acancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer acancel()
-	switch debug {
+	switch *debug {
 	case true:
 		ctx, cancel = chromedp.NewContext(actx, chromedp.WithDebugf(log.Printf))
 	default:
@@ -541,15 +536,15 @@ func main() {
 
 	log.Printf("Web Rendering Proxy Version %s\n", version)
 	log.Printf("Args: %q", os.Args)
-	log.Printf("Default Img Type: %v, Geometry: %+v", defType, defGeom)
+	log.Printf("Default Img Type: %v, Geometry: %+v", *defType, defGeom)
 
-	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(tHTML))
+	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(*htmFnam))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Starting WRP http server on %s\n", addr)
-	srv.Addr = addr
+	log.Printf("Starting WRP http server on %s\n", *addr)
+	srv.Addr = *addr
 	err = srv.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
