@@ -18,6 +18,7 @@ import (
 	"image/color/palette"
 	"image/gif"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -42,20 +43,20 @@ import (
 const version = "4.6.0"
 
 var (
-	addr     = flag.String("l", ":8080", "Listen address:port, default :8080")
-	headless = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
-	noDel    = flag.Bool("n", false, "Do not free maps and images after use")
-	defType  = flag.String("t", "gif", "Image type: gif|png")
-	fgeom    = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
-	htmFnam  = flag.String("ui", "wrp.html", "HTML template file for the UI")
-	delay    = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
-	srv      http.Server
-	ctx      context.Context
-	cancel   context.CancelFunc
-	img      = make(map[string]bytes.Buffer)
-	ismap    = make(map[string]wrpReq)
-	defGeom  geom
-	htmlTmpl *template.Template
+	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
+	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
+	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
+	defType     = flag.String("t", "gif", "Image type: gif|png")
+	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
+	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
+	delay       = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
+	srv         http.Server
+	actx, ctx   context.Context
+	acncl, cncl context.CancelFunc
+	img         = make(map[string]bytes.Buffer)
+	ismap       = make(map[string]wrpReq)
+	defGeom     geom
+	htmlTmpl    *template.Template
 )
 
 //go:embed *.html
@@ -211,19 +212,24 @@ func (rq *wrpReq) action() chromedp.Action {
 	return chromedp.Navigate(rq.url)
 }
 
-// Process Keyboard and Mouse events or Navigate to the desired URL.
+// Navigate to the desired URL.
 func (rq *wrpReq) navigate() {
-	err := chromedp.Run(ctx, rq.action())
-	if err != nil {
-		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", rq.r.RemoteAddr)
-			fmt.Fprintf(rq.w, "<BR>%s<BR> -- restarting, try again", err)
-			ctx, cancel = chromedp.NewContext(context.Background())
-			return
-		}
-		log.Printf("%s %s", rq.r.RemoteAddr, err)
-		fmt.Fprintf(rq.w, "<BR>%s<BR>", err)
+	ctxErr(chromedp.Run(ctx, rq.action()), rq.w)
+}
+
+// Handle context errors
+func ctxErr(err error, w io.Writer) {
+	if err == nil {
+		return
 	}
+	log.Printf("Context error: %s", err)
+	fmt.Fprintf(w, "Context error: %s<BR>\n", err)
+	if err.Error() != "context canceled" {
+		return
+	}
+	ctx, cncl = chromedp.NewContext(actx)
+	log.Printf("Created new context, try again")
+	fmt.Fprintln(w, "Created new context, try again")
 }
 
 // https://github.com/chromedp/chromedp/issues/979
@@ -283,7 +289,6 @@ func gifPalette(i image.Image, n int64) image.Image {
 
 // Capture currently rendered web page to an image and fake ISMAP
 func (rq *wrpReq) capture() {
-	var err error
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
@@ -315,18 +320,7 @@ func (rq *wrpReq) capture() {
 		chromedp.Sleep(*delay), // TODO(tenox): find a better way to determine if page is rendered
 	)
 	// Capture screenshot...
-	err = chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height))
-	if err != nil {
-		if err.Error() == "context canceled" {
-			log.Printf("%s Contex cancelled, try again", rq.r.RemoteAddr)
-			fmt.Fprintf(rq.w, "<BR>%s<BR> -- restarting, try again", err)
-			ctx, cancel = chromedp.NewContext(context.Background())
-			return
-		}
-		log.Printf("%s Failed to capture screenshot: %s\n", rq.r.RemoteAddr, err)
-		fmt.Fprintf(rq.w, "<BR>Unable to capture screenshot:<BR>%s<BR>\n", err)
-		return
-	}
+	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngcap, rq.height)), rq.w)
 	seq := rand.Intn(9999)
 	imgpath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
 	mappath := fmt.Sprintf("/map/%04d.map", seq)
@@ -456,7 +450,8 @@ func haltServer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Shutting down WRP...\n")
 	w.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
-	cancel()
+	cncl()
+	acncl()
 	srv.Shutdown(context.Background())
 	os.Exit(1)
 }
@@ -508,10 +503,10 @@ func main() {
 		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
 	)
-	actx, acancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer acancel()
-	ctx, cancel = chromedp.NewContext(actx)
-	defer cancel()
+	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
+	defer acncl()
+	ctx, cncl = chromedp.NewContext(actx)
+	defer cncl()
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -520,7 +515,8 @@ func main() {
 	go func() {
 		<-c
 		log.Printf("Interrupt - shutting down.")
-		cancel()
+		cncl()
+		acncl()
 		srv.Shutdown(context.Background())
 		os.Exit(1)
 	}()
