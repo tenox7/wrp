@@ -57,6 +57,7 @@ Fortunately ACI allows port 80 without encryption.
 -t   image type gif, png or jpg (default gif)
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
+-q   Jpeg image quality, default 80%
 -h   headless mode, hide browser window on the server (default true)
 -d   chromedp debug logging (default false)
 -n   do not free maps and images after use (default false)
