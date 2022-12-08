@@ -469,11 +469,13 @@ func tmpl(t string) string {
 	if err != nil {
 		goto builtin
 	}
+	defer fh.Close()
+
 	tmpl, err = ioutil.ReadAll(fh)
 	if err != nil {
 		goto builtin
 	}
-	log.Printf("Got UI template from %v file\n", t)
+	log.Printf("Got HTML UI template from %v file, size %v \n", t, len(tmpl))
 	return string(tmpl)
 
 builtin:
@@ -481,12 +483,13 @@ builtin:
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer fhs.Close()
 
 	tmpl, err = ioutil.ReadAll(fhs)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Got UI template from built-in\n")
+	log.Printf("Got HTML UI template from embed\n")
 	return string(tmpl)
 }
 
