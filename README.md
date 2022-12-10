@@ -4,10 +4,10 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
-## Usage
+## Usage Instructions
 
 * [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. This should be modern hardware, OS and Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
-* Make sure you don't have a firewall enabled or open up the port WRP is listening on (by default 8080).
+* Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server. Do not set or use it as a "proxy server".
 * Type a search string or a full http/https URL and click **Go**.
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
@@ -20,7 +20,39 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 * Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode. Jpeg encoding is also quite fast.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
-## Customization
+## UI explanation
+
+The first unnamed input box is either search (google) or URL starting with http/https
+
+**Go** instructs browser to navigate to the url or perform search
+
+**Bk** is History Back
+
+**St** is Stop, also re-capture screenshot without refreshing page, for example if page
+render takes a long time or it changes periodically
+
+**Re** is Reload
+
+**W** is width in pixels, adjust it to get rid of horizontal scroll bar
+
+**H** is height in pixels, adjust it to get rid of vertical scroll bar.
+It can also be set to 0 to produce one very tall image and use
+client scroll. This 0 size is experimental, buggy and should be
+used with PNG and lots of memory on a client side.
+
+**Z** is zoom or scale
+
+**C** is colors, for GIF images only (unused in PNG, JPG)
+
+**K** is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
+
+**Bs** is backspace
+
+**Rt** is return / enter
+
+**< ^ v >** are arrow keys, typically for navigating a map, buggy.
+
+### UI Customization 
 
 WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
 
@@ -65,38 +97,6 @@ Fortunately ACI allows port 80 without encryption.
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 ```
 
-## UI explanation
-
-The first unnamed input box is either search (google) or URL starting with http/https
-
-**Go** instructs browser to navigate to the url or perform search
-
-**Bk** is History Back
-
-**St** is Stop, also re-capture screenshot without refreshing page, for example if page
-render takes a long time or it changes periodically
-
-**Re** is Reload
-
-**W** is width in pixels, adjust it to get rid of horizontal scroll bar
-
-**H** is height in pixels, adjust it to get rid of vertical scroll bar.
-It can also be set to 0 to produce one very tall image and use
-client scroll. This 0 size is experimental, buggy and should be
-used with PNG and lots of memory on a client side.
-
-**Z** is zoom or scale
-
-**C** is colors, for GIF images only (unused in PNG, JPG)
-
-**K** is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
-
-**Bs** is backspace
-
-**Rt** is return / enter
-
-**< ^ v >** are arrow keys, typically for navigating a map, buggy.
-
 ## Minimal Requirements
 
 * Server/Gateway requires modern hardware and operating system that is supported by [Go language](https://github.com/golang/go/wiki/MinimumRequirements) and Chrome/Chromium Browser, which must be installed.
@@ -108,7 +108,7 @@ used with PNG and lots of memory on a client side.
 
 This program does not have a GUI and is run from the command line. You may need to enable executable bit on Unix systems, for example:
 
-```bash
+```shell
 $ cd ~/Downloads
 $ chmod +x wrp-amd64-macos
 $ ./wrp-amd64-macos -t png
