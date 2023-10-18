@@ -38,6 +38,7 @@ import (
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
+        "github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
 	"github.com/soniakeys/quant/median"
 )
@@ -207,7 +208,13 @@ func (rq *wrpReq) action() chromedp.Action {
 			return chromedp.KeyEvent("\u0301")
 		case ">":
 			return chromedp.KeyEvent("\u0303")
-		}
+                case "Up":
+                        return chromedp.KeyEvent("\u0308")
+                case "Dn":
+                        return chromedp.KeyEvent("\u0307")
+                case "All": // Select all
+                        return chromedp.KeyEvent("a", chromedp.KeyModifiers(input.ModifierCtrl))
+                }
 	}
 	// Keys
 	if len(rq.keys) > 0 {
