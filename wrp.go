@@ -563,6 +563,8 @@ func main() {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
+		chromedp.Flag("enable-automation", false),
+		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 	)
 	if *userAgent != "" {
 		opts = append(opts, chromedp.UserAgent(*userAgent))
