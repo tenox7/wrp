@@ -53,6 +53,7 @@ var (
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay       = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
+	userAgent   = flag.String("ua", "", "override chrome user agent")
 	srv         http.Server
 	actx, ctx   context.Context
 	acncl, cncl context.CancelFunc
@@ -563,6 +564,9 @@ func main() {
 		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
 	)
+	if *userAgent != "" {
+		opts = append(opts, chromedp.UserAgent(*userAgent))
+	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
 	defer acncl()
 	ctx, cncl = chromedp.NewContext(actx)
