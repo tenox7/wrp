@@ -117,8 +117,8 @@ $ ./wrp-amd64-macos
 
 ### Websites are blocking headless browsers
 
-This is a well known issue. WRP has some provisions to work around it but same as ad blockers it's a cat and mouse game. The first and
-foremost recommendation is to change `User Agent` so that it doesn't say "headless". Add `-ua="my agent"` to override the default one.
+This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. The first and
+foremost recommendation is to change `User Agent`, so that it doesn't say "headless". Add `-ua="my agent"` to override the default one.
 Obtain your regular desktop browser user agent and specify it as the flag. For example
 
 ```shell
