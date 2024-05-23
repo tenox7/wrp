@@ -59,7 +59,7 @@ WRP supports customizing it's own UI using HTML Template file. Download [wrp.htm
 ## Docker
 
 ```shell
-$ docker run -d -p 8080:8080 tenox7/wrp
+$ docker run -d -p 8080:8080 tenox7/wrp:latest
 ```
 
 ## Google Cloud Run
