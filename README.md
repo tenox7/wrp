@@ -135,6 +135,7 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 * Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers.
 * Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
+* Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry PI!
 
 ## Credits
 
