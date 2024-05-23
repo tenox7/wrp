@@ -1,7 +1,7 @@
 //
 // WRP - Web Rendering Proxy
 //
-// Copyright (c) 2013-2018 Antoni Sawicki
+// Copyright (c) 2013-2024 Antoni Sawicki
 // Copyright (c) 2019-2024 Google LLC
 //
 
@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -548,8 +549,9 @@ func printIPs(b string) {
 // Main
 func main() {
 	var err error
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
-	log.Printf("Web Rendering Proxy Version %s\n", version)
+	log.Printf("Web Rendering Proxy Version %s (%v)\n", version, runtime.GOARCH)
 	log.Printf("Args: %q", os.Args)
 	if len(os.Getenv("PORT")) > 0 {
 		*addr = ":" + os.Getenv(("PORT"))
