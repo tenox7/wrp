@@ -52,14 +52,14 @@ used with PNG and lots of memory on a client side.
 
 **< ^ v >** are arrow keys, typically for navigating a map, buggy.
 
-### UI Customization 
+### UI Customization
 
 WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
 
 ## Docker
 
 ```shell
-$ docker run -d -p 80:8080 tenox7/wrp
+$ docker run -d -p 8080:8080 tenox7/wrp
 ```
 
 ## Google Cloud Run
@@ -70,7 +70,7 @@ $ gcloud run deploy --platform managed --image=gcr.io/tenox7/wrp:latest --memory
 
 Or from [Gcloud Console](https://console.cloud.google.com/run). Use `gcr.io/tenox7/wrp:latest` as container image URL.
 
-Note that unfortunately GCR forces https. Your browser support of encryption protocols and certification authorities will vary. 
+Note that unfortunately GCR forces https. Your browser support of encryption protocols and certification authorities will vary.
 
 ## Azure Container Instances
 
@@ -131,7 +131,7 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 * Version 2.0 became a stand alone http-proxy server, supporting both Linux and MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
 * In 2016 thanks to EFF/Certbot the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and there was no easy way to make it work on Windows, even under WSL.
 * Version 3.0 (2019) has been rewritten in [Go](https://golang.org/) using [Chromedp](https://github.com/chromedp) as browser-in-browser instead of http-proxy. The initial version was [less than 100 lines of code](https://gist.github.com/tenox7/b0f03c039b0a8b67f6c1bf47e2dd0df0).
-* Version 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes. 
+* Version 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes.
 * Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers.
 * Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
@@ -147,6 +147,8 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 
 ## Legal Stuff
 
-License: Apache 2.0  
-Copyright (c) 2013-2018 Antoni Sawicki  
+```text
+License: Apache 2.0
+Copyright (c) 2013-2024 Antoni Sawicki
 Copyright (c) 2019-2024 Google LLC
+```
