@@ -18,9 +18,5 @@ docker: wrp
 	GOOS=linux GOARCH=arm64 go build -a -o wrp-arm64-linux wrp.go
 	docker buildx build --platform linux/amd64,linux/arm64 -t tenox7/wrp:latest --push .
 
-gcrio:
-	docker tag tenox7/wrp:latest gcr.io/tenox7/wrp
-	docker push gcr.io/tenox7/wrp
-
 clean:
 	rm -rf wrp-* wrp
