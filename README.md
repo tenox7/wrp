@@ -70,6 +70,23 @@ First you need to upload the Docker image to ECR - [Instructions](https://docs.a
 
 Create App Runner service using the uploaded image using the AWS Console or CLI.
 
+[AWS Console](https://console.aws.amazon.com/apprunner/home#/create)
+
+```shell
+aws apprunner create-service --service-name my-app-runner-service --source-configuration '{
+    "ImageRepository": {
+        "ImageIdentifier": "<account_id>.dkr.ecr.<region>.amazonaws.com/wrp:latest",
+        "ImageRepositoryType": "ECR",
+        "ImageConfiguration": {"Port": "8000"},
+        "AutoDeploymentsEnabled": true
+    }
+}' --instance-configuration '{
+    "Cpu": "1024",
+    "Memory": "2048",
+    "InstanceRoleArn": "arn:aws:iam::<account_id>:role/AppRunnerECRAccessRole"
+}'
+```
+
 ## Azure Container Instances
 
 [Azure Console](https://portal.azure.com/#create/Microsoft.ContainerInstances)
