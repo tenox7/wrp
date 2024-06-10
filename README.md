@@ -59,7 +59,25 @@ WRP supports customizing it's own UI using HTML Template file. Download [wrp.htm
 ## Docker
 
 ```shell
-$ docker run -d -p 8080:8080 tenox7/wrp:latest
+$ docker run -d --rm -p 8080:8080 tenox7/wrp:latest
+```
+
+## AWS
+
+It's possible to run WRP on AWS App Runner.
+
+First you need to upload the Docker image to ECR - [Instructions](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
+
+Create App Runner service using the uploaded image using the AWS Console or CLI.
+
+## Azure Container Instances
+
+[Azure Console](https://portal.azure.com/#create/Microsoft.ContainerInstances)
+
+CLI:
+
+```shell
+$ az container create --resource-group wrp --name wrp --image tenox7/wrp:latest --cpu 1 --memory 2 --ports 80 --protocol tcp --os-type Linux --ip-address Public --command-line '/wrp -l :80 -t png -g 1280x0x256'
 ```
 
 ## Google Cloud Run
@@ -68,17 +86,8 @@ $ docker run -d -p 8080:8080 tenox7/wrp:latest
 $ gcloud run deploy --platform managed --image=tenox7/wrp:latest --memory=2Gi --args='-t=png','-g=1280x0x256'
 ```
 
-Note that unfortunately GCR forces https. Your browser support of encryption protocols and certification authorities will vary.
+Unfortunately Google Cloud Run forces you to use HTTPS.
 
-## Azure Container Instances
-
-```shell
-$ az container create --resource-group wrp --name wrp --image tenox7/wrp:latest --cpu 1 --memory 2 --ports 80 --protocol tcp --os-type Linux --ip-address Public --command-line '/wrp -l :80 -t png -g 1280x0x256'
-```
-
-Or from the [Azure Console](https://portal.azure.com/#create/Microsoft.ContainerInstances). Use `tenox7/wrp:latest` for image name.
-
-Fortunately ACI allows port 80 without encryption.
 
 ## Flags
 
