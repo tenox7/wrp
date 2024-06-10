@@ -144,6 +144,13 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 * Thanks to [Hill Ma](https://github.com/mahiuchun) for ultra fast gif encoding algorithm
 * Historical Python/Webkit versions and prior art can be seen in [wrp-old](https://github.com/tenox7/wrp-old) repo
 
+## Related
+
+You may also be interested in:
+
+* [VncFox](https://github.com/tenox7/vncfox)
+* [Browservice](https://github.com/ttalvitie/browservice)
+
 ## Legal Stuff
 
 ```text
