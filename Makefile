@@ -13,9 +13,10 @@ cross:
 	GOOS=linux GOARCH=arm go build -a -o wrp-arm-linux wrp.go
 	GOOS=linux GOARCH=arm64 go build -a -o wrp-arm64-linux wrp.go
 
-docker: wrp
-	GOOS=linux GOARCH=amd64 go build -a -o wrp-amd64-linux wrp.go
-	GOOS=linux GOARCH=arm64 go build -a -o wrp-arm64-linux wrp.go
+docker-local:
+	docker buildx build --platform linux/amd64,linux/arm64 -t tenox7/wrp:latest --load .
+
+docker-push:
 	docker buildx build --platform linux/amd64,linux/arm64 -t tenox7/wrp:latest --push .
 
 clean:
