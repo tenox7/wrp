@@ -184,6 +184,7 @@ You may also be interested in:
 
 * [VncFox](https://github.com/tenox7/vncfox)
 * [Browservice](https://github.com/ttalvitie/browservice)
+* [Browsh](https://github.com/browsh-org/browsh)
 
 ## Legal Stuff
 
