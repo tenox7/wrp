@@ -38,8 +38,8 @@ import (
 	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
-        "github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
 	"github.com/soniakeys/quant/median"
 )
@@ -210,13 +210,13 @@ func (rq *wrpReq) action() chromedp.Action {
 			return chromedp.KeyEvent("\u0301")
 		case ">":
 			return chromedp.KeyEvent("\u0303")
-                case "Up":
-                        return chromedp.KeyEvent("\u0308")
-                case "Dn":
-                        return chromedp.KeyEvent("\u0307")
-                case "All": // Select all
-                        return chromedp.KeyEvent("a", chromedp.KeyModifiers(input.ModifierCtrl))
-                }
+		case "Up":
+			return chromedp.KeyEvent("\u0308")
+		case "Dn":
+			return chromedp.KeyEvent("\u0307")
+		case "All": // Select all
+			return chromedp.KeyEvent("a", chromedp.KeyModifiers(input.ModifierCtrl))
+		}
 	}
 	// Keys
 	if len(rq.keys) > 0 {
@@ -323,12 +323,12 @@ func (rq *wrpReq) capture() {
 			return nil
 		}),
 	)
+	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	for _, style := range styles {
 		if style.Name == "background-color" {
 			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
 		}
 	}
-	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
 		height = h + 30
