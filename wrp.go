@@ -13,7 +13,6 @@ import (
 	"embed"
 	"flag"
 	"fmt"
-	"html/template"
 	"image"
 	"image/color/palette"
 	"image/gif"
@@ -33,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/MaxHalford/halfgone"
@@ -41,6 +41,9 @@ import (
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
+	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 	"github.com/soniakeys/quant/median"
 )
 
@@ -90,6 +93,7 @@ type uiData struct {
 	ImgHeight  int
 	MapURL     string
 	PageHeight string
+	TeXT       string
 }
 
 // Parameters for HTML print function
@@ -101,6 +105,7 @@ type printParams struct {
 	mapURL     string
 	imgWidth   int
 	imgHeight  int
+	text       string
 }
 
 // WRP Request
@@ -147,6 +152,7 @@ func (rq *wrpReq) parseForm() {
 	case "png":
 	case "gif":
 	case "jpg":
+	case "txt":
 	default:
 		rq.imgType = *defType
 	}
@@ -174,6 +180,7 @@ func (rq *wrpReq) printHTML(p printParams) {
 		ImgURL:     p.imgURL,
 		MapURL:     p.mapURL,
 		PageHeight: p.pageHeight,
+		TeXT:       p.text,
 	}
 	err := htmlTmpl.Execute(rq.w, data)
 	if err != nil {
@@ -224,7 +231,7 @@ func (rq *wrpReq) action() chromedp.Action {
 		return chromedp.KeyEvent(rq.keys)
 	}
 	// Navigate to URL
-	log.Printf("%s Processing Capture Request for %s\n", rq.r.RemoteAddr, rq.url)
+	log.Printf("%s Processing Navigate Request for %s\n", rq.r.RemoteAddr, rq.url)
 	return chromedp.Navigate(rq.url)
 }
 
@@ -407,6 +414,36 @@ func (rq *wrpReq) capture() {
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
+func (rq *wrpReq) markdown() {
+	log.Printf("Processing Markdown conversion for %v", rq.url)
+	req, err := http.NewRequest("GET", "https://r.jina.ai/"+rq.url, nil)
+	if err != nil {
+		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("x-respond-with", "markdown")
+	cli := &http.Client{}
+	resp, err := cli.Do(req)
+	if err != nil {
+		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+	p := parser.New()
+	md, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("got %v bytes from jina.ai", len(md))
+	d := p.Parse(md)
+	r := html.NewRenderer(html.RendererOptions{})
+	ht := markdown.Render(d, r)
+	rq.printHTML(printParams{
+		text: string(ht),
+	})
+}
+
 // Process HTTP requests to WRP '/' url
 func pageServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
@@ -415,11 +452,16 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		w: w,
 	}
 	rq.parseForm()
+	log.Printf("%v", rq.imgType)
 	if len(rq.url) < 4 {
 		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
+	if rq.imgType == "txt" {
+		rq.markdown()
+		return
+	}
 	rq.capture()
 }
 

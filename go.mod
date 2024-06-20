@@ -6,6 +6,7 @@ require (
 	github.com/MaxHalford/halfgone v0.0.0-20171017091812-482157b86ccb
 	github.com/chromedp/cdproto v0.0.0-20240519224452-66462be74baa
 	github.com/chromedp/chromedp v0.9.5
+	github.com/gomarkdown/markdown v0.0.0-20240419095408-642f0ee99ae2
 	github.com/soniakeys/quant v1.0.0
 )
 

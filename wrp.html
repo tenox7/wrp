@@ -26,6 +26,7 @@
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>
+                <OPTION VALUE="txt" {{ if eq .ImgType "txt"}}SELECTED{{end}}>TXT</OPTION>
             </SELECT>
             C <SELECT NAME="c">
                 <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
@@ -51,6 +52,7 @@
         </A>
         <P>
         {{end}}
+        {{.TeXT}}
 		<FONT SIZE="-2">
 		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
 		<A HREF="/shutdown/">Shutdown WRP</A> |
