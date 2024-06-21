@@ -436,7 +436,7 @@ func (rq *wrpReq) toMarkdown() {
 		return
 	}
 	log.Printf("Got %v bytes from jina.ai", len(md))
-	p := parser.NewWithExtensions(parser.CommonExtensions | parser.Autolink)
+	p := parser.New()
 	d := p.Parse(md)
 	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
 		if link, ok := node.(*ast.Link); ok && entering {
