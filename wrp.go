@@ -42,6 +42,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/ast"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/soniakeys/quant/median"
@@ -414,7 +415,7 @@ func (rq *wrpReq) capture() {
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
-func (rq *wrpReq) markdown() {
+func (rq *wrpReq) toMarkdown() {
 	log.Printf("Processing Markdown conversion for %v", rq.url)
 	req, err := http.NewRequest("GET", "https://r.jina.ai/"+rq.url, nil)
 	if err != nil {
@@ -429,14 +430,23 @@ func (rq *wrpReq) markdown() {
 		return
 	}
 	defer resp.Body.Close()
-	p := parser.New()
 	md, err := io.ReadAll(resp.Body)
 	if err != nil {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("got %v bytes from jina.ai", len(md))
+	log.Printf("Got %v bytes from jina.ai", len(md))
+	p := parser.NewWithExtensions(parser.CommonExtensions | parser.Autolink)
 	d := p.Parse(md)
+	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
+		if link, ok := node.(*ast.Link); ok && entering {
+			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
+		}
+		if image, ok := node.(*ast.Image); ok && entering {
+			image.Destination = nil
+		}
+		return ast.GoToNext
+	})
 	r := html.NewRenderer(html.RendererOptions{})
 	ht := markdown.Render(d, r)
 	rq.printHTML(printParams{
@@ -452,14 +462,13 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		w: w,
 	}
 	rq.parseForm()
-	log.Printf("%v", rq.imgType)
 	if len(rq.url) < 4 {
 		rq.printHTML(printParams{bgColor: "#FFFFFF"})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
 	if rq.imgType == "txt" {
-		rq.markdown()
+		rq.toMarkdown()
 		return
 	}
 	rq.capture()

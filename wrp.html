@@ -6,6 +6,7 @@
         <FORM ACTION="/" METHOD="POST">
             <INPUT TYPE="TEXT" NAME="url" VALUE="{{.URL}}" SIZE="20">
             <INPUT TYPE="SUBMIT" VALUE="Go">
+            {{ if ne .ImgType "txt" }}
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bk">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="St">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Re">
@@ -22,12 +23,14 @@
                 <OPTION VALUE="1.2" {{ if eq .Zoom 1.2}}SELECTED{{end}}>1.2 x</OPTION>
                 <OPTION VALUE="1.3" {{ if eq .Zoom 1.3}}SELECTED{{end}}>1.3 x</OPTION>
             </SELECT>
+            {{ end }}
             T <SELECT NAME="t">
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>
                 <OPTION VALUE="txt" {{ if eq .ImgType "txt"}}SELECTED{{end}}>TXT</OPTION>
             </SELECT>
+            {{ if ne .ImgType "txt" }}
             C <SELECT NAME="c">
                 <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
                 <OPTION VALUE="216" {{ if eq .NColors 216}}SELECTED{{end}}>216</OPTION>
@@ -44,6 +47,7 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="^">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="v">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="&gt;" SIZE="1">-->
+            {{ end }}
         </FORM>
         <BR>
         {{if .ImgURL}}
