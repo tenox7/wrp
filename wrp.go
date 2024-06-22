@@ -35,9 +35,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/JohannesKaufmann/html-to-markdown/plugin"
-
 	h2m "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/JohannesKaufmann/html-to-markdown/plugin"
 	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
@@ -443,6 +442,8 @@ func (rq *wrpReq) toMarkdown() {
 		return
 	}
 	log.Printf("Got %v bytes md from %v", len(md), rq.url)
+	// TODO: Use GoldMark instead
+	// https://github.com/yuin/goldmark
 	p := parser.NewWithExtensions(parser.CommonExtensions)
 	d := p.Parse([]byte(md))
 	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
