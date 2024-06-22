@@ -415,6 +415,18 @@ func (rq *wrpReq) capture() {
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
+func asciify(s []byte) []byte {
+	a := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] > 127 {
+			a[i] = '.'
+			continue
+		}
+		a[i] = s[i]
+	}
+	return a
+}
+
 func (rq *wrpReq) toMarkdown() {
 	log.Printf("Processing Markdown conversion for %v", rq.url)
 	req, err := http.NewRequest("GET", "https://r.jina.ai/"+rq.url, nil)
@@ -449,8 +461,9 @@ func (rq *wrpReq) toMarkdown() {
 	})
 	r := html.NewRenderer(html.RendererOptions{})
 	ht := markdown.Render(d, r)
+	// TODO: add https://github.com/microcosm-cc/bluemonday
 	rq.printHTML(printParams{
-		text:    string(ht),
+		text:    string(asciify(ht)),
 		bgColor: "#FFFFFF",
 	})
 }
