@@ -35,6 +35,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/JohannesKaufmann/html-to-markdown/plugin"
+
 	h2m "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
@@ -429,14 +431,19 @@ func asciify(s []byte) []byte {
 }
 
 func (rq *wrpReq) toMarkdown() {
-	log.Printf("Processing Markdown conversion for %v", rq.url)
-	h := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
-	md, err := h.ConvertURL(rq.url)
+	log.Printf("Processing Markdown conversion request for %v", rq.url)
+	// TODO: bug - DomainFromURL always prefixes with http:// instead of https
+	// this causes issues on some websites, write a smarter DomainFromURL
+	c := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
+	c.Use(plugin.GitHubFlavored())
+	// We could alternatively get inner html from chromedp
+	md, err := c.ConvertURL(rq.url)
 	if err != nil {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	p := parser.New()
+	log.Printf("Got %v bytes md from %v", len(md), rq.url)
+	p := parser.NewWithExtensions(parser.CommonExtensions)
 	d := p.Parse([]byte(md))
 	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
 		if link, ok := node.(*ast.Link); ok && entering {
@@ -449,6 +456,7 @@ func (rq *wrpReq) toMarkdown() {
 	})
 	r := html.NewRenderer(html.RendererOptions{})
 	ht := markdown.Render(d, r)
+	log.Printf("Rendered %v bytes of html for %v", len(ht), rq.url)
 	// TODO: add https://github.com/microcosm-cc/bluemonday
 	rq.printHTML(printParams{
 		text:    string(asciify(ht)),
