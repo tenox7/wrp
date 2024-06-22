@@ -442,8 +442,9 @@ func (rq *wrpReq) toMarkdown() {
 		if link, ok := node.(*ast.Link); ok && entering {
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
 		}
-		if image, ok := node.(*ast.Image); ok && entering {
-			image.Destination = nil
+		if _, ok := node.(*ast.Image); ok && entering {
+			//image.Destination = nil
+			ast.RemoveFromTree(node)
 		}
 		return ast.GoToNext
 	})
