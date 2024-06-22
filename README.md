@@ -103,7 +103,7 @@ $ az container create --resource-group wrp --name wrp --image tenox7/wrp:latest 
 $ gcloud run deploy --platform managed --image=tenox7/wrp:latest --memory=2Gi --args='-t=png','-g=1280x0x256'
 ```
 
-Unfortunately Google Cloud Run forces you to use HTTPS.
+Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work with old browsers.
 
 
 ## Flags
