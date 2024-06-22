@@ -451,7 +451,8 @@ func (rq *wrpReq) toMarkdown() {
 	r := html.NewRenderer(html.RendererOptions{})
 	ht := markdown.Render(d, r)
 	rq.printHTML(printParams{
-		text: string(ht),
+		text:    string(ht),
+		bgColor: "#FFFFFF",
 	})
 }
 
