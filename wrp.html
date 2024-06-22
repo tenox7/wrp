@@ -60,8 +60,10 @@
 		<FONT SIZE="-2">
 		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
 		<A HREF="/shutdown/">Shutdown WRP</A> |
+        {{ if ne .ImgType "txt" }}
 		<A HREF="/">Page Height: {{.PageHeight}}</A> |
 		<A HREF="/">Img Size: {{.ImgSize}}</A>
-		</FONT>
+        {{end}}
+    </FONT>
     </BODY>
 </HTML>
