@@ -189,7 +189,7 @@ func (rq *wrpReq) printHTML(p printParams) {
 	}
 	err := htmlTmpl.Execute(rq.w, data)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(rq.w, "Error: %v", err)
 	}
 }
 
