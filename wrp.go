@@ -35,6 +35,7 @@ import (
 	"text/template"
 	"time"
 
+	h2m "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
@@ -429,27 +430,14 @@ func asciify(s []byte) []byte {
 
 func (rq *wrpReq) toMarkdown() {
 	log.Printf("Processing Markdown conversion for %v", rq.url)
-	req, err := http.NewRequest("GET", "https://r.jina.ai/"+rq.url, nil)
+	h := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
+	md, err := h.ConvertURL(rq.url)
 	if err != nil {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("x-respond-with", "markdown")
-	cli := &http.Client{}
-	resp, err := cli.Do(req)
-	if err != nil {
-		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-	md, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Got %v bytes from jina.ai", len(md))
 	p := parser.New()
-	d := p.Parse(md)
+	d := p.Parse([]byte(md))
 	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
 		if link, ok := node.(*ast.Link); ok && entering {
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
