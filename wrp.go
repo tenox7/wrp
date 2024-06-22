@@ -43,11 +43,13 @@ import (
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/ast"
-	"github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
 	"github.com/soniakeys/quant/median"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 const version = "4.6.3"
@@ -429,38 +431,47 @@ func asciify(s []byte) []byte {
 	return a
 }
 
+type astTransformer struct{}
+
+func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
+	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if link, ok := n.(*ast.Link); ok && entering {
+			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
+		}
+		if _, ok := n.(*ast.Image); ok && entering {
+			// TODO: perhaps instead of deleting images convert them to links
+			// smaller images or ascii? https://github.com/TheZoraiz/ascii-image-converter
+			n.Parent().RemoveChildren(n)
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
 func (rq *wrpReq) toMarkdown() {
 	log.Printf("Processing Markdown conversion request for %v", rq.url)
 	// TODO: bug - DomainFromURL always prefixes with http:// instead of https
-	// this causes issues on some websites, write a smarter DomainFromURL
+	// this causes issues on some websites, fix or write a smarter DomainFromURL
 	c := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
 	c.Use(plugin.GitHubFlavored())
-	// We could alternatively get inner html from chromedp
-	md, err := c.ConvertURL(rq.url)
+	md, err := c.ConvertURL(rq.url) // We could also get inner html from chromedp
 	if err != nil {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	log.Printf("Got %v bytes md from %v", len(md), rq.url)
-	// TODO: Use GoldMark instead
-	// https://github.com/yuin/goldmark
-	p := parser.NewWithExtensions(parser.CommonExtensions)
-	d := p.Parse([]byte(md))
-	ast.WalkFunc(d, func(node ast.Node, entering bool) ast.WalkStatus {
-		if link, ok := node.(*ast.Link); ok && entering {
-			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
-		}
-		if _, ok := node.(*ast.Image); ok && entering {
-			ast.RemoveFromTree(node)
-		}
-		return ast.GoToNext
-	})
-	r := html.NewRenderer(html.RendererOptions{})
-	ht := markdown.Render(d, r)
-	log.Printf("Rendered %v bytes of html for %v", len(ht), rq.url)
-	// TODO: add https://github.com/microcosm-cc/bluemonday
+	gm := goldmark.New(
+		goldmark.WithExtensions(extension.GFM),
+		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(&astTransformer{}, 100))),
+	)
+	var ht bytes.Buffer
+	err = gm.Convert([]byte(md), &ht)
+	if err != nil {
+		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Rendered %v bytes html for %v", len(ht.String()), rq.url)
 	rq.printHTML(printParams{
-		text:    string(asciify(ht)),
+		text:    string(asciify([]byte(ht.String()))),
 		bgColor: "#FFFFFF",
 	})
 }
