@@ -443,7 +443,6 @@ func (rq *wrpReq) toMarkdown() {
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
 		}
 		if _, ok := node.(*ast.Image); ok && entering {
-			//image.Destination = nil
 			ast.RemoveFromTree(node)
 		}
 		return ast.GoToNext
