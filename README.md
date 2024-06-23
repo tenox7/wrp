@@ -1,10 +1,12 @@
 # WRP - Web Rendering Proxy
 
-A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It works by rendering a web page in to a GIF or PNG image with clickable imagemap.
+A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It works by rendering a web page in to a GIF or PNG image with clickable imagemap. Optionally by converting modern HTML in to Markdown and back to a simple HTML.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
 ## Usage Instructions
+
+### Image Map Mode
 
 * [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
@@ -19,6 +21,13 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
 * Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode. Jpeg encoding is also quite fast.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
+
+### Simple HTML mode
+
+Also known as **Reader** mode. **NEW!**
+
+* Select image type to `TXT`. WRP will convert the image in to Markdown, then render it back in to a simplified HTML.
+* If you want to always start in txt mode specify `-t txt` flag.
 
 ## UI explanation
 
@@ -110,7 +119,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 
 ```text
 -l   listen address:port (default :8080)
--t   image type gif, png or jpg (default gif)
+-t   image type gif, png or jpg (default gif) also txt for simple html/reader mode
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
 -q   Jpeg image quality, default 80%
@@ -168,6 +177,7 @@ Some efforts are under way but it's very [difficult](https://en.wikipedia.org/wi
 * Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
 * Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry PI!
+* Version 4.7 add simple html aka reader aka text mode.
 
 ## Credits
 
