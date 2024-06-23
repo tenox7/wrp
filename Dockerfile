@@ -1,4 +1,4 @@
-FROM golang as builder
+FROM golang AS builder
 WORKDIR /src
 RUN git clone https://github.com/tenox7/wrp.git
 WORKDIR /src/wrp
