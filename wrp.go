@@ -317,8 +317,7 @@ func gifPalette(i image.Image, n int64) image.Image {
 	return i
 }
 
-// Capture currently rendered web page to an image and fake ISMAP
-func (rq *wrpReq) capture() {
+func (rq *wrpReq) captureImage() {
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
 	var h int64
@@ -447,7 +446,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 	})
 }
 
-func (rq *wrpReq) toMarkdown() {
+func (rq *wrpReq) captureMarkdown() {
 	log.Printf("Processing Markdown conversion request for %v", rq.url)
 	// TODO: bug - DomainFromURL always prefixes with http:// instead of https
 	// this causes issues on some websites, fix or write a smarter DomainFromURL
@@ -490,10 +489,10 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
 	if rq.imgType == "txt" {
-		rq.toMarkdown()
+		rq.captureMarkdown()
 		return
 	}
-	rq.capture()
+	rq.captureImage()
 }
 
 // Process HTTP requests to ISMAP '/map/' url
@@ -522,7 +521,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
-	rq.capture()
+	rq.captureImage()
 }
 
 // Process HTTP requests for images '/img/' url
