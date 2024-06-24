@@ -52,7 +52,7 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-const version = "4.6.3"
+const version = "4.7.0"
 
 var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
