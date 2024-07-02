@@ -171,10 +171,6 @@ func imgServerZ(w http.ResponseWriter, r *http.Request) {
 	imgStor.del(id)
 	w.Header().Set("Content-Type", "image/gif")
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
-	// TODO: we may want to let the client browser cache images
-	w.Header().Set("Cache-Control", "max-age=0")
-	w.Header().Set("Expires", "-1")
-	w.Header().Set("Pragma", "no-cache")
 	w.Write(img)
 	w.(http.Flusher).Flush()
 }
