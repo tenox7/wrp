@@ -1,5 +1,14 @@
 package main
 
+// TODO:
+// - image type based on form value
+// - also size and quality
+// - non overlaping image names atomic.int etc
+// - garbage collector / delete old images from map
+// - add referer header
+// - svg support
+// - bug DomainFromURL always prefixes with http instead of https
+
 import (
 	"bytes"
 	"encoding/base64"
