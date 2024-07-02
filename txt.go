@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
@@ -76,17 +77,33 @@ func (i *imageStore) del(id string) {
 
 func grabImage(id, url string) {
 	log.Printf(">>> Downloading ID=%q URL=%q", id, url)
-	// TODO: possibly set a header "referer" here
-	r, err := http.Get(url)
-	if err != nil {
-		log.Printf("Error downloading %q: %v", url, err)
-		return
-	}
-	defer r.Body.Close()
-	img, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("Error reading %q: %v", url, err)
-		return
+	var img []byte
+	var err error
+	switch url[:4] {
+	case "http":
+		r, err := http.Get(url) // TODO: possibly set a header "referer" here
+		if err != nil {
+			log.Printf("Error downloading %q: %v", url, err)
+			return
+		}
+		defer r.Body.Close()
+		img, err = io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error reading %q: %v", url, err)
+			return
+		}
+	case "data":
+		idx := strings.Index(url, ",")
+		if idx < 1 {
+			log.Printf("image is embeded but unable to find coma: %q", url)
+			return
+		}
+		img, err = base64.StdEncoding.DecodeString(url[idx+1:])
+		if err != nil {
+			log.Printf("error decoding image from url embed: %q: %v", err)
+			return
+		}
+		log.Printf("%v", string(img))
 	}
 	gif, err := smallGif(img)
 	if err != nil {
