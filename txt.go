@@ -197,8 +197,8 @@ func smallGif(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("image decode problem: %v", err)
 	}
-	if img.Bounds().Max.X-img.Bounds().Min.X > 200 {
-		img = resize.Resize(200, 0, img, resize.NearestNeighbor)
+	if img.Bounds().Max.X-img.Bounds().Min.X > *txtImgSize {
+		img = resize.Resize(uint(*txtImgSize), 0, img, resize.NearestNeighbor)
 	}
 	var gifBuf bytes.Buffer
 	err = gif.Encode(&gifBuf, gifPalette(img, 216), &gif.Options{})

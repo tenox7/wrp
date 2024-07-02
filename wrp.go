@@ -51,6 +51,7 @@ var (
 	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
 	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
 	defType     = flag.String("t", "gif", "Image type: png|gif|jpg|txt")
+	txtImgSize  = flag.Int("ts", 200, "txt mode image size")
 	jpgQual     = flag.Int("q", 80, "Jpeg image quality, default 80%")
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
