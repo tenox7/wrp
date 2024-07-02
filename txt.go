@@ -103,7 +103,6 @@ func grabImage(id, url string) {
 			log.Printf("error decoding image from url embed: %q: %v", err)
 			return
 		}
-		log.Printf("%v", string(img))
 	}
 	gif, err := smallGif(img)
 	if err != nil {
