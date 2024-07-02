@@ -76,7 +76,7 @@ func (i *imageStore) del(id string) {
 }
 
 func grabImage(id, url string) {
-	log.Printf(">>> Downloading ID=%q URL=%q", id, url)
+	log.Printf("Downloading IMGZ URL=%q for ID=%q", url, id)
 	var img []byte
 	var err error
 	switch url[:4] {
@@ -122,7 +122,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		if img, ok := n.(*ast.Image); ok && entering {
 			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // atomic.AddInt64 could be better here
 			grabImage(id, string(img.Destination))             // TODO: use goroutines with waitgroup
-			img.Destination = []byte(imgZpfx + id)
+			img.Destination = []byte(imgZpfx + id)             // get error from grab image and blank out destination on error
 		}
 		return ast.WalkContinue, nil
 	})
