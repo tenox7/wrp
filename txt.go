@@ -154,7 +154,8 @@ func (rq *wrpReq) captureMarkdown() {
 	}
 	log.Printf("Rendered %v bytes html for %v", len(ht.String()), rq.url)
 	rq.printHTML(printParams{
-		text: string(asciify([]byte(ht.String()))),
+		text:    string(asciify([]byte(ht.String()))),
+		bgColor: "#FFFFFF",
 	})
 }
 
