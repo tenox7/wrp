@@ -655,8 +655,6 @@ func main() {
 	ctx, cncl = chromedp.NewContext(actx)
 	defer cncl()
 
-	rand.Seed(time.Now().UnixNano())
-
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
