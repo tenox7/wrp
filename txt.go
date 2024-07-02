@@ -95,7 +95,7 @@ func fetchImage(id, url string) error {
 			return fmt.Errorf("Error downloading %q: %v", url, err)
 		}
 		if r.StatusCode != http.StatusOK {
-			return fmt.Errorf("%q status code: %v", url, r.StatusCode)
+			return fmt.Errorf("Error %q HTTP Status Code: %v", url, r.StatusCode)
 		}
 		defer r.Body.Close()
 		img, err = io.ReadAll(r.Body)
