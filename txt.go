@@ -116,6 +116,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
+			// TODO: dynamic extension based on form value
 			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // BUG: atomic.AddInt64 or something that ever increases - time based?
 			err := grabImage(id, string(img.Destination))      // TODO: use goroutines with waitgroup
 			if err != nil {
@@ -175,6 +176,7 @@ func imgServerZ(w http.ResponseWriter, r *http.Request) {
 	w.(http.Flusher).Flush()
 }
 
+// TODO set JPG/GIF/PNG type based on form...
 func smallGif(src []byte) ([]byte, error) {
 	t := http.DetectContentType(src)
 	var err error
@@ -197,6 +199,7 @@ func smallGif(src []byte) ([]byte, error) {
 	img = resize.Thumbnail(uint(*txtImgSize), uint(*txtImgSize), img, resize.NearestNeighbor)
 	var gifBuf bytes.Buffer
 	err = gif.Encode(&gifBuf, gifPalette(img, 216), &gif.Options{})
+	//err =jpeg.Encode(&gifBuf, img, &jpeg.Options{Quality: 50})
 	if err != nil {
 		return nil, fmt.Errorf("gif encode problem: %v", err)
 	}
