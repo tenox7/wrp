@@ -75,7 +75,7 @@ func (i *imageStore) del(id string) {
 	delete(i.img, id)
 }
 
-func grabImage(id, url string) {
+func grabImage(id, url string) error {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", url, id)
 	var img []byte
 	var err error
@@ -83,33 +83,29 @@ func grabImage(id, url string) {
 	case "http":
 		r, err := http.Get(url) // TODO: possibly set a header "referer" here
 		if err != nil {
-			log.Printf("Error downloading %q: %v", url, err)
-			return
+			return fmt.Errorf("Error downloading %q: %v", url, err)
 		}
 		defer r.Body.Close()
 		img, err = io.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("Error reading %q: %v", url, err)
-			return
+			return fmt.Errorf("Error reading %q: %v", url, err)
 		}
 	case "data":
 		idx := strings.Index(url, ",")
 		if idx < 1 {
-			log.Printf("image is embeded but unable to find coma: %q", url)
-			return
+			return fmt.Errorf("image is embeded but unable to find coma: %q", url)
 		}
 		img, err = base64.StdEncoding.DecodeString(url[idx+1:])
 		if err != nil {
-			log.Printf("error decoding image from url embed: %q: %v", err)
-			return
+			return fmt.Errorf("error decoding image from url embed: %q: %v", url, err)
 		}
 	}
 	gif, err := smallGif(img)
 	if err != nil {
-		log.Printf("Error scaling down image: %v", err)
-		return
+		return fmt.Errorf("Error scaling down image: %v", err)
 	}
 	imgStor.add(id, url, gif)
+	return nil
 }
 
 type astTransformer struct{}
@@ -121,8 +117,12 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
 			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // atomic.AddInt64 could be better here
-			grabImage(id, string(img.Destination))             // TODO: use goroutines with waitgroup
-			img.Destination = []byte(imgZpfx + id)             // get error from grab image and blank out destination on error
+			img.Destination = []byte(imgZpfx + id)
+			err := grabImage(id, string(img.Destination)) // TODO: use goroutines with waitgroup
+			if err != nil {
+				log.Print(err)
+				n.Parent().RemoveChildren(n)
+			}
 		}
 		return ast.WalkContinue, nil
 	})
@@ -190,7 +190,7 @@ func smallGif(src []byte) ([]byte, error) {
 		img, err = jpeg.Decode(bytes.NewReader(src))
 	case "image/webp":
 		img, err = webp.Decode(bytes.NewReader(src))
-	default:
+	default: // TODO: also add svg
 		err = errors.New("unknown content type: " + t)
 	}
 	if err != nil {
