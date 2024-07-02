@@ -31,6 +31,8 @@ import (
 
 var imgStor imageStore
 
+const imgZpfx = "/imgz/"
+
 func init() {
 	imgStor.img = make(map[string]imageContainer)
 	// TODO: add garbage collector
@@ -102,9 +104,9 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			id := fmt.Sprintf("txt%04d.gif", rand.Intn(9999)) // atomic.AddInt64 could be better here
-			grabImage(id, string(img.Destination))            // TODO: goroutines with waitgroup
-			img.Destination = []byte("/imgz/" + id)
+			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // atomic.AddInt64 could be better here
+			grabImage(id, string(img.Destination))             // TODO: use goroutines with waitgroup
+			img.Destination = []byte(imgZpfx + id)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -140,11 +142,12 @@ func (rq *wrpReq) captureMarkdown() {
 }
 
 func imgServerZ(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s IMGZ Request for %s\n", r.RemoteAddr, r.URL.Path)
-	id := strings.Replace(r.URL.Path, "/imgz/", "", 1)
+	log.Printf("%s IMGZ Request for %s", r.RemoteAddr, r.URL.Path)
+	id := strings.Replace(r.URL.Path, imgZpfx, "", 1)
 	img, err := imgStor.get(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("%s IMGZ error for %s: %v", r.RemoteAddr, r.URL.Path, err)
 		return
 	}
 	imgStor.del(id)

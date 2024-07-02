@@ -616,7 +616,7 @@ func main() {
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/img/", imgServer)
-	http.HandleFunc("/imgz/", imgServerZ)
+	http.HandleFunc(imgZpfx, imgServerZ)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
