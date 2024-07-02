@@ -117,12 +117,13 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
 			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // atomic.AddInt64 could be better here
-			img.Destination = []byte(imgZpfx + id)
-			err := grabImage(id, string(img.Destination)) // TODO: use goroutines with waitgroup
+			err := grabImage(id, string(img.Destination))      // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
 				n.Parent().RemoveChildren(n)
+				return ast.WalkContinue, nil
 			}
+			img.Destination = []byte(imgZpfx + id)
 		}
 		return ast.WalkContinue, nil
 	})
