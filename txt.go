@@ -116,7 +116,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // atomic.AddInt64 could be better here
+			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // BUG: atomic.AddInt64 or something that ever increases - time based?
 			err := grabImage(id, string(img.Destination))      // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
