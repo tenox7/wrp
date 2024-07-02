@@ -84,7 +84,7 @@ func (i *imageStore) del(id string) {
 	delete(i.img, id)
 }
 
-func grabImage(id, url string) error {
+func fetchImage(id, url string) error {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", url, id)
 	var img []byte
 	var err error
@@ -130,7 +130,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		if img, ok := n.(*ast.Image); ok && entering {
 			// TODO: dynamic extension based on form value
 			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // BUG: atomic.AddInt64 or something that ever increases - time based?
-			err := grabImage(id, string(img.Destination))      // TODO: use goroutines with waitgroup
+			err := fetchImage(id, string(img.Destination))     // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
 				n.Parent().RemoveChildren(n)
