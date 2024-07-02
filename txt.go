@@ -7,7 +7,10 @@ package main
 // - garbage collector / delete old images from map
 // - add referer header
 // - svg support
-// - bug DomainFromURL always prefixes with http instead of https
+// - BOG: DomainFromURL always prefixes with http instead of https
+//   reproduces on vsi vms docs
+// - BUG: markdown table errors
+//   reproduces on hacker news
 
 import (
 	"bytes"
