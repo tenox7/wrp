@@ -537,11 +537,11 @@ func imgServer(w http.ResponseWriter, r *http.Request) {
 		defer delete(img, r.URL.Path)
 	}
 	switch {
-	case strings.HasPrefix(r.URL.Path, ".gif"):
+	case strings.HasSuffix(r.URL.Path, ".gif"):
 		w.Header().Set("Content-Type", "image/gif")
-	case strings.HasPrefix(r.URL.Path, ".png"):
+	case strings.HasSuffix(r.URL.Path, ".png"):
 		w.Header().Set("Content-Type", "image/png")
-	case strings.HasPrefix(r.URL.Path, ".jpg"):
+	case strings.HasSuffix(r.URL.Path, ".jpg"):
 		w.Header().Set("Content-Type", "image/jpeg")
 	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(imgBuf.Bytes())))
