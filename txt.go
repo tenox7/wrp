@@ -169,7 +169,7 @@ func imgServerZ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	imgStor.del(id)
-	w.Header().Set("Content-Type", "image/gif")
+	w.Header().Set("Content-Type", http.DetectContentType(img))
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
 	w.Write(img)
 	w.(http.Flusher).Flush()
