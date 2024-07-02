@@ -163,6 +163,9 @@ func (rq *wrpReq) printHTML(p printParams) {
 	rq.w.Header().Set("Expires", "-1")
 	rq.w.Header().Set("Pragma", "no-cache")
 	rq.w.Header().Set("Content-Type", "text/html")
+	if p.bgColor == "" {
+		p.bgColor = "#FFFFFF"
+	}
 	data := uiData{
 		Version:    version,
 		URL:        rq.url,
@@ -313,6 +316,7 @@ func gifPalette(i image.Image, n int64) image.Image {
 func (rq *wrpReq) captureImage() {
 	var styles []*css.ComputedStyleProperty
 	var r, g, b int
+	var bgColorSet bool
 	var h int64
 	var pngCap []byte
 	chromedp.Run(ctx,
@@ -329,9 +333,17 @@ func (rq *wrpReq) captureImage() {
 	)
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	for _, style := range styles {
-		if style.Name == "background-color" {
-			fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
+		if style.Name != "background-color" {
+			continue
 		}
+		fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
+		bgColorSet = true
+		break
+	}
+	if !bgColorSet {
+		r = 255
+		g = 255
+		b = 255
 	}
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
