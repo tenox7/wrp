@@ -7,8 +7,10 @@ require (
 	github.com/MaxHalford/halfgone v0.0.0-20171017091812-482157b86ccb
 	github.com/chromedp/cdproto v0.0.0-20240519224452-66462be74baa
 	github.com/chromedp/chromedp v0.9.5
-	github.com/gomarkdown/markdown v0.0.0-20240419095408-642f0ee99ae2
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/soniakeys/quant v1.0.0
+	github.com/yuin/goldmark v1.7.2
+	golang.org/x/image v0.18.0
 )
 
 require (
@@ -20,7 +22,6 @@ require (
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/yuin/goldmark v1.7.2 // indirect
 	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

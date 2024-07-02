@@ -35,8 +35,6 @@ import (
 	"text/template"
 	"time"
 
-	h2m "github.com/JohannesKaufmann/html-to-markdown"
-	"github.com/JohannesKaufmann/html-to-markdown/plugin"
 	"github.com/MaxHalford/halfgone"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
@@ -44,12 +42,6 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/soniakeys/quant/median"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
 )
 
 const version = "4.7.0"
@@ -428,51 +420,6 @@ func asciify(s []byte) []byte {
 		a[i] = s[i]
 	}
 	return a
-}
-
-type astTransformer struct{}
-
-func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if link, ok := n.(*ast.Link); ok && entering {
-			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
-		}
-		if _, ok := n.(*ast.Image); ok && entering {
-			// TODO: perhaps instead of deleting images convert them to links
-			// smaller images or ascii? https://github.com/TheZoraiz/ascii-image-converter
-			n.Parent().RemoveChildren(n)
-		}
-		return ast.WalkContinue, nil
-	})
-}
-
-func (rq *wrpReq) captureMarkdown() {
-	log.Printf("Processing Markdown conversion request for %v", rq.url)
-	// TODO: bug - DomainFromURL always prefixes with http:// instead of https
-	// this causes issues on some websites, fix or write a smarter DomainFromURL
-	c := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
-	c.Use(plugin.GitHubFlavored())
-	md, err := c.ConvertURL(rq.url) // We could also get inner html from chromedp
-	if err != nil {
-		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Got %v bytes md from %v", len(md), rq.url)
-	gm := goldmark.New(
-		goldmark.WithExtensions(extension.GFM),
-		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(&astTransformer{}, 100))),
-	)
-	var ht bytes.Buffer
-	err = gm.Convert([]byte(md), &ht)
-	if err != nil {
-		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	log.Printf("Rendered %v bytes html for %v", len(ht.String()), rq.url)
-	rq.printHTML(printParams{
-		text:    string(asciify([]byte(ht.String()))),
-		bgColor: "#FFFFFF",
-	})
 }
 
 // Process HTTP requests to WRP '/' url
