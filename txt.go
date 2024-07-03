@@ -87,7 +87,7 @@ func (i *imageStore) del(id string) {
 	delete(i.img, id)
 }
 
-func fetchImage(id, url string) error {
+func fetchImage(id, url, imgType string, maxSize, imgOpt int) error {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", url, id)
 	var img []byte
 	var err error
@@ -115,7 +115,7 @@ func fetchImage(id, url string) error {
 			return fmt.Errorf("error decoding image from url embed: %q: %v", url, err)
 		}
 	}
-	gif, err := smallGif(img)
+	gif, err := smallImg(img, imgType, maxSize, imgOpt)
 	if err != nil {
 		return fmt.Errorf("Error scaling down image: %v", err)
 	}
@@ -123,7 +123,46 @@ func fetchImage(id, url string) error {
 	return nil
 }
 
-type astTransformer struct{}
+func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, error) {
+	t := http.DetectContentType(src)
+	var err error
+	var img image.Image
+	switch t {
+	case "image/png":
+		img, err = png.Decode(bytes.NewReader(src))
+	case "image/gif":
+		img, err = gif.Decode(bytes.NewReader(src))
+	case "image/jpeg":
+		img, err = jpeg.Decode(bytes.NewReader(src))
+	case "image/webp":
+		img, err = webp.Decode(bytes.NewReader(src))
+	default: // TODO: also add svg
+		err = errors.New("unknown content type: " + t)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("image decode problem: %v", err)
+	}
+	img = resize.Thumbnail(uint(*defImgSize), uint(*defImgSize), img, resize.NearestNeighbor)
+	var outBuf bytes.Buffer
+	switch imgType {
+	case "png":
+		err = png.Encode(&outBuf, img)
+	case "gif":
+		err = gif.Encode(&outBuf, gifPalette(img, int64(imgOpt)), &gif.Options{})
+	case "jpg":
+		err = jpeg.Encode(&outBuf, img, &jpeg.Options{Quality: imgOpt})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("gif encode problem: %v", err)
+	}
+	return outBuf.Bytes(), nil
+}
+
+type astTransformer struct {
+	imgType string
+	maxSize int
+	imgOpt  int
+}
 
 func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -132,8 +171,8 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
 			// TODO: dynamic extension based on form value
-			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999)) // BUG: atomic.AddInt64 or something that ever increases - time based?
-			err := fetchImage(id, string(img.Destination))     // TODO: use goroutines with waitgroup
+			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999))                             // BUG: atomic.AddInt64 or something that ever increases - time based?
+			err := fetchImage(id, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
 				n.Parent().RemoveChildren(n)
@@ -143,6 +182,18 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		}
 		return ast.WalkContinue, nil
 	})
+}
+
+func asciify(s []byte) []byte {
+	a := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] > 127 {
+			a[i] = '.'
+			continue
+		}
+		a[i] = s[i]
+	}
+	return a
 }
 
 func (rq *wrpReq) captureMarkdown() {
@@ -157,7 +208,7 @@ func (rq *wrpReq) captureMarkdown() {
 		return
 	}
 	log.Printf("Got %v bytes md from %v", len(md), rq.url)
-	t := &astTransformer{}
+	t := &astTransformer{imgType: rq.imgType, maxSize: int(rq.maxSize), imgOpt: int(rq.imgOpt)} // TODO: maxSize still doesn't work
 	gm := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(t, 100))),
@@ -189,33 +240,4 @@ func imgServerZ(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
 	w.Write(img)
 	w.(http.Flusher).Flush()
-}
-
-// TODO set JPG/GIF/PNG type based on form...
-func smallGif(src []byte) ([]byte, error) {
-	t := http.DetectContentType(src)
-	var err error
-	var img image.Image
-	switch t {
-	case "image/png":
-		img, err = png.Decode(bytes.NewReader(src))
-	case "image/gif":
-		img, err = gif.Decode(bytes.NewReader(src))
-	case "image/jpeg":
-		img, err = jpeg.Decode(bytes.NewReader(src))
-	case "image/webp":
-		img, err = webp.Decode(bytes.NewReader(src))
-	default: // TODO: also add svg
-		err = errors.New("unknown content type: " + t)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("image decode problem: %v", err)
-	}
-	img = resize.Thumbnail(uint(*txtImgSize), uint(*txtImgSize), img, resize.NearestNeighbor)
-	var gifBuf bytes.Buffer
-	err = gif.Encode(&gifBuf, gifPalette(img, 216), &gif.Options{})
-	if err != nil {
-		return nil, fmt.Errorf("gif encode problem: %v", err)
-	}
-	return gifBuf.Bytes(), nil
 }

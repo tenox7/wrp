@@ -6,7 +6,7 @@
         <FORM ACTION="/" METHOD="POST">
             <INPUT TYPE="TEXT" NAME="url" VALUE="{{.URL}}" SIZE="20">
             <INPUT TYPE="SUBMIT" VALUE="Go">
-            {{ if ne .ImgType "txt" }}
+            {{ if eq .WrpMode "ismap" }}
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bk">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="St">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Re">
@@ -14,7 +14,13 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Dn">
             W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
             H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
+            {{ end }}
+            {{ if eq .WrpMode "html" }}
+            S <INPUT TYPE="TEXT" NAME="s" VALUE="{{.MaxSize}}" SIZE="4">
+            {{ end }}
+            {{ if eq .WrpMode "ismap" }}
             Z <SELECT NAME="z">
+                <OPTION DISABLED>Zoom</OPTION>
                 <OPTION VALUE="0.7" {{ if eq .Zoom 0.7}}SELECTED{{end}}>0.7 x</OPTION>
                 <OPTION VALUE="0.8" {{ if eq .Zoom 0.8}}SELECTED{{end}}>0.8 x</OPTION>
                 <OPTION VALUE="0.9" {{ if eq .Zoom 0.9}}SELECTED{{end}}>0.9 x</OPTION>
@@ -24,14 +30,19 @@
                 <OPTION VALUE="1.3" {{ if eq .Zoom 1.3}}SELECTED{{end}}>1.3 x</OPTION>
             </SELECT>
             {{ end }}
+            M <SELECT NAME="m">
+                <OPTION DISABLED>Mode</OPTION>
+                <OPTION VALUE="ismap" {{ if eq .WrpMode "ismap"}}SELECTED{{end}}>ISMAP</OPTION>
+                <OPTION VALUE="html" {{ if eq .WrpMode "html"}}SELECTED{{end}}>HTML</OPTION>
+            </SELECT>
             T <SELECT NAME="t">
+                <OPTION DISABLED>Type</OPTION>
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>
-                <OPTION VALUE="txt" {{ if eq .ImgType "txt"}}SELECTED{{end}}>TXT</OPTION>
             </SELECT>
-            {{ if ne .ImgType "txt" }}
             C <SELECT NAME="c">
+                <OPTION DISABLED>Ncol</OPTION>
                 <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
                 <OPTION VALUE="216" {{ if eq .NColors 216}}SELECTED{{end}}>216</OPTION>
                 <OPTION VALUE="128" {{ if eq .NColors 128}}SELECTED{{end}}>128</OPTION>
@@ -39,6 +50,7 @@
                 <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
                 <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
             </SELECT>
+            {{ if eq .WrpMode "ismap" }}
             K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Rt">
