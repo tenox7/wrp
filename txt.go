@@ -128,7 +128,7 @@ type astTransformer struct{}
 func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if link, ok := n.(*ast.Link); ok && entering {
-			link.Destination = append([]byte("?t=txt&url="), link.Destination...)
+			link.Destination = append([]byte("/?t=txt&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
 			// TODO: dynamic extension based on form value
@@ -214,7 +214,6 @@ func smallGif(src []byte) ([]byte, error) {
 	img = resize.Thumbnail(uint(*txtImgSize), uint(*txtImgSize), img, resize.NearestNeighbor)
 	var gifBuf bytes.Buffer
 	err = gif.Encode(&gifBuf, gifPalette(img, 216), &gif.Options{})
-	//err =jpeg.Encode(&gifBuf, img, &jpeg.Options{Quality: 50})
 	if err != nil {
 		return nil, fmt.Errorf("gif encode problem: %v", err)
 	}
