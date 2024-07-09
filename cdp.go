@@ -192,7 +192,7 @@ func (rq *wrpReq) captureScreenshot() {
 		}
 		st := time.Now()
 		var gifBuf bytes.Buffer
-		err = gif.Encode(&gifBuf, gifPalette(i, rq.imgOpt), &gif.Options{})
+		err = gif.Encode(&gifBuf, gifPalette(i, rq.nColors), &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
@@ -202,7 +202,7 @@ func (rq *wrpReq) captureScreenshot() {
 		sSize = fmt.Sprintf("%.0f KB", float32(len(gifBuf.Bytes()))/1024.0)
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
-		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, rq.imgOpt, iW, iH, time.Since(st).Milliseconds())
+		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, rq.nColors, iW, iH, time.Since(st).Milliseconds())
 	case "jpg":
 		i, err := png.Decode(bytes.NewReader(pngCap))
 		if err != nil {
@@ -212,7 +212,7 @@ func (rq *wrpReq) captureScreenshot() {
 		}
 		st := time.Now()
 		var jpgBuf bytes.Buffer
-		err = jpeg.Encode(&jpgBuf, i, &jpeg.Options{Quality: *jpgQual})
+		err = jpeg.Encode(&jpgBuf, i, &jpeg.Options{Quality: int(rq.jQual)})
 		if err != nil {
 			log.Printf("%s Failed to encode JPG: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode JPG:<BR>%s<BR>\n", err)
@@ -222,7 +222,7 @@ func (rq *wrpReq) captureScreenshot() {
 		sSize = fmt.Sprintf("%.0f KB", float32(len(jpgBuf.Bytes()))/1024.0)
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
-		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *jpgQual, iW, iH, time.Since(st).Milliseconds())
+		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *defJpgQual, iW, iH, time.Since(st).Milliseconds())
 	}
 	rq.printUI(uiParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),

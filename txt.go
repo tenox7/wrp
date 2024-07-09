@@ -14,7 +14,7 @@ package main
 //   reproduces on vsi vms docs
 // - BUG: markdown table errors
 //   reproduces on hacker news
-// - BUG: captcha errors using html to markdown, perhaps use cdp inner html
+// - BUG: captcha errors using html to markdown, perhaps use cdp inner html + downloaded images
 //   reproduces on https://www.cnn.com/cnn-underscored/electronics
 
 import (
@@ -196,7 +196,14 @@ func (rq *wrpReq) captureMarkdown() {
 		return
 	}
 	log.Printf("Got %v bytes md from %v", len(md), rq.url)
-	t := &astTransformer{imgType: rq.imgType, maxSize: int(rq.maxSize), imgOpt: int(rq.imgOpt)} // TODO: maxSize still doesn't work
+	var imgOpt int
+	switch rq.imgType {
+	case "jpg":
+		imgOpt = int(rq.jQual)
+	case "gif":
+		imgOpt = int(rq.nColors)
+	}
+	t := &astTransformer{imgType: rq.imgType, maxSize: int(rq.maxSize), imgOpt: imgOpt}
 	gm := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(t, 100))),

@@ -36,7 +36,7 @@ var (
 	defType    = flag.String("t", "gif", "Image type: png|gif|jpg")
 	wrpMode    = flag.String("m", "ismap", "WRP Mode: ismap|html")
 	defImgSize = flag.Int64("is", 200, "html mode default image size")
-	jpgQual    = flag.Int("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
+	defJpgQual = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
 	fgeom      = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam    = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay      = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
@@ -72,6 +72,7 @@ type uiData struct {
 	URL        string
 	BgColor    string
 	NColors    int64
+	JQual      int64
 	Width      int64
 	Height     int64
 	Zoom       float64
@@ -100,19 +101,19 @@ type uiParams struct {
 
 // WRP Request
 type wrpReq struct {
-	url     string  // url
-	width   int64   // width
-	height  int64   // height
-	zoom    float64 // zoom/scale
-	colors  int64   // #colors
-	mouseX  int64   // mouseX
-	mouseY  int64   // mouseY
-	keys    string  // keys to send
-	buttons string  // Fn buttons
-	imgType string  // imgtype
-	wrpMode string  // mode ismap/html
-	maxSize int64   // image max size for html mode
-	imgOpt  int64
+	url     string
+	width   int64
+	height  int64
+	zoom    float64
+	nColors int64
+	jQual   int64
+	mouseX  int64
+	mouseY  int64
+	keys    string
+	buttons string
+	imgType string
+	wrpMode string
+	maxSize int64
 	w       http.ResponseWriter
 	r       *http.Request
 }
@@ -138,26 +139,25 @@ func (rq *wrpReq) parseForm() {
 	if rq.zoom < 0.1 {
 		rq.zoom = 1.0
 	}
-	rq.colors, _ = strconv.ParseInt(rq.r.FormValue("c"), 10, 64) // TODO: this needs to be jpeg quality as well
-	if rq.colors < 2 || rq.colors > 256 {                        // ... but maybe not because of this?
-		rq.colors = defGeom.c
+	rq.imgType = rq.r.FormValue("t")
+	switch rq.imgType {
+	case "png", "gif", "jpg":
+	default:
+		rq.imgType = *defType
+	}
+	rq.nColors, _ = strconv.ParseInt(rq.r.FormValue("c"), 10, 64)
+	if rq.nColors < 2 || rq.nColors > 256 {
+		rq.nColors = defGeom.c
+	}
+	rq.jQual, _ = strconv.ParseInt(rq.r.FormValue("q"), 10, 64)
+	if rq.jQual < 1 || rq.jQual > 100 {
+		rq.jQual = *defJpgQual
 	}
 	rq.keys = rq.r.FormValue("k")
 	rq.buttons = rq.r.FormValue("Fn")
 	rq.maxSize, _ = strconv.ParseInt(rq.r.FormValue("s"), 10, 64)
 	if rq.maxSize == 0 {
 		rq.maxSize = *defImgSize
-	}
-	rq.imgType = rq.r.FormValue("t")
-	switch rq.imgType {
-	case "png":
-	case "gif":
-		rq.imgOpt = defGeom.c
-	case "jpg":
-		rq.imgOpt = int64(*jpgQual)
-	default:
-		rq.imgType = *defType
-		rq.imgOpt = 80 // TODO: fixme, this needs to be different based on image type
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
 }
@@ -177,7 +177,8 @@ func (rq *wrpReq) printUI(p uiParams) {
 		BgColor:    p.bgColor,
 		Width:      rq.width,
 		Height:     rq.height,
-		NColors:    rq.colors, // TODO: this needs to be also jpeg quality
+		NColors:    rq.nColors,
+		JQual:      rq.jQual,
 		Zoom:       rq.zoom,
 		MaxSize:    rq.maxSize,
 		ImgType:    rq.imgType,

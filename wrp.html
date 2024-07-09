@@ -41,6 +41,7 @@
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>
             </SELECT>
+            {{ if eq .ImgType "gif" }}
             C <SELECT NAME="c">
                 <OPTION DISABLED>Ncol</OPTION>
                 <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
@@ -50,6 +51,10 @@
                 <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
                 <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
             </SELECT>
+            {{ end }}
+            {{ if eq .ImgType "jpg" }}
+            Q <INPUT TYPE="TEXT" NAME="q" VALUE="{{.JQual}}" SIZE="2">%
+            {{ end }}
             {{ if eq .WrpMode "ismap" }}
             K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
