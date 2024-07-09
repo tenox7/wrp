@@ -2,15 +2,14 @@
 package main
 
 // TODO:
-// - image type based on form value
-// - also size and quality
-// - imgOpt image quality
+// - imgOpt image quality for jpeg
 // - non overlaping image names atomic.int etc
 // - garbage collector / delete old images from map
 // - add referer header
 // - svg support
 // - incorrect cert support in both markdown and image download
 // - unify cdp and txt image handlers
+// - use goroutiness to process images
 // - BOG: DomainFromURL always prefixes with http instead of https
 //   reproduces on vsi vms docs
 // - BUG: markdown table errors
@@ -146,7 +145,7 @@ func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("image decode problem: %v", err)
 	}
-	img = resize.Thumbnail(uint(*defImgSize), uint(*defImgSize), img, resize.NearestNeighbor)
+	img = resize.Thumbnail(uint(maxSize), uint(maxSize), img, resize.NearestNeighbor)
 	var outBuf bytes.Buffer
 	switch imgType {
 	case "png":
