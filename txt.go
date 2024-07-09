@@ -14,6 +14,8 @@ package main
 //   reproduces on vsi vms docs
 // - BUG: markdown table errors
 //   reproduces on hacker news
+// - BUG: captcha errors using html to markdown, perhaps use cdp inner html
+//   reproduces on https://www.cnn.com/cnn-underscored/electronics
 
 import (
 	"bytes"
@@ -51,10 +53,6 @@ const imgZpfx = "/imgz/"
 
 func init() {
 	imgStor.img = make(map[string]imageContainer)
-	// TODO: add garbage collector
-	// think about how to remove old images
-	// if removed from cache how to download them later if a browser goes back?
-	// browser should cache on it's own... but it may request it, what then?
 }
 
 type imageContainer struct {
