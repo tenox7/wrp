@@ -12,7 +12,7 @@ import (
 	"github.com/soniakeys/quant/median"
 )
 
-func printIPs(b string) {
+func printMyIPs(b string) {
 	ap := strings.Split(b, ":")
 	if len(ap) < 1 {
 		log.Fatal("Wrong format of ipaddress:port")

@@ -87,7 +87,7 @@ type uiData struct {
 }
 
 // Parameters for HTML print function
-type printParams struct {
+type uiParams struct {
 	bgColor    string
 	pageHeight string
 	imgSize    string
@@ -117,7 +117,6 @@ type wrpReq struct {
 	r       *http.Request
 }
 
-// Parse HTML Form, Process Input Boxes, Etc.
 func (rq *wrpReq) parseForm() {
 	rq.r.ParseForm()
 	rq.wrpMode = rq.r.FormValue("m")
@@ -163,8 +162,7 @@ func (rq *wrpReq) parseForm() {
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
 }
 
-// Display WP UI
-func (rq *wrpReq) printHTML(p printParams) {
+func (rq *wrpReq) printUI(p uiParams) {
 	rq.w.Header().Set("Cache-Control", "max-age=0")
 	rq.w.Header().Set("Expires", "-1")
 	rq.w.Header().Set("Pragma", "no-cache")
@@ -197,7 +195,6 @@ func (rq *wrpReq) printHTML(p printParams) {
 	}
 }
 
-// Process HTTP requests to WRP '/' url
 func pageServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Page Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
 	rq := wrpReq{
@@ -206,7 +203,7 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.parseForm()
 	if len(rq.url) < 4 {
-		rq.printHTML(printParams{bgColor: "#FFFFFF"})
+		rq.printUI(uiParams{bgColor: "#FFFFFF"})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
@@ -217,7 +214,6 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	rq.captureScreenshot()
 }
 
-// Process HTTP requests for Shutdown via '/shutdown/' url
 func haltServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Shutdown Request for %s\n", r.RemoteAddr, r.URL.Path)
 	w.Header().Set("Content-Type", "text/plain")
@@ -230,8 +226,7 @@ func haltServer(w http.ResponseWriter, r *http.Request) {
 	os.Exit(1)
 }
 
-// returns html template, either from html file or built-in
-func tmpl(t string) string {
+func wrpTemplate(t string) string {
 	var tmpl []byte
 	fh, err := os.Open(t)
 	if err != nil {
@@ -261,7 +256,6 @@ builtin:
 	return string(tmpl)
 }
 
-// Main
 func main() {
 	var err error
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -271,7 +265,7 @@ func main() {
 	if len(os.Getenv("PORT")) > 0 {
 		*addr = ":" + os.Getenv(("PORT"))
 	}
-	printIPs(*addr)
+	printMyIPs(*addr)
 	n, err := fmt.Sscanf(*fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
@@ -294,14 +288,14 @@ func main() {
 
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)
-	http.HandleFunc("/img/", imgServer)
-	http.HandleFunc(imgZpfx, imgServerZ)
+	http.HandleFunc("/img/", imgServerMap)
+	http.HandleFunc(imgZpfx, imgServerTxt)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
 	log.Printf("Default Img Type: %v, Geometry: %+v", *defType, defGeom)
 
-	htmlTmpl, err = template.New("wrp.html").Parse(tmpl(*htmFnam))
+	htmlTmpl, err = template.New("wrp.html").Parse(wrpTemplate(*htmFnam))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,3 +1,4 @@
+// WRP ISMAP / ChromeDP routines
 package main
 
 import (
@@ -111,7 +112,7 @@ func ctxErr(err error, w io.Writer) {
 // https://github.com/chromedp/chromedp/issues/979
 func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 	if res == nil {
-		panic("res cannot be nil")
+		panic("res cannot be nil") // TODO: do not panic here, return error
 	}
 	if h == 0 {
 		return chromedp.CaptureScreenshot(res)
@@ -223,7 +224,7 @@ func (rq *wrpReq) captureScreenshot() {
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *jpgQual, iW, iH, time.Since(st).Milliseconds())
 	}
-	rq.printHTML(printParams{
+	rq.printUI(uiParams{
 		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
 		pageHeight: fmt.Sprintf("%d PX", h),
 		imgSize:    sSize,
@@ -235,7 +236,6 @@ func (rq *wrpReq) captureScreenshot() {
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
-// Process HTTP requests to ISMAP '/map/' url
 func mapServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
 	rq, ok := ismap[r.URL.Path]
@@ -257,16 +257,15 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", r.RemoteAddr, rq)
 	if len(rq.url) < 4 {
-		rq.printHTML(printParams{bgColor: "#FFFFFF"})
+		rq.printUI(uiParams{bgColor: "#FFFFFF"})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
 	rq.captureScreenshot()
 }
 
-// Process HTTP requests for images '/img/' url
 // TODO: merge this with html mode IMGZ
-func imgServer(w http.ResponseWriter, r *http.Request) {
+func imgServerMap(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
 	imgBuf, ok := img[r.URL.Path]
 	if !ok || imgBuf.Bytes() == nil {

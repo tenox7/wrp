@@ -1,8 +1,10 @@
+// WRP TXT / Simple HTML Mode Routines
 package main
 
 // TODO:
 // - image type based on form value
 // - also size and quality
+// - imgOpt image quality
 // - non overlaping image names atomic.int etc
 // - garbage collector / delete old images from map
 // - add referer header
@@ -210,13 +212,13 @@ func (rq *wrpReq) captureMarkdown() {
 		return
 	}
 	log.Printf("Rendered %v bytes html for %v", len(ht.String()), rq.url)
-	rq.printHTML(printParams{
+	rq.printUI(uiParams{
 		text:    string(asciify([]byte(ht.String()))),
 		bgColor: "#FFFFFF",
 	})
 }
 
-func imgServerZ(w http.ResponseWriter, r *http.Request) {
+func imgServerTxt(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMGZ Request for %s", r.RemoteAddr, r.URL.Path)
 	id := strings.Replace(r.URL.Path, imgZpfx, "", 1)
 	img, err := imgStor.get(id)
