@@ -173,8 +173,7 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("/?m=html&t="+t.imgType+"&s="+strconv.Itoa(t.maxSize)+"&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			// TODO: dynamic extension based on form value
-			id := fmt.Sprintf("txt%05d.gif", rand.Intn(99999))                             // BUG: atomic.AddInt64 or something that ever increases - time based?
+			id := fmt.Sprintf("txt%05d.%s", rand.Intn(99999), strings.ToLower(t.imgType))  // BUG: atomic.AddInt64 or something that ever increases - time based?
 			err := fetchImage(id, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
