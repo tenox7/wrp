@@ -13,6 +13,8 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/css"
@@ -260,4 +262,33 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
 	rq.captureScreenshot()
+}
+
+// Process HTTP requests for images '/img/' url
+// TODO: merge this with html mode IMGZ
+func imgServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
+	imgBuf, ok := img[r.URL.Path]
+	if !ok || imgBuf.Bytes() == nil {
+		fmt.Fprintf(w, "Unable to find image %s\n", r.URL.Path)
+		log.Printf("%s Unable to find image %s\n", r.RemoteAddr, r.URL.Path)
+		return
+	}
+	if !*noDel {
+		defer delete(img, r.URL.Path)
+	}
+	switch {
+	case strings.HasSuffix(r.URL.Path, ".gif"):
+		w.Header().Set("Content-Type", "image/gif")
+	case strings.HasSuffix(r.URL.Path, ".png"):
+		w.Header().Set("Content-Type", "image/png")
+	case strings.HasSuffix(r.URL.Path, ".jpg"):
+		w.Header().Set("Content-Type", "image/jpeg")
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(imgBuf.Bytes())))
+	w.Header().Set("Cache-Control", "max-age=0")
+	w.Header().Set("Expires", "-1")
+	w.Header().Set("Pragma", "no-cache")
+	w.Write(imgBuf.Bytes())
+	w.(http.Flusher).Flush()
 }

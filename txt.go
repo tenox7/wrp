@@ -7,6 +7,8 @@ package main
 // - garbage collector / delete old images from map
 // - add referer header
 // - svg support
+// - incorrect cert support in both markdown and image download
+// - unify cdp and txt image handlers
 // - BOG: DomainFromURL always prefixes with http instead of https
 //   reproduces on vsi vms docs
 // - BUG: markdown table errors
@@ -182,18 +184,6 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 		}
 		return ast.WalkContinue, nil
 	})
-}
-
-func asciify(s []byte) []byte {
-	a := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		if s[i] > 127 {
-			a[i] = '.'
-			continue
-		}
-		a[i] = s[i]
-	}
-	return a
 }
 
 func (rq *wrpReq) captureMarkdown() {
