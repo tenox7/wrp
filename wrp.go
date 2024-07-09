@@ -25,6 +25,8 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	_ "github.com/breml/rootcerts"
 )
 
 const version = "4.8.0"
