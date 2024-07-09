@@ -21,5 +21,8 @@ docker-local:
 docker-push:
 	docker buildx build --platform linux/amd64,linux/arm64 -t tenox7/wrp:latest --push .
 
+docker-clean:
+	docker buildx prune -a -f
+
 clean:
 	rm -rf wrp-* wrp
