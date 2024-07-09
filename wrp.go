@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/MaxHalford/halfgone"
+	_ "github.com/breml/rootcerts"
 	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/input"
@@ -591,6 +592,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 	log.Printf("Web Rendering Proxy Version %s (%v)\n", version, runtime.GOARCH)
+	log.Printf("Using embedded ca-certs from github.com/breml/rootcerts")
 	log.Printf("Args: %q", os.Args)
 	if len(os.Getenv("PORT")) > 0 {
 		*addr = ":" + os.Getenv(("PORT"))
