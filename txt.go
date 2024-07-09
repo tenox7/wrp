@@ -2,9 +2,9 @@
 package main
 
 // TODO:
-// - imgOpt image quality for jpeg
+// - imgOpt image quality for jpeg <<== TEST
 // - non overlaping image names atomic.int etc
-// - garbage collector / delete old images from map
+// - cache + garbage collector / delete old images from map -- test back/button behavior in old browsers
 // - add referer header
 // - svg support
 // - incorrect cert support in both markdown and image download
