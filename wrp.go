@@ -45,7 +45,7 @@ import (
 	"github.com/soniakeys/quant/median"
 )
 
-const version = "4.7.1"
+const version = "4.7.2"
 
 var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
