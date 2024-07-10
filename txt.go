@@ -2,8 +2,8 @@
 package main
 
 // TODO:
-// - imgOpt image quality for jpeg <<== TEST
 // - non overlaping image names atomic.int etc
+// - add image processing times counter to the footer
 // - cache + garbage collector / delete old images from map -- test back/button behavior in old browsers
 // - add referer header
 // - svg support
@@ -88,40 +88,40 @@ func (i *imageStore) del(id string) {
 	delete(i.img, id)
 }
 
-func fetchImage(id, url, imgType string, maxSize, imgOpt int) error {
+func fetchImage(id, url, imgType string, maxSize, imgOpt int) (int, error) {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", url, id)
-	var img []byte
+	var in []byte
 	var err error
 	switch url[:4] {
 	case "http":
 		r, err := http.Get(url) // TODO: possibly set a header "referer" here
 		if err != nil {
-			return fmt.Errorf("Error downloading %q: %v", url, err)
+			return 0, fmt.Errorf("Error downloading %q: %v", url, err)
 		}
 		if r.StatusCode != http.StatusOK {
-			return fmt.Errorf("Error %q HTTP Status Code: %v", url, r.StatusCode)
+			return 0, fmt.Errorf("Error %q HTTP Status Code: %v", url, r.StatusCode)
 		}
 		defer r.Body.Close()
-		img, err = io.ReadAll(r.Body)
+		in, err = io.ReadAll(r.Body)
 		if err != nil {
-			return fmt.Errorf("Error reading %q: %v", url, err)
+			return 0, fmt.Errorf("Error reading %q: %v", url, err)
 		}
 	case "data":
 		idx := strings.Index(url, ",")
 		if idx < 1 {
-			return fmt.Errorf("image is embeded but unable to find coma: %q", url)
+			return 0, fmt.Errorf("image is embeded but unable to find coma: %q", url)
 		}
-		img, err = base64.StdEncoding.DecodeString(url[idx+1:])
+		in, err = base64.StdEncoding.DecodeString(url[idx+1:])
 		if err != nil {
-			return fmt.Errorf("error decoding image from url embed: %q: %v", url, err)
+			return 0, fmt.Errorf("error decoding image from url embed: %q: %v", url, err)
 		}
 	}
-	gif, err := smallImg(img, imgType, maxSize, imgOpt)
+	out, err := smallImg(in, imgType, maxSize, imgOpt)
 	if err != nil {
-		return fmt.Errorf("Error scaling down image: %v", err)
+		return 0, fmt.Errorf("Error scaling down image: %v", err)
 	}
-	imgStor.add(id, url, gif)
-	return nil
+	imgStor.add(id, url, out)
+	return len(out), nil
 }
 
 func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, error) {
@@ -163,6 +163,7 @@ type astTransformer struct {
 	imgType string
 	maxSize int
 	imgOpt  int
+	totSize int
 }
 
 func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -171,14 +172,15 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("/?m=html&t="+t.imgType+"&s="+strconv.Itoa(t.maxSize)+"&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			id := fmt.Sprintf("txt%05d.%s", rand.Intn(99999), strings.ToLower(t.imgType))  // BUG: atomic.AddInt64 or something that ever increases - time based?
-			err := fetchImage(id, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
+			id := fmt.Sprintf("txt%05d.%s", rand.Intn(99999), strings.ToLower(t.imgType))        // BUG: atomic.AddInt64 or something that ever increases - time based?
+			size, err := fetchImage(id, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
 				n.Parent().RemoveChildren(n)
 				return ast.WalkContinue, nil
 			}
 			img.Destination = []byte(imgZpfx + id)
+			t.totSize += size
 		}
 		return ast.WalkContinue, nil
 	})
@@ -218,6 +220,7 @@ func (rq *wrpReq) captureMarkdown() {
 	rq.printUI(uiParams{
 		text:    string(asciify([]byte(ht.String()))),
 		bgColor: "#FFFFFF",
+		imgSize: fmt.Sprintf("%.0f KB", float32(t.totSize)/1024.0),
 	})
 }
 
