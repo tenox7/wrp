@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"math"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func chromedpStart() (context.CancelFunc, context.CancelFunc) {
@@ -168,9 +168,9 @@ func (rq *wrpReq) captureScreenshot() {
 	)
 	// Capture screenshot...
 	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
-	seq := rand.Intn(9999)
-	imgPath := fmt.Sprintf("/img/%04d.%s", seq, rq.imgType)
-	mapPath := fmt.Sprintf("/map/%04d.map", seq)
+	seq := shortuuid.New()
+	imgPath := fmt.Sprintf("/img/%s.%s", seq, rq.imgType)
+	mapPath := fmt.Sprintf("/map/%s.map", seq)
 	ismap[mapPath] = *rq
 	var sSize string
 	var iW, iH int

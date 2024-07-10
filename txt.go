@@ -2,9 +2,8 @@
 package main
 
 // TODO:
-// - non overlaping image names atomic.int etc
 // - add image processing times counter to the footer
-// - cache + garbage collector / delete old images from map -- test back/button behavior in old browsers
+// - img cache w/garbage collector / test back/button behavior in old browsers
 // - add referer header
 // - svg support
 // - incorrect cert support in both markdown and image download
@@ -28,7 +27,6 @@ import (
 	"image/png"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,6 +35,7 @@ import (
 
 	h2m "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/JohannesKaufmann/html-to-markdown/plugin"
+	"github.com/lithammer/shortuuid/v4"
 	"github.com/nfnt/resize"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -172,14 +171,14 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("/?m=html&t="+t.imgType+"&s="+strconv.Itoa(t.maxSize)+"&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			id := fmt.Sprintf("txt%05d.%s", rand.Intn(99999), strings.ToLower(t.imgType))        // BUG: atomic.AddInt64 or something that ever increases - time based?
-			size, err := fetchImage(id, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
+			seq := shortuuid.New() + "." + t.imgType
+			size, err := fetchImage(seq, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
 				n.Parent().RemoveChildren(n)
 				return ast.WalkContinue, nil
 			}
-			img.Destination = []byte(imgZpfx + id)
+			img.Destination = []byte(imgZpfx + seq)
 			t.totSize += size
 		}
 		return ast.WalkContinue, nil
