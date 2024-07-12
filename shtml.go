@@ -9,7 +9,9 @@ package main
 // - incorrect cert support in both markdown and image download
 // - unify cdp and txt image handlers
 // - use goroutiness to process images
-// - BOG: DomainFromURL always prefixes with http instead of https
+// - get inner html from chromedp instead of html2markdown
+//
+// - BUG: DomainFromURL always prefixes with http instead of https
 //   reproduces on vsi vms docs
 // - BUG: markdown table errors
 //   reproduces on hacker news
