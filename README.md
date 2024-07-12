@@ -1,33 +1,36 @@
 # WRP - Web Rendering Proxy
 
-A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It works by rendering a web page in to a GIF or PNG image with clickable imagemap. Optionally by converting modern HTML in to Markdown and back to a simple HTML.
+A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It has two modes:
+
+- ISMAP "graphical" mode, renders web page in to a GIF, PNG or JPG image with clickable imagemap.
+- Simple HTML mode converts web page in to Markdown, then renders it into simplified HTML for old browsers.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
 ## Usage Instructions
 
-### Image Map Mode
-
 * [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server. Do not set or use it as a "proxy server".
 * Type a search string or a full http/https URL and click **Go**.
+* Select whether you want to use graphical (ISMAP) or simple HTML mode.
+
+### Image Map Mode
+
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
-* Scroll web page by clicking on the in-image scroll bar.
+* Scroll web page by clicking on the in-image scroll bar on the right.
 * WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` . However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
 * Do not use client browser history-back, instead use **Bk** button in the app.
 * You can re-capture page screenshot without reloading by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload and re-capture current page with **Re** (Reload).
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-* Prefer PNG over GIF if your browser supports it. PNG is much faster, whereas GIF requires a lot of additional processing on both client and server to encode/decode. Jpeg encoding is also quite fast.
+* If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to encode/decode.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
 ### Simple HTML mode
 
-Also known as **Reader** mode. **NEW!**
-
-* Select image type to `TXT`. WRP will convert the image in to Markdown, then render it back in to a simplified HTML.
-* If you want to always start in txt mode specify `-t txt` flag.
+* Select image type PNG/GIF/JPG. Each individual image from the original web site will be converted to the selected format.
+* Type maximum image size in pixels.
 
 ## UI explanation
 
@@ -121,15 +124,16 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 
 ```text
 -l   listen address:port (default :8080)
--t   image type gif, png or jpg (default gif) also txt for simple html/reader mode
+-m   mode, either ismap (graphical) or html
+-t   image type gif, png or jpg (default gif)
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
--q   Jpeg image quality, default 80%
+-q   Jpeg image quality, default 75%
 -h   headless mode, hide browser window on the server (default true)
 -d   chromedp debug logging (default false)
 -n   do not free maps and images after use (default false)
 -ui  html template file (default "wrp.html")
--ua  user agent, override the default "headless" agent
+-ua  user agent, override the default "headless" agent (only for ismap mode)
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 ```
 
@@ -152,9 +156,7 @@ $ ./wrp-amd64-macos
 
 ### Websites are blocking headless browsers
 
-This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. The first and
-foremost recommendation is to change `User Agent`, so that it doesn't say "headless". Add `-ua="my agent"` to override the default one.
-Obtain your regular desktop browser user agent and specify it as the flag. For example
+This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. The first and foremost recommendation is to change the `User Agent`, so that it doesn't say "headless". Add `-ua="my agent"` to override the default one. Obtain your regular desktop browser user agent and specify it as the flag. For example:
 
 ```shell
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
@@ -166,7 +168,7 @@ WRP originally started as true http proxy. However this stopped working because 
 
 ### Will you support http proxy mode in future?
 
-Some efforts are under way but it's very [difficult](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) to do it correctly and the priority is rather low.
+Some efforts (ssl strip) are under way but it's very [difficult](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) to do it correctly and the priority is rather low.
 
 ## History
 
@@ -180,6 +182,7 @@ Some efforts are under way but it's very [difficult](https://en.wikipedia.org/wi
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
 * Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry PI!
 * Version 4.7 add simple html aka reader aka text mode.
+* Version 4.8 add image support to simple html mode.
 
 ## Credits
 
@@ -205,4 +208,3 @@ License: Apache 2.0
 Copyright (c) 2013-2024 Antoni Sawicki
 Copyright (c) 2019-2024 Google LLC
 ```
-
