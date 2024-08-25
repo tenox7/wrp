@@ -170,6 +170,10 @@ WRP originally started as true http proxy. However this stopped working because 
 
 Some efforts (ssl strip) are under way but it's very [difficult](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) to do it correctly and the priority is rather low.
 
+### Why isn't there a Docker image for armv6
+
+Because https://hub.docker.com/r/chromedp/headless-shell/ doesn't have one. WRP uses that image. If you have a fork that builds for armv6 let me know.
+
 ## History
 
 * Version 1.0 (2014) started as a *cgi-bin* script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
