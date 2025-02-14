@@ -29,7 +29,7 @@ import (
 	_ "github.com/breml/rootcerts"
 )
 
-const version = "4.8.0"
+const version = "4.8.2"
 
 var (
 	addr       = flag.String("l", ":8080", "Listen address:port, default :8080")
