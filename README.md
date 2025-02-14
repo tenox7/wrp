@@ -36,33 +36,39 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 The first unnamed input box is either search (google) or URL starting with http/https
 
-**Go** instructs browser to navigate to the url or perform search
+`Go` Navigate to the url or perform search
 
-**Bk** is History Back
+`Bk` History Back
 
-**St** is Stop, also re-capture screenshot without refreshing page, for example if page
-render takes a long time or it changes periodically
+`St` Stop, also re-capture screenshot without refreshing page, for example if page
+render takes a long time or it updates / changes periodically
 
-**Re** is Reload
+`Re` Remote Reload / Refresh
 
-**W** is width in pixels, adjust it to get rid of horizontal scroll bar
+`Up` Page Up
 
-**H** is height in pixels, adjust it to get rid of vertical scroll bar.
+`Dn` Page Down
+
+`W` is width in pixels, adjust it to get rid of horizontal scroll bar
+
+`H` is height in pixels, adjust it to get rid of vertical scroll bar.
 It can also be set to 0 to produce one very tall image and use
 client scroll. This 0 size is experimental, buggy and should be
 used with PNG and lots of memory on a client side.
 
-**Z** is zoom or scale
+`Z` Zoom or scale
 
-**C** is colors, for GIF images only (unused in PNG, JPG)
+`M` Mode - ISMAP (clickable imagemap) or simple HTML mode
 
-**K** is keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
+`T` Image type PNG / GIF / JPEG
 
-**Bs** is backspace
+`C` Colors, for GIF images only
 
-**Rt** is return / enter
+`K` Keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 
-**< ^ v >** are arrow keys, typically for navigating a map, buggy.
+`Bs` Backspace
+
+`Rt` Return / enter
 
 ### UI Customization
 
