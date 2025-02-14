@@ -1,8 +1,7 @@
 //
 // WRP - Web Rendering Proxy
 //
-// Copyright (c) 2013-2024 Antoni Sawicki
-// Copyright (c) 2019-2024 Google LLC
+// Copyright (c) 2013-2025 Antoni Sawicki
 //
 
 package main
