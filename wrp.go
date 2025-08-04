@@ -31,18 +31,19 @@ import (
 const version = "4.8.2"
 
 var (
-	addr       = flag.String("l", ":8080", "Listen address:port, default :8080")
-	headless   = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
-	noDel      = flag.Bool("n", false, "Do not free maps and images after use")
-	defType    = flag.String("t", "gif", "Image type: png|gif|jpg")
-	wrpMode    = flag.String("m", "ismap", "WRP Mode: ismap|html")
-	defImgSize = flag.Int64("is", 200, "html mode default image size")
-	defJpgQual = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
-	fgeom      = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
-	htmFnam    = flag.String("ui", "wrp.html", "HTML template file for the UI")
-	delay      = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
-	userAgent  = flag.String("ua", "", "override chrome user agent")
+	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
+	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
+	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
+	defType     = flag.String("t", "gif", "Image type: png|gif|jpg")
+	wrpMode     = flag.String("m", "ismap", "WRP Mode: ismap|html")
+	defImgSize  = flag.Int64("is", 200, "html mode default image size")
+	defJpgQual  = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
+	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
+	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
+	delay       = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
+	userAgent   = flag.String("ua", "", "override chrome user agent")
 	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
+	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
 )
 
 var (
@@ -128,7 +129,7 @@ func (rq *wrpReq) parseForm() {
 	}
 	rq.url = rq.r.FormValue("url")
 	if len(rq.url) > 1 && !strings.HasPrefix(rq.url, "http") {
-		rq.url = fmt.Sprintf("http://www.google.com/search?q=%s", url.QueryEscape(rq.url))
+		rq.url = *searchEng + "?q=" + url.QueryEscape(rq.url)
 	}
 	// TODO: implement atoiOrZero
 	rq.width, _ = strconv.ParseInt(rq.r.FormValue("w"), 10, 64)
