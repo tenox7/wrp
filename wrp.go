@@ -129,7 +129,7 @@ func (rq *wrpReq) parseForm() {
 	}
 	rq.url = rq.r.FormValue("url")
 	if len(rq.url) > 1 && !strings.HasPrefix(rq.url, "http") {
-		rq.url = *searchEng + "?q=" + url.QueryEscape(rq.url)
+		rq.url = *searchEng + url.QueryEscape(rq.url)
 	}
 	// TODO: implement atoiOrZero
 	rq.width, _ = strconv.ParseInt(rq.r.FormValue("w"), 10, 64)
