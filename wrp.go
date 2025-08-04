@@ -42,6 +42,7 @@ var (
 	htmFnam    = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay      = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
 	userAgent  = flag.String("ua", "", "override chrome user agent")
+	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
 )
 
 var (

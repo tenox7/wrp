@@ -35,6 +35,9 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 	if *userAgent != "" {
 		opts = append(opts, chromedp.UserAgent(*userAgent))
 	}
+	if *browserPath != "" {
+		opts = append(opts, chromedp.ExecPath(*browserPath))
+	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
 	ctx, cncl = chromedp.NewContext(actx)
 	return cncl, acncl

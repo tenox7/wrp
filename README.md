@@ -136,11 +136,11 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
      C (number of colors) is only used for GIF
 -q   Jpeg image quality, default 75%
 -h   headless mode, hide browser window on the server (default true)
--d   chromedp debug logging (default false)
 -n   do not free maps and images after use (default false)
 -ui  html template file (default "wrp.html")
 -ua  user agent, override the default "headless" agent (only for ismap mode)
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
+-b   browser executable path (e.g., for Brave Browser)
 ```
 
 ## Minimal Requirements
