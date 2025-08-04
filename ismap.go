@@ -23,6 +23,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/lithammer/shortuuid/v4"
+	"github.com/tenox7/gip"
 )
 
 func chromedpStart() (context.CancelFunc, context.CancelFunc) {
@@ -176,12 +177,38 @@ func (rq *wrpReq) captureScreenshot() {
 	// Capture screenshot...
 	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
 	seq := shortuuid.New()
-	imgPath := fmt.Sprintf("/img/%s.%s", seq, rq.imgType)
+	var imgExt string
+	if rq.imgType == "gip" {
+		imgExt = "gif"
+	} else {
+		imgExt = rq.imgType
+	}
+	imgPath := fmt.Sprintf("/img/%s.%s", seq, imgExt)
 	mapPath := fmt.Sprintf("/map/%s.map", seq)
 	ismap[mapPath] = *rq
 	var sSize string
 	var iW, iH int
 	switch rq.imgType {
+	case "gip":
+		i, err := png.Decode(bytes.NewReader(pngCap))
+		if err != nil {
+			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
+			return
+		}
+		st := time.Now()
+		var gipBuf bytes.Buffer
+		err = gip.Encode(&gipBuf, i, nil)
+		if err != nil {
+			log.Printf("%s Failed to encode GIP: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to encode GIP:<BR>%s<BR>\n", err)
+			return
+		}
+		img[imgPath] = gipBuf
+		sSize = fmt.Sprintf("%.0f KB", float32(len(gipBuf.Bytes()))/1024.0)
+		iW = i.Bounds().Max.X
+		iH = i.Bounds().Max.Y
+		log.Printf("%s Encoded GIP image: %s, Size: %s, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH, time.Since(st).Milliseconds())
 	case "png":
 		pngBuf := bytes.NewBuffer(pngCap)
 		img[imgPath] = *pngBuf

@@ -37,6 +37,7 @@
             </SELECT>
             T <SELECT NAME="t">
                 <OPTION DISABLED>Type</OPTION>
+                <OPTION VALUE="gip" {{ if eq .ImgType "gip"}}SELECTED{{end}}>GIP</OPTION>
                 <OPTION VALUE="png" {{ if eq .ImgType "png"}}SELECTED{{end}}>PNG</OPTION>
                 <OPTION VALUE="gif" {{ if eq .ImgType "gif"}}SELECTED{{end}}>GIF</OPTION>
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>

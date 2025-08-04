@@ -24,6 +24,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 * You can re-capture page screenshot without reloading by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload and re-capture current page with **Re** (Reload).
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
+* The default image type GIP is a ultra fast, optimized, parallel encoded GIF type.
 * If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to encode/decode.
 * GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
 
@@ -181,6 +182,10 @@ Some efforts (ssl strip) are under way but it's very [difficult](https://en.wiki
 
 Because https://hub.docker.com/r/chromedp/headless-shell/ doesn't have one. WRP uses that image. If you have a fork that builds for armv6 let me know.
 
+### WTF is GIP image format
+
+It's just GIF but optimized. Avoids dithering, uses fast color palette  and parallel encoding. https://github.com/tenox7/gip
+
 ## History
 
 * Version 1.0 (2014) started as a *cgi-bin* script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
@@ -194,6 +199,7 @@ Because https://hub.docker.com/r/chromedp/headless-shell/ doesn't have one. WRP 
 * Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry PI!
 * Version 4.7 add simple html aka reader aka text mode.
 * Version 4.8 add image support to simple html mode.
+* Version 4.9 adds support for ultra fast, parallel encoded gif image (GIP)
 
 ## Credits
 

@@ -34,7 +34,7 @@ var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
 	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
 	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
-	defType     = flag.String("t", "gif", "Image type: png|gif|jpg")
+	defType     = flag.String("t", "gip", "Image type: gip|png|gif|jpg")
 	wrpMode     = flag.String("m", "ismap", "WRP Mode: ismap|html")
 	defImgSize  = flag.Int64("is", 200, "html mode default image size")
 	defJpgQual  = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
@@ -144,7 +144,7 @@ func (rq *wrpReq) parseForm() {
 	}
 	rq.imgType = rq.r.FormValue("t")
 	switch rq.imgType {
-	case "png", "gif", "jpg":
+	case "gip", "png", "gif", "jpg":
 	default:
 		rq.imgType = *defType
 	}

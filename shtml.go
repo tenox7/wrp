@@ -39,6 +39,7 @@ import (
 	"github.com/JohannesKaufmann/html-to-markdown/plugin"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/nfnt/resize"
+	"github.com/tenox7/gip"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -147,6 +148,8 @@ func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, error) {
 	img = resize.Thumbnail(uint(maxSize), uint(maxSize), img, resize.NearestNeighbor)
 	var outBuf bytes.Buffer
 	switch imgType {
+	case "gip":
+		err = gip.Encode(&outBuf, img, nil)
 	case "png":
 		err = png.Encode(&outBuf, img)
 	case "gif":
@@ -173,7 +176,13 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 			link.Destination = append([]byte("/?m=html&t="+t.imgType+"&s="+strconv.Itoa(t.maxSize)+"&url="), link.Destination...)
 		}
 		if img, ok := n.(*ast.Image); ok && entering {
-			seq := shortuuid.New() + "." + t.imgType
+			var imgExt string
+			if t.imgType == "gip" {
+				imgExt = "gif"
+			} else {
+				imgExt = t.imgType
+			}
+			seq := shortuuid.New() + "." + imgExt
 			size, err := fetchImage(seq, string(img.Destination), t.imgType, t.maxSize, t.imgOpt) // TODO: use goroutines with waitgroup
 			if err != nil {
 				log.Print(err)
@@ -205,6 +214,8 @@ func (rq *wrpReq) captureMarkdown() {
 		imgOpt = int(rq.jQual)
 	case "gif":
 		imgOpt = int(rq.nColors)
+	case "gip":
+		imgOpt = 0
 	}
 	t := &astTransformer{imgType: rq.imgType, maxSize: int(rq.maxSize), imgOpt: imgOpt}
 	gm := goldmark.New(
