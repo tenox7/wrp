@@ -2,11 +2,14 @@
 package main
 
 import (
+	"encoding/json"
 	"image"
 	"image/color/palette"
 	"log"
 	"net"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/MaxHalford/halfgone"
 	"github.com/soniakeys/quant/median"
@@ -86,4 +89,33 @@ func asciify(s []byte) []byte {
 		a[i] = s[i]
 	}
 	return a
+}
+
+func fetchJnrbsnUserAgent() string {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://jnrbsn.github.io/user-agents/user-agents.json")
+	if err != nil {
+		log.Printf("Failed to fetch user agents from jnrbsn: %v", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		log.Printf("jnrbsn API returned status: %d", resp.StatusCode)
+		return ""
+	}
+
+	var userAgents []string
+	if err := json.NewDecoder(resp.Body).Decode(&userAgents); err != nil {
+		log.Printf("Failed to decode jnrbsn user agents JSON: %v", err)
+		return ""
+	}
+
+	if len(userAgents) == 0 {
+		log.Printf("jnrbsn API returned no user agents")
+		return ""
+	}
+
+	log.Printf("Fetched user agent from jnrbsn: %s", userAgents[0])
+	return userAgents[0]
 }

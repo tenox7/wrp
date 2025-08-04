@@ -41,7 +41,7 @@ var (
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay       = flag.Duration("s", 2*time.Second, "Delay/sleep after page is rendered and before screenshot is taken")
-	userAgent   = flag.String("ua", "", "override chrome user agent")
+	userAgent   = flag.String("ua", "jnrbsn", "override chrome user agent (jnrbsn=fetch from API, empty=default)")
 	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
 	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
 )

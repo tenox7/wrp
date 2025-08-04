@@ -32,7 +32,11 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 		chromedp.Flag("enable-automation", false),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 	)
-	if *userAgent != "" {
+	if *userAgent == "jnrbsn" {
+		if ua := fetchJnrbsnUserAgent(); ua != "" {
+			opts = append(opts, chromedp.UserAgent(ua))
+		}
+	} else if *userAgent != "" {
 		opts = append(opts, chromedp.UserAgent(*userAgent))
 	}
 	if *browserPath != "" {
