@@ -19,7 +19,7 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
 * Scroll web page by clicking on the in-image scroll bar on the right.
-* WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` . However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
+* WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` (or flag `-g 1152x0x216`. However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
 * Do not use client browser history-back, instead use **Bk** button in the app.
 * You can re-capture page screenshot without reloading by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload and re-capture current page with **Re** (Reload).

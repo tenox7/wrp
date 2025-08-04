@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/css"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
@@ -135,15 +134,11 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 
 // Capture Screenshot using CDP
 func (rq *wrpReq) captureScreenshot() {
-	var styles []*css.ComputedStyleProperty
-	var r, g, b int
-	var bgColorSet bool
 	var h int64
 	var pngCap []byte
 	chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), 10, rq.zoom, false),
 		chromedp.Location(&rq.url),
-		chromedp.ComputedStyle("body", &styles, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, _, _, _, _, s, err := page.GetLayoutMetrics().Do(ctx)
 			if err == nil {
@@ -153,19 +148,6 @@ func (rq *wrpReq) captureScreenshot() {
 		}),
 	)
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
-	for _, style := range styles {
-		if style.Name != "background-color" {
-			continue
-		}
-		fmt.Sscanf(style.Value, "rgb(%d,%d,%d)", &r, &g, &b)
-		bgColorSet = true
-		break
-	}
-	if !bgColorSet {
-		r = 255
-		g = 255
-		b = 255
-	}
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
 		height = h + 30
@@ -259,7 +241,7 @@ func (rq *wrpReq) captureScreenshot() {
 		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *defJpgQual, iW, iH, time.Since(st).Milliseconds())
 	}
 	rq.printUI(uiParams{
-		bgColor:    fmt.Sprintf("#%02X%02X%02X", r, g, b),
+		bgColor:    "#FFFFFF",
 		pageHeight: fmt.Sprintf("%d PX", h),
 		imgSize:    sSize,
 		imgURL:     imgPath,
