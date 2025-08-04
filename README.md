@@ -3,7 +3,7 @@
 A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It has two modes:
 
 - ISMAP "graphical" mode, renders web page in to a GIF, PNG or JPG image with clickable imagemap.
-- Simple HTML mode converts web page in to Markdown, then renders it into simplified HTML for old browsers.
+- Simple HTML "text" mode converts web page in to Markdown, then renders it into simplified HTML for old browsers.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
@@ -162,7 +162,8 @@ $ ./wrp-amd64-macos
 
 ### Websites are blocking headless browsers
 
-This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. The first and foremost recommendation is to change the `User Agent`, so that it doesn't say "headless". Add `-ua="my agent"` to override the default one. Obtain your regular desktop browser user agent and specify it as the flag. For example:
+This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP tries to obtain some current valid User Agent
+from https://github.com/jnrbsn/user-agents rather than using the internal "HeadlessChrome". You can override this to your own, for example:
 
 ```shell
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
