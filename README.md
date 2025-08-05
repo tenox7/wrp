@@ -21,8 +21,8 @@ A browser-in-browser "proxy" server that allows to use historical / vintage web 
 * Scroll web page by clicking on the in-image scroll bar on the right.
 * WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` (or flag `-g 1152x0x216`. However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
 * Do not use client browser history-back, instead use **Bk** button in the app.
-* You can re-capture page screenshot without reloading by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
-* You can also reload and re-capture current page with **Re** (Reload).
+* You can re-capture screenshot without reloading page by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
+* You can also reload page and re-capture screenshot with **Re** (Reload).
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
 * The default image type GIP is a ultra fast, optimized, parallel encoded GIF type.
 * If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to encode/decode.
@@ -161,6 +161,10 @@ $ chmod +x wrp-amd64-macos
 $ ./wrp-amd64-macos
 ```
 
+### Pages are chopped off
+
+Click `st` to re-capture screenshot. You may want to increase the page delay using `-s` flag.
+
 ### Websites are blocking headless browsers
 
 This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP tries to obtain some current valid User Agent
@@ -174,8 +178,6 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 
 WRP originally started as true http proxy. However this stopped working because the whole internet is now encrypted thanks to [Let's Encrypt](https://en.wikipedia.org/wiki/Let%27s_Encrypt). Legacy browsers do not support modern SSL/TLS certs as well as [HTTP CONNECT](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) so this mode had to be disabled.
 
-### Will you support http proxy mode in future?
-
 Some efforts (ssl strip) are under way but it's very [difficult](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) to do it correctly and the priority is rather low.
 
 ### Why isn't there a Docker image for armv6
@@ -184,7 +186,7 @@ Because https://hub.docker.com/r/chromedp/headless-shell/ doesn't have one. WRP 
 
 ### WTF is GIP image format
 
-It's just GIF but optimized. Avoids dithering, uses fast color palette  and parallel encoding. https://github.com/tenox7/gip
+It's just GIF but optimized. Avoids dithering, uses fast color palette and parallel encoding. https://github.com/tenox7/gip
 
 ## History
 
