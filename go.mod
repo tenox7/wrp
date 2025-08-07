@@ -8,8 +8,8 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/MaxHalford/halfgone v0.0.0-20171017091812-482157b86ccb
 	github.com/breml/rootcerts v0.3.1
-	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
-	github.com/chromedp/chromedp v0.14.0
+	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
+	github.com/chromedp/chromedp v0.14.1
 	github.com/lithammer/shortuuid/v4 v4.2.0
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/soniakeys/quant v1.0.0
