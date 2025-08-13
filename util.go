@@ -4,7 +4,7 @@ package main
 import (
 	"encoding/json"
 	"image"
-	"image/color/palette"
+	"image/color"
 	"log"
 	"net"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/MaxHalford/halfgone"
-	"github.com/soniakeys/quant/median"
+	"github.com/ericpauley/go-quantize/quantize"
 )
 
 func printMyIPs(b string) {
@@ -44,37 +44,17 @@ func gifPalette(i image.Image, n int64) image.Image {
 	switch n {
 	case 2:
 		i = halfgone.FloydSteinbergDitherer{}.Apply(halfgone.ImageToGray(i))
-	case 216:
-		var FastGifLut = [256]int{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
-		r := i.Bounds()
-		// NOTE: the color index computation below works only for palette.WebSafe!
-		p := image.NewPaletted(r, palette.WebSafe)
-		if i64, ok := i.(image.RGBA64Image); ok {
-			for y := r.Min.Y; y < r.Max.Y; y++ {
-				for x := r.Min.X; x < r.Max.X; x++ {
-					c := i64.RGBA64At(x, y)
-					r6 := FastGifLut[c.R>>8]
-					g6 := FastGifLut[c.G>>8]
-					b6 := FastGifLut[c.B>>8]
-					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
-				}
-			}
-		} else {
-			for y := r.Min.Y; y < r.Max.Y; y++ {
-				for x := r.Min.X; x < r.Max.X; x++ {
-					c := i.At(x, y)
-					r, g, b, _ := c.RGBA()
-					r6 := FastGifLut[r&0xff]
-					g6 := FastGifLut[g&0xff]
-					b6 := FastGifLut[b&0xff]
-					p.SetColorIndex(x, y, uint8(36*r6+6*g6+b6))
-				}
+	default:
+		q := quantize.MedianCutQuantizer{}
+		p := q.Quantize(make([]color.Color, 0, int(n)), i)
+		bounds := i.Bounds()
+		quantized := image.NewPaletted(bounds, p)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				quantized.Set(x, y, i.At(x, y))
 			}
 		}
-		i = p
-	default:
-		q := median.Quantizer(n)
-		i = q.Paletted(i)
+		i = quantized
 	}
 	return i
 }
