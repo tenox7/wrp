@@ -217,6 +217,7 @@ It's just GIF but optimized. Avoids dithering, uses fast color palette and paral
 You may also be interested in:
 
 * [VncFox](https://github.com/tenox7/vncfox)
+* [webone](https://github.com/atauenis/webone)
 * [Browservice](https://github.com/ttalvitie/browservice)
 * [Browsh](https://github.com/browsh-org/browsh)
 
