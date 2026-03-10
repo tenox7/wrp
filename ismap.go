@@ -116,6 +116,46 @@ func ctxErr(err error, w io.Writer) {
 	fmt.Fprintln(w, "Created new context, try again")
 }
 
+func waitForRender() chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		timeout := *delay
+		if timeout > 5*time.Second {
+			timeout = 5 * time.Second
+		}
+		ch := make(chan struct{}, 1)
+		lctx, lcancel := context.WithCancel(ctx)
+		defer lcancel()
+		chromedp.ListenTarget(lctx, func(ev interface{}) {
+			if e, ok := ev.(*page.EventLifecycleEvent); ok && e.Name == "networkAlmostIdle" {
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			}
+		})
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			select {
+			case <-ch:
+				return nil
+			default:
+			}
+			var ready bool
+			if err := chromedp.Evaluate(
+				`document.readyState === "complete" && Array.from(document.images).every(i => i.complete)`,
+				&ready,
+			).Do(ctx); err != nil {
+				return nil
+			}
+			if ready {
+				return nil
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		return nil
+	}
+}
+
 // https://github.com/chromedp/chromedp/issues/979
 func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 	if res == nil {
@@ -154,7 +194,7 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	chromedp.Run(
 		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
-		chromedp.Sleep(*delay), // TODO(tenox): find a better way to determine if page is rendered
+		waitForRender(),
 	)
 	// Capture screenshot...
 	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
