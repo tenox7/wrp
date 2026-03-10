@@ -225,5 +225,5 @@ You may also be interested in:
 
 ```text
 License: Apache 2.0
-Copyright (c) 2013-2025 Antoni Sawicki
+Copyright (c) 2013-2026 Antoni Sawicki
 ```
