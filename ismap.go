@@ -42,6 +42,9 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 	if *browserPath != "" {
 		opts = append(opts, chromedp.ExecPath(*browserPath))
 	}
+	if *userDataDir != "" {
+		opts = append(opts, chromedp.UserDataDir(*userDataDir))
+	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
 	ctx, cncl = chromedp.NewContext(actx)
 	return cncl, acncl

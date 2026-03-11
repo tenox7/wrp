@@ -44,6 +44,7 @@ var (
 	userAgent   = flag.String("ua", "jnrbsn", "override chrome user agent (jnrbsn=fetch from API, empty=default)")
 	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
 	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
+	userDataDir = flag.String("profile", "", "Chrome user data dir for persistent cookies/sessions")
 )
 
 var (
