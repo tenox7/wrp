@@ -37,6 +37,7 @@ import (
 
 	h2m "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/JohannesKaufmann/html-to-markdown/plugin"
+	"github.com/chromedp/chromedp"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/nfnt/resize"
 	"github.com/tenox7/gip"
@@ -96,7 +97,14 @@ func fetchImage(id, url, imgType string, maxSize, imgOpt int) (int, error) {
 	var err error
 	switch url[:4] {
 	case "http":
-		r, err := http.Get(url) // TODO: possibly set a header "referer" here
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return 0, fmt.Errorf("Error creating request for %q: %v", url, err)
+		}
+		if *userAgent != "" {
+			req.Header.Set("User-Agent", *userAgent)
+		}
+		r, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return 0, fmt.Errorf("Error downloading %q: %v", url, err)
 		}
@@ -198,11 +206,17 @@ func (t *astTransformer) Transform(node *ast.Document, reader text.Reader, pc pa
 
 func (rq *wrpReq) captureMarkdown() {
 	log.Printf("Processing Markdown conversion request for %v", rq.url)
-	// TODO: bug - DomainFromURL always prefixes with http:// instead of https
-	// this causes issues on some websites, fix or write a smarter DomainFromURL
+	var outerHTML string
+	err := chromedp.Run(ctx, waitForRender(), chromedp.OuterHTML("html", &outerHTML, chromedp.ByQuery))
+	if err != nil {
+		log.Printf("Failed to get OuterHTML via CDP: %v", err)
+		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Got %v bytes HTML from CDP for %v", len(outerHTML), rq.url)
 	c := h2m.NewConverter(h2m.DomainFromURL(rq.url), true, nil)
 	c.Use(plugin.GitHubFlavored())
-	md, err := c.ConvertURL(rq.url) // We could also get inner html from chromedp
+	md, err := c.ConvertString(outerHTML)
 	if err != nil {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return

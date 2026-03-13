@@ -34,9 +34,10 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 	)
 	if *userAgent == "jnrbsn" {
 		if ua := fetchJnrbsnUserAgent(); ua != "" {
-			opts = append(opts, chromedp.UserAgent(ua))
+			*userAgent = ua
 		}
-	} else if *userAgent != "" {
+	}
+	if *userAgent != "" {
 		opts = append(opts, chromedp.UserAgent(*userAgent))
 	}
 	if *browserPath != "" {
