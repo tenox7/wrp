@@ -7,7 +7,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"flag"
@@ -33,7 +32,6 @@ const version = "4.9.3"
 var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
 	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
-	noDel       = flag.Bool("n", false, "Do not free maps and images after use")
 	defType     = flag.String("t", "gip", "Image type: gip|png|gif|jpg")
 	wrpMode     = flag.String("m", "ismap", "WRP Mode: ismap|html")
 	defImgSize  = flag.Int64("is", 200, "html mode default image size")
@@ -52,8 +50,7 @@ var (
 	srv         http.Server
 	actx, ctx   context.Context
 	acncl, cncl context.CancelFunc
-	img         = make(map[string]bytes.Buffer)
-	ismap       = make(map[string]wrpReq)
+	wrpCach wrpCache
 	defGeom     geom
 	htmlTmpl    *template.Template
 )
@@ -333,6 +330,9 @@ func main() {
 		srv.Shutdown(context.Background())
 		os.Exit(1)
 	}()
+
+	wrpCach.imgs = make(map[string]cachedImg)
+	wrpCach.maps = make(map[string]cachedMap)
 
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)

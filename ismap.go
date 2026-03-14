@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -24,6 +25,59 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/tenox7/gip"
 )
+
+type cachedImg struct {
+	buf bytes.Buffer
+}
+
+type cachedMap struct {
+	req wrpReq
+}
+
+type wrpCache struct {
+	sync.Mutex
+	imgs map[string]cachedImg
+	maps map[string]cachedMap
+}
+
+func (c *wrpCache) addImg(path string, buf bytes.Buffer) {
+	c.Lock()
+	defer c.Unlock()
+	c.imgs[path] = cachedImg{buf: buf}
+}
+
+func (c *wrpCache) getImg(path string) (bytes.Buffer, bool) {
+	c.Lock()
+	defer c.Unlock()
+	e, ok := c.imgs[path]
+	if !ok {
+		return bytes.Buffer{}, false
+	}
+	return e.buf, true
+}
+
+func (c *wrpCache) addMap(path string, req wrpReq) {
+	c.Lock()
+	defer c.Unlock()
+	c.maps[path] = cachedMap{req: req}
+}
+
+func (c *wrpCache) getMap(path string) (wrpReq, bool) {
+	c.Lock()
+	defer c.Unlock()
+	e, ok := c.maps[path]
+	if !ok {
+		return wrpReq{}, false
+	}
+	return e.req, true
+}
+
+func (c *wrpCache) clear() {
+	c.Lock()
+	defer c.Unlock()
+	c.imgs = make(map[string]cachedImg)
+	c.maps = make(map[string]cachedMap)
+}
 
 func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -178,6 +232,7 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 
 // Capture Screenshot using CDP
 func (rq *wrpReq) captureScreenshot() {
+	wrpCach.clear()
 	var h int64
 	var pngCap []byte
 	chromedp.Run(ctx,
@@ -211,7 +266,7 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	imgPath := fmt.Sprintf("/img/%s.%s", seq, imgExt)
 	mapPath := fmt.Sprintf("/map/%s.map", seq)
-	ismap[mapPath] = *rq
+	wrpCach.addMap(mapPath, *rq)
 	var sSize string
 	var iW, iH int
 	switch rq.imgType {
@@ -230,14 +285,14 @@ func (rq *wrpReq) captureScreenshot() {
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIP:<BR>%s<BR>\n", err)
 			return
 		}
-		img[imgPath] = gipBuf
+		wrpCach.addImg(imgPath, gipBuf)
 		sSize = fmt.Sprintf("%.0f KB", float32(len(gipBuf.Bytes()))/1024.0)
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIP image: %s, Size: %s, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH, time.Since(st).Milliseconds())
 	case "png":
 		pngBuf := bytes.NewBuffer(pngCap)
-		img[imgPath] = *pngBuf
+		wrpCach.addImg(imgPath, *pngBuf)
 		cfg, _, _ := image.DecodeConfig(pngBuf)
 		sSize = fmt.Sprintf("%.0f KB", float32(len(pngBuf.Bytes()))/1024.0)
 		iW = cfg.Width
@@ -258,7 +313,7 @@ func (rq *wrpReq) captureScreenshot() {
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)
 			return
 		}
-		img[imgPath] = gifBuf
+		wrpCach.addImg(imgPath, gifBuf)
 		sSize = fmt.Sprintf("%.0f KB", float32(len(gifBuf.Bytes()))/1024.0)
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
@@ -278,7 +333,7 @@ func (rq *wrpReq) captureScreenshot() {
 			fmt.Fprintf(rq.w, "<BR>Unable to encode JPG:<BR>%s<BR>\n", err)
 			return
 		}
-		img[imgPath] = jpgBuf
+		wrpCach.addImg(imgPath, jpgBuf)
 		sSize = fmt.Sprintf("%.0f KB", float32(len(jpgBuf.Bytes()))/1024.0)
 		iW = i.Bounds().Max.X
 		iH = i.Bounds().Max.Y
@@ -305,16 +360,13 @@ func (rq *wrpReq) captureScreenshot() {
 
 func mapServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s ISMAP Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
-	rq, ok := ismap[r.URL.Path]
+	rq, ok := wrpCach.getMap(r.URL.Path)
 	rq.r = r
 	rq.w = w
 	if !ok {
 		fmt.Fprintf(w, "Unable to find map %s\n", r.URL.Path)
 		log.Printf("Unable to find map %s\n", r.URL.Path)
 		return
-	}
-	if !*noDel {
-		defer delete(ismap, r.URL.Path)
 	}
 	n, err := fmt.Sscanf(r.URL.RawQuery, "%d,%d", &rq.mouseX, &rq.mouseY)
 	if err != nil || n != 2 {
@@ -334,14 +386,11 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 // TODO: merge this with html mode IMGZ
 func imgServerMap(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
-	imgBuf, ok := img[r.URL.Path]
+	imgBuf, ok := wrpCach.getImg(r.URL.Path)
 	if !ok || imgBuf.Bytes() == nil {
 		fmt.Fprintf(w, "Unable to find image %s\n", r.URL.Path)
 		log.Printf("%s Unable to find image %s\n", r.RemoteAddr, r.URL.Path)
 		return
-	}
-	if !*noDel {
-		defer delete(img, r.URL.Path)
 	}
 	switch {
 	case strings.HasSuffix(r.URL.Path, ".gif"):

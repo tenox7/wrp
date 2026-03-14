@@ -72,6 +72,12 @@ func (i *imageStore) del(id string) {
 	delete(i.img, id)
 }
 
+func (i *imageStore) clear() {
+	i.Lock()
+	defer i.Unlock()
+	i.img = make(map[string]imageContainer)
+}
+
 func fetchImage(id, imgURL, imgType string, maxSize, imgOpt int) (int, int, int, error) {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", imgURL, id)
 	var in []byte
@@ -329,6 +335,7 @@ func simplifyDOM(doc *goquery.Document, rq *wrpReq) int {
 }
 
 func (rq *wrpReq) captureMarkdown() {
+	imgStor.clear()
 	log.Printf("Processing simple HTML conversion for %v", rq.url)
 	var outerHTML string
 	err := chromedp.Run(ctx,
@@ -384,7 +391,6 @@ func imgServerTxt(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s IMGZ error for %s: %v", r.RemoteAddr, r.URL.Path, err)
 		return
 	}
-	imgStor.del(id)
 	w.Header().Set("Content-Type", http.DetectContentType(img))
 	w.Header().Set("Content-Length", strconv.Itoa(len(img)))
 	w.Write(img)
