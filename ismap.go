@@ -380,6 +380,14 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
+	if rq.proxy {
+		chromedp.Run(ctx, waitForRender())
+		var loc string
+		chromedp.Run(ctx, chromedp.Location(&loc))
+		loc = strings.Replace(loc, "https://", "http://", 1)
+		http.Redirect(w, r, loc, http.StatusFound)
+		return
+	}
 	rq.captureScreenshot()
 }
 

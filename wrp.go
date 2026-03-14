@@ -25,6 +25,7 @@ import (
 	"time"
 
 	_ "github.com/breml/rootcerts"
+	"github.com/chromedp/chromedp"
 )
 
 const version = "4.9.3"
@@ -223,7 +224,12 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 		jQual:   *defJpgQual,
 		proxy:   true,
 	}
-	rq.navigate()
+	var currentURL string
+	chromedp.Run(ctx, chromedp.Location(&currentURL))
+	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
+	if currentURL != rq.url {
+		rq.navigate()
+	}
 	if rq.wrpMode == "html" {
 		rq.captureMarkdown()
 		return
