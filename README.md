@@ -185,9 +185,7 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 
 ### Why is WRP called "proxy" when it's not
 
-WRP originally started as true http proxy. However this stopped working because the whole internet is now encrypted thanks to [Let's Encrypt](https://en.wikipedia.org/wiki/Let%27s_Encrypt). Legacy browsers do not support modern SSL/TLS certs as well as [HTTP CONNECT](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) so this mode had to be disabled.
-
-Some efforts (ssl strip) are under way but it's very [difficult](https://en.wikipedia.org/wiki/HTTP_tunnel#HTTP_CONNECT_method) to do it correctly and the priority is rather low.
+Experimental proxy mode is now implemented in head masster.
 
 ### Why isn't there a Docker image for armv6
 
