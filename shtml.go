@@ -277,7 +277,12 @@ func simplifyDOM(doc *goquery.Document, rq *wrpReq) int {
 			return
 		}
 		abs := resolveURL(href, baseURL)
-		s.SetAttr("href", "/?"+wrpParams+"&url="+url.QueryEscape(abs))
+		if rq.proxy {
+			abs = strings.Replace(abs, "https://", "http://", 1)
+			s.SetAttr("href", abs)
+		} else {
+			s.SetAttr("href", "/?"+wrpParams+"&url="+url.QueryEscape(abs))
+		}
 	})
 
 	type imgJob struct {
@@ -357,9 +362,15 @@ func (rq *wrpReq) captureMarkdown() {
 	}
 	log.Printf("Simplified to %v bytes html for %v", len(simplified), rq.url)
 
+	if rq.proxy {
+		rq.w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(rq.w, "<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">%s</BODY></HTML>",
+			rq.url, *bgColor, string(asciify([]byte(simplified))))
+		return
+	}
 	rq.printUI(uiParams{
 		text:    string(asciify([]byte(simplified))),
-		bgColor: "#FFFFFF",
+		bgColor: *bgColor,
 		imgSize: fmt.Sprintf("%.0f KB", float32(totSize)/1024.0),
 	})
 }

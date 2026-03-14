@@ -45,6 +45,7 @@ var (
 	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
 	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
 	userDataDir = flag.String("profile", "", "Chrome user data dir for persistent cookies/sessions")
+	bgColor     = flag.String("bgcolor", "#F0F0F0", "Background color for WRP UI")
 )
 
 var (
@@ -118,6 +119,7 @@ type wrpReq struct {
 	imgType string
 	wrpMode string
 	maxSize int64
+	proxy   bool
 	w       http.ResponseWriter
 	r       *http.Request
 }
@@ -172,7 +174,7 @@ func (rq *wrpReq) printUI(p uiParams) {
 	rq.w.Header().Set("Pragma", "no-cache")
 	rq.w.Header().Set("Content-Type", "text/html")
 	if p.bgColor == "" {
-		p.bgColor = "#FFFFFF"
+		p.bgColor = *bgColor
 	}
 	data := uiData{
 		Version:    version,
@@ -200,7 +202,47 @@ func (rq *wrpReq) printUI(p uiParams) {
 	}
 }
 
+func proxyServer(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "CONNECT" {
+		http.Error(w, "CONNECT not supported, use http:// URLs", http.StatusMethodNotAllowed)
+		return
+	}
+	purl := r.URL.String()
+	if r.URL.Scheme == "" {
+		purl = "http://" + r.Host + r.URL.RequestURI()
+	}
+	log.Printf("%s Proxy Request for %s\n", r.RemoteAddr, purl)
+	rq := wrpReq{
+		r:       r,
+		w:       w,
+		url:     purl,
+		width:   defGeom.w,
+		height:  defGeom.h,
+		nColors: defGeom.c,
+		zoom:    1.0,
+		imgType: *defType,
+		wrpMode: *wrpMode,
+		maxSize: *defImgSize,
+		jQual:   *defJpgQual,
+		proxy:   true,
+	}
+	rq.navigate()
+	if rq.wrpMode == "html" {
+		rq.captureMarkdown()
+		return
+	}
+	rq.captureScreenshot()
+}
+
+func isProxyRequest(r *http.Request) bool {
+	return r.URL.IsAbs() || r.Method == "CONNECT"
+}
+
 func pageServer(w http.ResponseWriter, r *http.Request) {
+	if isProxyRequest(r) {
+		proxyServer(w, r)
+		return
+	}
 	log.Printf("%s Page Request for %s [%+v]\n", r.RemoteAddr, r.URL.Path, r.URL.RawQuery)
 	rq := wrpReq{
 		r: r,
@@ -208,7 +250,7 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.parseForm()
 	if len(rq.url) < 4 {
-		rq.printUI(uiParams{bgColor: "#FFFFFF"})
+		rq.printUI(uiParams{})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture

@@ -284,15 +284,22 @@ func (rq *wrpReq) captureScreenshot() {
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded JPG image: %s, Size: %s, Quality: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, *defJpgQual, iW, iH, time.Since(st).Milliseconds())
 	}
-	rq.printUI(uiParams{
-		bgColor:    "#FFFFFF",
-		pageHeight: fmt.Sprintf("%d PX", h),
-		imgSize:    sSize,
-		imgURL:     imgPath,
-		mapURL:     mapPath,
-		imgWidth:   iW,
-		imgHeight:  iH,
-	})
+	if rq.proxy {
+		rq.w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(rq.w, "<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">"+
+			"<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" WIDTH=\"%d\" HEIGHT=\"%d\" ISMAP></A>"+
+			"</BODY></HTML>", rq.url, *bgColor, mapPath, imgPath, iW, iH)
+	} else {
+		rq.printUI(uiParams{
+			bgColor:    *bgColor,
+			pageHeight: fmt.Sprintf("%d PX", h),
+			imgSize:    sSize,
+			imgURL:     imgPath,
+			mapURL:     mapPath,
+			imgWidth:   iW,
+			imgHeight:  iH,
+		})
+	}
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
 }
 
@@ -317,7 +324,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("%s WrpReq from ISMAP: %+v\n", r.RemoteAddr, rq)
 	if len(rq.url) < 4 {
-		rq.printUI(uiParams{bgColor: "#FFFFFF"})
+		rq.printUI(uiParams{})
 		return
 	}
 	rq.navigate() // TODO: if error from navigate do not capture
