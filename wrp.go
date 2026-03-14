@@ -264,6 +264,24 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	rq.captureScreenshot()
 }
 
+func pacServer(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
+	fmt.Fprintf(w, `function FindProxyForURL(url, host) {
+	if (url.substring(0, 6) == "https:")
+		return "DIRECT";
+	if (isPlainHostName(host) ||
+		host == "localhost" ||
+		isInNet(host, "127.0.0.0", "255.0.0.0") ||
+		isInNet(host, "10.0.0.0", "255.0.0.0") ||
+		isInNet(host, "172.16.0.0", "255.240.0.0") ||
+		isInNet(host, "192.168.0.0", "255.255.0.0") ||
+		isInNet(host, "169.254.0.0", "255.255.0.0"))
+		return "DIRECT";
+	return "PROXY %s";
+}
+`, r.Host)
+}
+
 func haltServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Shutdown Request for %s\n", r.RemoteAddr, r.URL.Path)
 	w.Header().Set("Content-Type", "text/plain")
@@ -344,6 +362,7 @@ func main() {
 	http.HandleFunc("/map/", mapServer)
 	http.HandleFunc("/img/", imgServerMap)
 	http.HandleFunc(imgZpfx, imgServerTxt)
+	http.HandleFunc("/proxy.pac", pacServer)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
