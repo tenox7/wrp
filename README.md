@@ -14,10 +14,15 @@ NEW: experimental "real" http proxy server.
 * [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server. 
-* Experimentally you can also set it as a proxy server.
-* Also experimentally supported is proxy.pac automatic proxy configuration.
 * Type a search string or a full http/https URL and click **Go**.
 * Select whether you want to use graphical (ISMAP) or simple HTML mode.
+
+## Proxy Mode
+
+* Experimentally you can also set it as a proxy server.
+* Supported is proxy.pac automatic proxy configuration.
+* Only use http:// on the client side, do not attempt to use https:// 
+* WRP Proxy will automatically do https:// on the server side.
 
 ### Image Map Mode
 
