@@ -246,6 +246,9 @@ func (rq *wrpReq) captureScreenshot() {
 			return nil
 		}),
 	)
+	if rq.proxy {
+		rq.url = strings.Replace(rq.url, "https://", "http://", 1)
+	}
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
@@ -341,9 +344,9 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	if rq.proxy {
 		rq.w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(rq.w, "<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">"+
+		fmt.Fprintf(rq.w, "<HTML><HEAD>%s<TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">"+
 			"<A HREF=\"%s\"><IMG SRC=\"%s\" BORDER=\"0\" WIDTH=\"%d\" HEIGHT=\"%d\" ISMAP></A>"+
-			"</BODY></HTML>", rq.url, *bgColor, mapPath, imgPath, iW, iH)
+			"</BODY></HTML>", rq.baseTag(), rq.url, *bgColor, mapPath, imgPath, iW, iH)
 	} else {
 		rq.printUI(uiParams{
 			bgColor:    *bgColor,

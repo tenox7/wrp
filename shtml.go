@@ -371,8 +371,8 @@ func (rq *wrpReq) captureMarkdown() {
 
 	if rq.proxy {
 		rq.w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(rq.w, "<HTML><HEAD><TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">%s</BODY></HTML>",
-			rq.url, *bgColor, string(asciify([]byte(simplified))))
+		fmt.Fprintf(rq.w, "<HTML><HEAD>%s<TITLE>%s</TITLE></HEAD><BODY BGCOLOR=\"%s\">%s</BODY></HTML>",
+			rq.baseTag(), rq.url, *bgColor, string(asciify([]byte(simplified))))
 		return
 	}
 	rq.printUI(uiParams{

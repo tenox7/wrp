@@ -122,6 +122,16 @@ type wrpReq struct {
 	r       *http.Request
 }
 
+func (rq *wrpReq) baseTag() string {
+	if rq.r.Method != "CONNECT" {
+		return ""
+	}
+	if addr := rq.r.Context().Value(http.LocalAddrContextKey); addr != nil {
+		return fmt.Sprintf(`<BASE HREF="http://%v/">`, addr)
+	}
+	return ""
+}
+
 func (rq *wrpReq) parseForm() {
 	rq.r.ParseForm()
 	rq.wrpMode = rq.r.FormValue("m")
@@ -201,13 +211,14 @@ func (rq *wrpReq) printUI(p uiParams) {
 }
 
 func proxyServer(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "CONNECT" {
-		http.Error(w, "CONNECT not supported, use http:// URLs", http.StatusMethodNotAllowed)
-		return
-	}
-	purl := r.URL.String()
-	if r.URL.Scheme == "" {
+	var purl string
+	switch {
+	case r.Method == "CONNECT":
+		purl = "https://" + r.Host
+	case r.URL.Scheme == "":
 		purl = "http://" + r.Host + r.URL.RequestURI()
+	default:
+		purl = r.URL.String()
 	}
 	log.Printf("%s Proxy Request for %s\n", r.RemoteAddr, purl)
 	rq := wrpReq{
@@ -227,8 +238,13 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 	var currentURL string
 	chromedp.Run(ctx, chromedp.Location(&currentURL))
 	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
-	if currentURL != rq.url {
+	if currentURL != strings.Replace(rq.url, "https://", "http://", 1) {
 		rq.navigate()
+	}
+	rq.url = strings.Replace(rq.url, "https://", "http://", 1)
+	if r.Method == "CONNECT" {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
 	}
 	if rq.wrpMode == "html" {
 		rq.captureMarkdown()
@@ -242,6 +258,7 @@ func isProxyRequest(r *http.Request) bool {
 }
 
 func pageServer(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s %s [%+v]\n", r.RemoteAddr, r.Method, r.URL, r.Host)
 	if isProxyRequest(r) {
 		proxyServer(w, r)
 		return
@@ -267,8 +284,6 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 func pacServer(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
 	fmt.Fprintf(w, `function FindProxyForURL(url, host) {
-	if (url.substring(0, 6) == "https:")
-		return "DIRECT";
 	if (isPlainHostName(host) ||
 		host == "localhost" ||
 		isInNet(host, "127.0.0.0", "255.0.0.0") ||
@@ -375,6 +390,13 @@ func main() {
 
 	log.Print("Starting WRP http server")
 	srv.Addr = *addr
+	srv.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "CONNECT" {
+			pageServer(w, r)
+			return
+		}
+		http.DefaultServeMux.ServeHTTP(w, r)
+	})
 	err = srv.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
