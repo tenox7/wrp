@@ -17,16 +17,17 @@ import (
 
 func printMyIPs(b string) {
 	ap := strings.Split(b, ":")
-	if len(ap) < 1 {
+	if len(ap) < 2 {
 		log.Fatal("Wrong format of ipaddress:port")
 	}
-	log.Printf("Listen address: %v", b)
+	port := ap[len(ap)-1]
 	if ap[0] != "" && ap[0] != "0.0.0.0" {
+		log.Printf("Listen address: %v", b)
 		return
 	}
 	a, err := net.InterfaceAddrs()
 	if err != nil {
-		log.Print("Unable to get interfaces: ", err)
+		log.Printf("Listen address: %v", b)
 		return
 	}
 	var m string
@@ -35,9 +36,9 @@ func printMyIPs(b string) {
 		if !ok || n.IP.IsLoopback() || strings.Contains(n.IP.String(), ":") {
 			continue
 		}
-		m = m + n.IP.String() + " "
+		m += n.IP.String() + ":" + port + " "
 	}
-	log.Print("My IP addresses: ", m)
+	log.Printf("Listen address: %v", m)
 }
 
 func gifPalette(i image.Image, n int64) image.Image {

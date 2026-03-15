@@ -350,6 +350,7 @@ func main() {
 		*addr = ":" + os.Getenv(("PORT"))
 	}
 	printMyIPs(*addr)
+	log.Printf("Default mode: %v", *wrpMode)
 	n, err := fmt.Sscanf(*fgeom, "%dx%dx%d", &defGeom.w, &defGeom.h, &defGeom.c)
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
