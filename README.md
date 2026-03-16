@@ -1,11 +1,18 @@
 # WRP - Web Rendering Proxy
 
-A browser-in-browser "proxy" server that allows to use historical / vintage web browsers on the modern web. It has two modes:
+A browser-in-browser proxy server that allows to use historical / vintage web browsers on the modern web.
 
-- ISMAP "graphical" mode, renders web page in to a GIF, PNG or JPG image with clickable imagemap.
-- Simple HTML "text" mode converts web page in to Markdown, then renders it into simplified HTML for old browsers.
+## Modes of operation
 
-NEW: experimental "real" http proxy server.
+### Access
+
+- Browser in browser, navigate to the address of WRP and use built-in web form to naviate.
+- HTTP proxy mode which offers more seamless, but also limited use.
+
+### Rende modes
+
+- ISMAP "graphical" mode, renders web page in to a GIF/PNG/JPG image with clickable imagemap.
+- Simple HTML mode converts pages into simplified HTML for old browsers.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
@@ -13,16 +20,16 @@ NEW: experimental "real" http proxy server.
 
 * [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
-* Point your legacy browser to `http://address:port` of the WRP server. 
+* Point your legacy browser to `http://address:port` of the WRP server or set your proxy address there. 
 * Type a search string or a full http/https URL and click **Go**.
 * Select whether you want to use graphical (ISMAP) or simple HTML mode.
 
-## Proxy Mode
+### Proxy mode
 
-* Experimentally you can also set it as a proxy server.
-* Supported is proxy.pac automatic proxy configuration.
-* Only use http:// on the client side, do not attempt to use https:// 
-* WRP Proxy will automatically do https:// on the server side.
+- Try to use http:// addresses only, the proxy will automatically rewrite them to https as needed.
+- https:// addresses are limited in functionality (no /suffix or path).
+- You can use `/proxy.pac` automatic configuration mode.
+- Proxy mode doesn't have a customizable web interface with html forms. All configuration is done via flags.
 
 ### Image Map Mode
 
@@ -183,10 +190,6 @@ from https://github.com/jnrbsn/user-agents rather than using the internal "Headl
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
 ```
 
-### Why is WRP called "proxy" when it's not
-
-Experimental proxy mode is now implemented in head masster.
-
 ### Why isn't there a Docker image for armv6
 
 Because https://hub.docker.com/r/chromedp/headless-shell/ doesn't have one. WRP uses that image. If you have a fork that builds for armv6 let me know.
@@ -209,6 +212,7 @@ It's just GIF but optimized. Avoids dithering, uses fast color palette and paral
 * Version 4.7 add simple html aka reader aka text mode.
 * Version 4.8 add image support to simple html mode.
 * Version 4.9 adds support for ultra fast, parallel encoded gif image (GIP)
+* Version 4.10 re-adds support for http proxy mode
 
 ## Credits
 
