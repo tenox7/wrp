@@ -2,6 +2,8 @@
 
 A browser-in-browser proxy server that allows to use historical / vintage web browsers on the modern web.
 
+![Internet Explorer 1.5 doing Gmail](wrp.png)
+
 ## Modes of operation
 
 ### Access
@@ -13,8 +15,6 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 - ISMAP "graphical" mode, renders web page in to a GIF/PNG/JPG image with clickable imagemap.
 - Simple HTML mode converts pages into simplified HTML for old browsers.
-
-![Internet Explorer 1.5 doing Gmail](wrp.png)
 
 ## Usage Instructions
 
