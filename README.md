@@ -230,6 +230,7 @@ You may also be interested in:
 
 * [VncFox](https://github.com/tenox7/vncfox)
 * [webone](https://github.com/atauenis/webone)
+* [Pici Server](https://github.com/picidae-project/pici-server)
 * [Browservice](https://github.com/ttalvitie/browservice)
 * [Browsh](https://github.com/browsh-org/browsh)
 
