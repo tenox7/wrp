@@ -24,5 +24,8 @@ docker-push:
 docker-clean:
 	docker buildx prune -a -f
 
+release:
+	export GITHUB_TOKEN=$$(gh auth token) && goreleaser release --clean
+
 clean:
 	rm -rf wrp-* wrp

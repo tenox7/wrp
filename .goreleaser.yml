@@ -23,6 +23,11 @@ builds:
       - arm
     goarm:
       - "7"
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
     ldflags:
       - -s -w
 
