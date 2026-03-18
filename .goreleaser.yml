@@ -1,0 +1,92 @@
+version: 2
+
+project_name: wrp
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: wrp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - freebsd
+      - openbsd
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    ldflags:
+      - -s -w
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+dockers:
+  - image_templates:
+      - "tenox7/wrp:{{ .Tag }}-amd64"
+      - "tenox7/wrp:latest-amd64"
+    use: buildx
+    goarch: amd64
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/amd64"
+
+  - image_templates:
+      - "tenox7/wrp:{{ .Tag }}-arm64"
+      - "tenox7/wrp:latest-arm64"
+    use: buildx
+    goarch: arm64
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "tenox7/wrp:{{ .Tag }}"
+    image_templates:
+      - "tenox7/wrp:{{ .Tag }}-amd64"
+      - "tenox7/wrp:{{ .Tag }}-arm64"
+
+  - name_template: "tenox7/wrp:latest"
+    image_templates:
+      - "tenox7/wrp:latest-amd64"
+      - "tenox7/wrp:latest-arm64"
+
+nfpms:
+  - package_name: wrp
+    vendor: Antoni Sawicki
+    homepage: https://github.com/tenox7/wrp
+    maintainer: Antoni Sawicki <as@tenoware.com>
+    description: Web Rendering Proxy
+    license: Apache-2.0
+    formats:
+      - deb
+      - rpm
+      - apk
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: tenox7
+    name: wrp
