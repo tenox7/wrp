@@ -6,19 +6,21 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 ## Modes of operation
 
-### Access
+### Access Types
 
-- Browser in browser, navigate to the address of WRP and use built-in web form to naviate.
-- HTTP proxy mode which offers more seamless, but also limited use.
+- Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse web.
+- HTTP proxy mode which offers more seamless, but also limited use. Semi compatible with https://.
 
 ### Rende modes
 
 - ISMAP "graphical" mode, renders web page in to a GIF/PNG/JPG image with clickable imagemap.
 - Simple HTML mode converts pages into simplified HTML for old browsers.
 
+Different modes have different uses. ISMAP mode will be better for flashy modern web. Simple HTML mode will be better for reading articles or documentation.
+
 ## Usage Instructions
 
-* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium Browser is required to be preinstalled. Do not try to run WRP on an old machine like Windows XP or 98.
+* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium / Brave Browser is required to be preinstalled. Do not run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server or set your proxy address there. 
 * Type a search string or a full http/https URL and click **Go**.
@@ -26,9 +28,9 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 ### Proxy mode
 
-- Try to use http:// addresses only, the proxy will automatically rewrite them to https as needed.
-- https:// addresses are limited in functionality (no /suffix or path).
 - You can use `/proxy.pac` automatic configuration mode.
+- Stick to `http://` addresses only, the proxy will automatically rewrite them to `https://` as needed.
+- `https://` addresses are limited in functionality (no /suffix or paths).
 - Proxy mode doesn't have a customizable web interface with html forms. All configuration is done via flags.
 
 ### Image Map Mode
@@ -40,9 +42,9 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 * You can re-capture screenshot without reloading page by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload page and re-capture screenshot with **Re** (Reload).
 * To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
-* The default image type GIP is a ultra fast, optimized, parallel encoded GIF type.
-* If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to encode/decode.
-* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast but not very accurate color mapping algorithm. If you want better color representation switch to 256 color mode.
+* The default image type is `GIP` - an ultra fast, optimized, parallel encoded GIF type.
+* If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to compress/uncompress.
+* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast encoding algorithm optimized mostly for text. Images have rather wonky color colors. If you want better color representation switch to 256 color mode.
 
 ### Simple HTML mode
 
@@ -183,8 +185,7 @@ Click `st` to re-capture screenshot. You may want to increase the page delay usi
 
 ### Websites are blocking headless browsers
 
-This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP tries to obtain some current valid User Agent
-from https://github.com/jnrbsn/user-agents rather than using the internal "HeadlessChrome". You can override this to your own, for example:
+This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP tries to obtain some current valid User Agent from https://github.com/jnrbsn/user-agents rather than using the internal "HeadlessChrome". You can override this to your own, for example:
 
 ```shell
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
