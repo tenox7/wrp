@@ -152,9 +152,11 @@ func (rq *wrpReq) action() chromedp.Action {
 	return chromedp.Navigate(rq.url)
 }
 
-// Navigate to the desired URL.
-func (rq *wrpReq) navigate() {
+// Navigate to the desired URL, returns download path if a file download was triggered.
+func (rq *wrpReq) navigate() string {
+	resetDownloadState()
 	ctxErr(chromedp.Run(ctx, rq.action()), rq.w)
+	return waitForDownload()
 }
 
 // Handle context errors
@@ -170,6 +172,7 @@ func ctxErr(err error, w io.Writer) {
 		return
 	}
 	ctx, cncl = chromedp.NewContext(actx)
+	setupDownloads()
 	log.Printf("Created new context, try again")
 	fmt.Fprintln(w, "Created new context, try again")
 }
@@ -382,7 +385,10 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
-	rq.navigate() // TODO: if error from navigate do not capture
+	if dl := rq.navigate(); dl != "" {
+		http.Redirect(w, r, dl, http.StatusFound)
+		return
+	}
 	if rq.proxy {
 		chromedp.Run(ctx, waitForRender())
 		var loc string

@@ -239,7 +239,10 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 	chromedp.Run(ctx, chromedp.Location(&currentURL))
 	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
 	if currentURL != strings.Replace(rq.url, "https://", "http://", 1) {
-		rq.navigate()
+		if dl := rq.navigate(); dl != "" {
+			http.Redirect(w, r, dl, http.StatusFound)
+			return
+		}
 	}
 	rq.url = strings.Replace(rq.url, "https://", "http://", 1)
 	if r.Method == "CONNECT" {
@@ -273,7 +276,10 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
-	rq.navigate() // TODO: if error from navigate do not capture
+	if dl := rq.navigate(); dl != "" {
+		http.Redirect(w, r, dl, http.StatusFound)
+		return
+	}
 	if rq.wrpMode == "html" {
 		rq.captureMarkdown()
 		return
@@ -359,12 +365,14 @@ func main() {
 	cncl, acncl = chromedpStart()
 	defer cncl()
 	defer acncl()
+	setupDownloads()
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
 		log.Printf("Interrupt - shutting down.")
+		os.RemoveAll(dlDir)
 		cncl()
 		acncl()
 		srv.Shutdown(context.Background())
@@ -380,6 +388,7 @@ func main() {
 	http.HandleFunc(imgZpfx, imgServerTxt)
 	http.HandleFunc("/proxy.pac", pacServer)
 	http.HandleFunc("/shutdown/", haltServer)
+	http.HandleFunc("/dl/", dlServer)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
 	log.Printf("Default Img Type: %v, Geometry: %+v", *defType, defGeom)
