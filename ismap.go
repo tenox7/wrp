@@ -152,8 +152,8 @@ func (rq *wrpReq) action() chromedp.Action {
 	return chromedp.Navigate(rq.url)
 }
 
-// Navigate to the desired URL, returns download path if a file download was triggered.
-func (rq *wrpReq) navigate() string {
+// Navigate to the desired URL, returns the downloaded file if one was triggered.
+func (rq *wrpReq) navigate() *dlFile {
 	resetDownloadState()
 	ctxErr(chromedp.Run(ctx, rq.action()), rq.w)
 	return waitForDownload()
@@ -385,8 +385,12 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
-	if dl := rq.navigate(); dl != "" {
-		http.Redirect(w, r, dl, http.StatusFound)
+	if dl := rq.navigate(); dl != nil {
+		if rq.proxy {
+			writeDownload(w, dl)
+		} else {
+			http.Redirect(w, r, cacheDownload(dl), http.StatusFound)
+		}
 		return
 	}
 	if rq.proxy {

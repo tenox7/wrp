@@ -239,8 +239,8 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 	chromedp.Run(ctx, chromedp.Location(&currentURL))
 	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
 	if currentURL != strings.Replace(rq.url, "https://", "http://", 1) {
-		if dl := rq.navigate(); dl != "" {
-			http.Redirect(w, r, dl, http.StatusFound)
+		if dl := rq.navigate(); dl != nil {
+			writeDownload(w, dl)
 			return
 		}
 	}
@@ -276,8 +276,8 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
-	if dl := rq.navigate(); dl != "" {
-		http.Redirect(w, r, dl, http.StatusFound)
+	if dl := rq.navigate(); dl != nil {
+		http.Redirect(w, r, cacheDownload(dl), http.StatusFound)
 		return
 	}
 	if rq.wrpMode == "html" {

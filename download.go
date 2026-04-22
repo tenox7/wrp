@@ -99,17 +99,17 @@ func resetDownloadState() {
 	}
 }
 
-func waitForDownload() string {
+func waitForDownload() *dlFile {
 	select {
 	case <-dlNotify:
 	case <-time.After(500 * time.Millisecond):
-		return ""
+		return nil
 	}
 	dlTrack.Lock()
 	ev := dlTrack.ev
 	dlTrack.Unlock()
 	if ev == nil {
-		return ""
+		return nil
 	}
 	log.Printf("Waiting for download: %s", ev.filename)
 	select {
@@ -119,27 +119,37 @@ func waitForDownload() string {
 		dlTrack.Lock()
 		dlTrack.ev = nil
 		dlTrack.Unlock()
-		return ""
+		return nil
 	}
 	fpath := filepath.Join(dlDir, ev.guid)
 	data, err := os.ReadFile(fpath)
-	if err != nil {
-		log.Printf("Failed to read download %s: %v", fpath, err)
-		dlTrack.Lock()
-		dlTrack.ev = nil
-		dlTrack.Unlock()
-		return ""
-	}
-	os.Remove(fpath)
-	id := shortuuid.New()
-	dlCache.Lock()
-	dlCache.files[id] = dlFile{name: ev.filename, data: data}
-	dlCache.Unlock()
 	dlTrack.Lock()
 	dlTrack.ev = nil
 	dlTrack.Unlock()
-	log.Printf("Download cached: /dl/%s (%s, %d bytes)", id, ev.filename, len(data))
+	if err != nil {
+		log.Printf("Failed to read download %s: %v", fpath, err)
+		return nil
+	}
+	os.Remove(fpath)
+	return &dlFile{name: ev.filename, data: data}
+}
+
+func cacheDownload(f *dlFile) string {
+	id := shortuuid.New()
+	dlCache.Lock()
+	dlCache.files[id] = *f
+	dlCache.Unlock()
+	log.Printf("Download cached: /dl/%s (%s, %d bytes)", id, f.name, len(f.data))
 	return "/dl/" + id
+}
+
+func writeDownload(w http.ResponseWriter, f *dlFile) {
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.name))
+	w.Header().Set("Content-Type", http.DetectContentType(f.data))
+	w.Header().Set("Content-Length", strconv.Itoa(len(f.data)))
+	w.Write(f.data)
+	w.(http.Flusher).Flush()
+	log.Printf("Download served inline: %s (%d bytes)", f.name, len(f.data))
 }
 
 func dlServer(w http.ResponseWriter, r *http.Request) {
@@ -147,17 +157,11 @@ func dlServer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Download request for %s", r.RemoteAddr, id)
 	dlCache.Lock()
 	f, ok := dlCache.files[id]
+	delete(dlCache.files, id)
 	dlCache.Unlock()
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, f.name))
-	w.Header().Set("Content-Type", http.DetectContentType(f.data))
-	w.Header().Set("Content-Length", strconv.Itoa(len(f.data)))
-	w.Write(f.data)
-	w.(http.Flusher).Flush()
-	dlCache.Lock()
-	delete(dlCache.files, id)
-	dlCache.Unlock()
+	writeDownload(w, &f)
 }
