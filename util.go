@@ -8,6 +8,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -70,6 +74,72 @@ func asciify(s []byte) []byte {
 		a[i] = s[i]
 	}
 	return a
+}
+
+func findBrowser() string {
+	var paths []string
+	switch runtime.GOOS {
+	case "darwin":
+		paths = []string{
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+			"/Applications/Brave Browser Beta.app/Contents/MacOS/Brave Browser Beta",
+			"/Applications/Brave Browser Nightly.app/Contents/MacOS/Brave Browser Nightly",
+			"/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
+			"/Applications/Arc.app/Contents/MacOS/Arc",
+		}
+	case "windows":
+		pf := os.Getenv("ProgramFiles")
+		pfx86 := os.Getenv("ProgramFiles(x86)")
+		lad := os.Getenv("LOCALAPPDATA")
+		paths = []string{
+			filepath.Join(pf, `Google\Chrome\Application\chrome.exe`),
+			filepath.Join(pfx86, `Google\Chrome\Application\chrome.exe`),
+			filepath.Join(lad, `Google\Chrome\Application\chrome.exe`),
+			filepath.Join(pf, `BraveSoftware\Brave-Browser\Application\brave.exe`),
+			filepath.Join(pfx86, `BraveSoftware\Brave-Browser\Application\brave.exe`),
+			filepath.Join(lad, `BraveSoftware\Brave-Browser\Application\brave.exe`),
+			filepath.Join(pf, `Chromium\Application\chrome.exe`),
+			filepath.Join(lad, `Chromium\Application\chrome.exe`),
+			filepath.Join(pf, `Microsoft\Edge\Application\msedge.exe`),
+			filepath.Join(pfx86, `Microsoft\Edge\Application\msedge.exe`),
+			filepath.Join(pf, `Vivaldi\Application\vivaldi.exe`),
+		}
+	default:
+		paths = []string{
+			"/usr/bin/google-chrome",
+			"/usr/bin/google-chrome-stable",
+			"/usr/bin/chromium",
+			"/usr/bin/chromium-browser",
+			"/usr/bin/brave-browser",
+			"/usr/bin/brave-browser-stable",
+			"/usr/bin/brave",
+			"/usr/bin/microsoft-edge",
+			"/usr/bin/vivaldi",
+			"/snap/bin/chromium",
+			"/snap/bin/brave",
+			"/opt/brave.com/brave/brave",
+			"/opt/google/chrome/chrome",
+			"/opt/vivaldi/vivaldi",
+			"/usr/local/bin/chrome",
+			"/usr/local/bin/chromium",
+			"/usr/local/bin/brave",
+		}
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	for _, n := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser", "brave", "microsoft-edge", "vivaldi", "chrome"} {
+		if p, err := exec.LookPath(n); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 func fetchJnrbsnUserAgent() string {

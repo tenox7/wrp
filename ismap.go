@@ -94,8 +94,14 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 	if *userAgent != "" {
 		opts = append(opts, chromedp.UserAgent(*userAgent))
 	}
+	if *browserPath == "" {
+		*browserPath = findBrowser()
+	}
 	if *browserPath != "" {
+		log.Printf("Using browser: %s", *browserPath)
 		opts = append(opts, chromedp.ExecPath(*browserPath))
+	} else {
+		log.Printf("No browser detected, falling back to chromedp default lookup")
 	}
 	if *userDataDir != "" {
 		opts = append(opts, chromedp.UserDataDir(*userDataDir))
