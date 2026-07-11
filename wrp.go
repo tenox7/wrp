@@ -138,9 +138,12 @@ func (rq *wrpReq) parseForm() {
 	if rq.wrpMode == "" {
 		rq.wrpMode = *wrpMode
 	}
-	rq.url = rq.r.FormValue("url")
-	if len(rq.url) > 1 && !strings.HasPrefix(rq.url, "http") {
-		rq.url = *searchEng + url.QueryEscape(rq.url)
+	rq.url = strings.TrimSpace(rq.r.FormValue("url"))
+	if rq.url != "" {
+		purl, err := url.ParseRequestURI(rq.url)
+		if err != nil || !(purl.Scheme == "http" || purl.Scheme == "https") {
+			rq.url = *searchEng + url.QueryEscape(rq.url)
+		}
 	}
 	// TODO: implement atoiOrZero
 	rq.width, _ = strconv.ParseInt(rq.r.FormValue("w"), 10, 64)
