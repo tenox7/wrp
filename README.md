@@ -160,6 +160,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -ua  user agent, override the default "headless" agent (only for ismap mode)
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 -b   browser executable path (e.g., for Brave Browser)
+-profile  Chrome user-data dir, persists cookies/logins between runs
 ```
 
 ## Minimal Requirements
@@ -190,6 +191,10 @@ This is a well known issue. WRP has some provisions to work around it, but it's 
 ```shell
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
 ```
+
+### Staying logged in to Gmail and other sites
+
+Use `-profile ~/.wrp-chrome` to persist cookies/logins between runs. Log in once with `-h=false`, then restart headless. Run WRP on the same machine you logged in on (the cookie key lives in the OS keychain).
 
 ### Why isn't there a Docker image for armv6
 
