@@ -15,7 +15,10 @@
             W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
             H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
             {{ end }}
-            {{ if eq .WrpMode "html" }}
+            {{ if eq .WrpMode "table" }}
+            W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
+            {{ end }}
+            {{ if ne .WrpMode "ismap" }}
             S <INPUT TYPE="TEXT" NAME="s" VALUE="{{.MaxSize}}" SIZE="4">
             {{ end }}
             {{ if eq .WrpMode "ismap" }}
@@ -34,6 +37,7 @@
                 <OPTION DISABLED>Mode</OPTION>
                 <OPTION VALUE="ismap" {{ if eq .WrpMode "ismap"}}SELECTED{{end}}>ISMAP</OPTION>
                 <OPTION VALUE="html" {{ if eq .WrpMode "html"}}SELECTED{{end}}>HTML</OPTION>
+                <OPTION VALUE="table" {{ if eq .WrpMode "table"}}SELECTED{{end}}>TABLE</OPTION>
             </SELECT>
             T <SELECT NAME="t">
                 <OPTION DISABLED>Type</OPTION>

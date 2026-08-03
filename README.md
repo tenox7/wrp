@@ -15,8 +15,9 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 - ISMAP "graphical" mode, renders web page in to a GIF/PNG/JPG image with clickable imagemap.
 - Simple HTML mode converts pages into simplified HTML for old browsers.
+- TABLE layout mode (experimental) compiles the layout Chrome computed into old school nested HTML tables with FONT/BGCOLOR tags - like a 1996 webmaster would have written by hand. Text stays text, images are downscaled and inlined, page geometry is approximated with table cells.
 
-Different modes have different uses. ISMAP mode will be better for flashy modern web. Simple HTML mode will be better for reading articles or documentation.
+Different modes have different uses. ISMAP mode will be better for flashy modern web. Simple HTML mode will be better for reading articles or documentation. TABLE mode is a middle ground - real selectable text with an approximation of the original layout. Forms are not functional in TABLE mode yet.
 
 ## Usage Instructions
 
@@ -149,7 +150,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 
 ```text
 -l   listen address:port (default :8080)
--m   mode, either ismap (graphical) or html
+-m   mode: ismap (graphical), html (simple html) or table (table layout)
 -t   image type gif, png or jpg (default gif)
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF

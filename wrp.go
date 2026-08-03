@@ -34,8 +34,8 @@ var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
 	headless    = flag.Bool("h", true, "Headless mode / hide browser window (default true)")
 	defType     = flag.String("t", "gip", "Image type: gip|png|gif|jpg")
-	wrpMode     = flag.String("m", "ismap", "WRP Mode: ismap|html")
-	defImgSize  = flag.Int64("is", 200, "html mode default image size")
+	wrpMode     = flag.String("m", "ismap", "WRP Mode: ismap|html|table")
+	defImgSize  = flag.Int64("is", 200, "html/table mode default image size")
 	defJpgQual  = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
@@ -51,7 +51,7 @@ var (
 	srv         http.Server
 	actx, ctx   context.Context
 	acncl, cncl context.CancelFunc
-	wrpCach wrpCache
+	wrpCach     wrpCache
 	defGeom     geom
 	htmlTmpl    *template.Template
 )
@@ -253,6 +253,10 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 		rq.captureMarkdown()
 		return
 	}
+	if rq.wrpMode == "table" {
+		rq.captureTable()
+		return
+	}
 	rq.captureScreenshot()
 }
 
@@ -282,6 +286,10 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if rq.wrpMode == "html" {
 		rq.captureMarkdown()
+		return
+	}
+	if rq.wrpMode == "table" {
+		rq.captureTable()
 		return
 	}
 	rq.captureScreenshot()
