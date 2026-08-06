@@ -179,6 +179,7 @@ func ctxErr(err error, w io.Writer) {
 	}
 	ctx, cncl = chromedp.NewContext(actx)
 	setupDownloads()
+	vncCtxReset()
 	log.Printf("Created new context, try again")
 	fmt.Fprintln(w, "Created new context, try again")
 }
@@ -241,6 +242,8 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 
 // Capture Screenshot using CDP
 func (rq *wrpReq) captureScreenshot() {
+	vncSuspend() // borrow the viewport from the vnc screencast
+	defer vncResume()
 	wrpCach.clear()
 	var h int64
 	var pngCap []byte

@@ -45,13 +45,14 @@ var (
 	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
 	userDataDir = flag.String("profile", "", "Chrome user data dir for persistent cookies/sessions")
 	bgColor     = flag.String("bgcolor", "#F0F0F0", "Background color for WRP UI")
+	vncAddr     = flag.String("vnc", "", "Enable interactive VNC server on address:port, eg :5900")
 )
 
 var (
 	srv         http.Server
 	actx, ctx   context.Context
 	acncl, cncl context.CancelFunc
-	wrpCach wrpCache
+	wrpCach     wrpCache
 	defGeom     geom
 	htmlTmpl    *template.Template
 )
@@ -366,6 +367,9 @@ func main() {
 	defer cncl()
 	defer acncl()
 	setupDownloads()
+	if *vncAddr != "" {
+		vncStart()
+	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
