@@ -43,7 +43,7 @@ const (
 	rfbEncodingCursor  = -239 // RichCursor
 	rfbTightJpeg       = 0x09
 	vncMaxDim          = 2048 // tight rects can't be wider, also sane viewport limit
-	vncMinDim          = 64
+	vncMinDim          = 16 // smallest viewport dimension we ask the browser for
 	vncTabH            = 20                // tab bar height
 	vncNavH            = 20                // nav bar height
 	vncChromeH         = vncTabH + vncNavH // total ui strip above the page
@@ -259,7 +259,7 @@ func vncTabBoxW(w, n int) int {
 }
 
 func vncDrawBar(w int) {
-	if w < vncURLX+40 {
+	if w < 1 {
 		return
 	}
 	vncSrv.Lock()
@@ -326,13 +326,15 @@ func vncDrawBar(w int) {
 	}
 	dr.Dot = fixed.P(vncZoomX, vncTabH+14)
 	dr.DrawString(pct)
-	draw.Draw(img, image.Rect(vncURLX, vncTabH+2, w-3, vncChromeH-2), image.NewUniform(color.White), image.Point{}, draw.Src)
-	vncBorder(img, vncURLX, vncTabH+2, w-3, vncChromeH-2, color.Black)
-	if max := (w - 3 - vncURLX - 8) / 7; len(text) > max { // show the tail
-		text = text[len(text)-max:]
+	if w >= vncURLX+40 { // url field only when it fits, everything else just clips
+		draw.Draw(img, image.Rect(vncURLX, vncTabH+2, w-3, vncChromeH-2), image.NewUniform(color.White), image.Point{}, draw.Src)
+		vncBorder(img, vncURLX, vncTabH+2, w-3, vncChromeH-2, color.Black)
+		if max := (w - 3 - vncURLX - 8) / 7; len(text) > max { // show the tail
+			text = text[len(text)-max:]
+		}
+		dr.Dot = fixed.P(vncURLX+4, vncTabH+14)
+		dr.DrawString(text)
 	}
-	dr.Dot = fixed.P(vncURLX+4, vncTabH+14)
-	dr.DrawString(text)
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
 		return
@@ -460,6 +462,19 @@ func vncCastStart() {
 		log.Printf("VNC: start screencast: %v", err)
 		return
 	}
+	// chrome only casts on damage: a viewport change with static content may
+	// never produce a frame, so push one screenshot at the new size ourselves
+	go func() {
+		var shot []byte
+		err := chromedp.Run(ctx, chromedp.ActionFunc(func(cx context.Context) error {
+			var err error
+			shot, err = page.CaptureScreenshot().WithFormat(page.CaptureScreenshotFormatJpeg).WithQuality(*defJpgQual).Do(cx)
+			return err
+		}))
+		if err == nil && len(shot) > 0 {
+			vncPublishJPEG(shot)
+		}
+	}()
 	vncSetURL(loc)
 	if zoom != 1 {
 		vncApplyZoom(zoom)
@@ -1225,6 +1240,12 @@ func vncWriter(c *vncClient) {
 		frame, seq, fw, fh := vncSrv.frame, vncSrv.seq, vncSrv.fw, vncSrv.fh
 		bar, barSeq, barW := vncSrv.barJpg, vncSrv.barSeq, vncSrv.barW
 		if !c.pending || frame == nil || (c.sentSeq == seq && c.sentBar == barSeq && !c.extInit) {
+			vncSrv.Unlock()
+			continue
+		}
+		if fw != vncSrv.vw || fh != vncSrv.vh-vncChromeH {
+			// stale frame from before a resize: announcing it would snap the
+			// client back to the old size, wait for the fresh one instead
 			vncSrv.Unlock()
 			continue
 		}
