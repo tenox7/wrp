@@ -48,6 +48,7 @@ var (
 	bgColor     = flag.String("bgcolor", "#F0F0F0", "Background color for WRP UI")
 	vncAddr     = flag.String("vnc", "", "Enable interactive VNC server on address:port, eg :5900")
 	vncFPS      = flag.Int("vncfps", 25, "VNC max frames per second, 0 for unlimited")
+	vncPage     = flag.String("vncpage", "about:blank", "VNC start page, also used by home button and new tabs")
 )
 
 var (

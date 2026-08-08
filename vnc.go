@@ -262,6 +262,10 @@ func vncStart() {
 	}
 	vncWorkers()
 	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
+	if *vncPage != "" {
+		vncSetURL(*vncPage)
+		vncDispatch(chromedp.Navigate(*vncPage))
+	}
 	vncServe(ln)
 }
 
@@ -1336,17 +1340,21 @@ func vncSwitchTab(i int) {
 	vncActivate(i)
 }
 
-// Open a fresh about:blank tab and make it active
+// Open a fresh tab at the start page and make it active
 func vncNewTab() {
 	vncTabMu.Lock()
-	defer vncTabMu.Unlock()
 	i, err := vncAddTab()
 	if err != nil {
+		vncTabMu.Unlock()
 		log.Printf("VNC: new tab: %v", err)
 		return
 	}
 	log.Printf("VNC: new tab %d", i)
 	vncActivate(i)
+	vncTabMu.Unlock()
+	if *vncPage != "" && *vncPage != "about:blank" {
+		vncDispatch(chromedp.Navigate(*vncPage))
+	}
 }
 
 // Callers hold vncTabMu. Create the target in the running browser explicitly:
@@ -2077,7 +2085,7 @@ func vncBarClick(x int) {
 		case 3:
 			vncDispatch(chromedp.Stop())
 		case 4: // home
-			vncDispatch(chromedp.Navigate("about:blank"))
+			vncDispatch(chromedp.Navigate(*vncPage))
 		case 5:
 			vncZoom(-0.25)
 		case 6:
