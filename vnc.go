@@ -174,7 +174,6 @@ type vncState struct {
 	urlText    string  // url shown in the bar
 	edit       string  // url being edited
 	focused    bool    // keyboard focus on the url field
-	selAll     bool    // focus just landed: first keystroke replaces the url
 	vw, vh     int     // desired framebuffer size (viewport is vh-vncNavH)
 	zoom       float64 // page zoom, applied as css zoom in the browser
 	zoomScript page.ScriptIdentifier
@@ -1864,10 +1863,6 @@ func vncPaste() {
 	txt := vncSrv.clipboard
 	focused := vncSrv.focused
 	if focused {
-		if vncSrv.selAll {
-			vncSrv.edit = ""
-			vncSrv.selAll = false
-		}
 		vncSrv.edit += txt
 	}
 	w := vncSrv.barW
@@ -1884,11 +1879,12 @@ func vncPaste() {
 	}))
 }
 
+// Focus clears the field right away, so what you see is what enter will use.
+// Escape puts the old url back.
 func vncFocusURL() {
 	vncSrv.Lock()
 	vncSrv.focused = true
-	vncSrv.edit = vncSrv.urlText
-	vncSrv.selAll = true
+	vncSrv.edit = ""
 	w := vncSrv.barW
 	vncSrv.Unlock()
 	vncDrawBar(w)
@@ -1900,6 +1896,11 @@ func vncEditKey(ks uint32) {
 	switch {
 	case ks == 0xFF0D || ks == 0xFF8D: // enter - navigate
 		u := vncSrv.edit
+		if u == "" { // nothing typed, just drop focus
+			vncSrv.focused = false
+			vncSrv.edit = vncSrv.urlText
+			break
+		}
 		if len(u) > 1 && !strings.HasPrefix(u, "http") {
 			u = *searchEng + url.QueryEscape(u)
 		}
@@ -1915,21 +1916,11 @@ func vncEditKey(ks uint32) {
 	case ks == 0xFF1B: // escape - cancel edit
 		vncSrv.focused = false
 		vncSrv.edit = vncSrv.urlText
-		vncSrv.selAll = false
 	case ks == 0xFF08 || ks == 0xFFFF: // backspace / delete
-		if vncSrv.selAll {
-			vncSrv.edit = ""
-			vncSrv.selAll = false
-			break
-		}
 		if r := []rune(vncSrv.edit); len(r) > 0 {
 			vncSrv.edit = string(r[:len(r)-1])
 		}
 	case (ks >= 0x20 && ks <= 0x7E) || (ks >= 0xA0 && ks <= 0xFF):
-		if vncSrv.selAll {
-			vncSrv.edit = ""
-			vncSrv.selAll = false
-		}
 		vncSrv.edit += string(rune(ks))
 	}
 	w := vncSrv.barW
