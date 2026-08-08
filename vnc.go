@@ -45,6 +45,7 @@ const (
 	rfbEncodingCursor   = -239 // RichCursor
 	rfbEncodingFence    = -312
 	rfbEncodingContUpd  = -313
+	rfbEncodingQemuKey  = -258
 	rfbFenceRequest     = 1 << 31
 	rfbFenceBlockBefore = 1 << 0
 	rfbTightJpeg        = 0x09
@@ -54,7 +55,13 @@ const (
 	vncMaxClients       = 16      // refuse further connections beyond this
 	vncMaxCut           = 1 << 20 // largest clipboard transfer we buffer
 	vncPalFrames        = 45      // frames between colormap palette rebuilds
+	vncScrollHint       = 25      // percent of the frame that must be dirty to look for a scroll
+	vncCopyGain         = 50      // and percent left to repaint above which the copy is not worth it
+	vncCopyMax          = 24      // consecutive CopyRects before an exact repaint
 	vncReconcile        = 5 * time.Second
+	vncSlowFrame        = 400 * time.Millisecond // frame ack slower than this, drop quality
+	vncFastFrame        = 150 * time.Millisecond // faster than this, climb back
+	vncMinQual          = 25                     // jpeg quality floor when adapting
 	vncDblClick         = 500 * time.Millisecond
 	vncHandshakeTO      = 30 * time.Second  // whole handshake, before we know the client
 	vncWriteTO          = 60 * time.Second  // per framebuffer update, catches stalled clients
@@ -103,18 +110,23 @@ type vncClient struct {
 	hasDeskNm  bool
 	resetEnc   bool // encoding changed: writer must restart its zlib stream
 	forceFull  bool // non incremental request: resend every tile, not just dirty ones
+	hasCopyR   bool
 	hasFence   bool
 	hasContUpd bool
-	sentCut    string // last selection pushed to this client as ServerCutText
-	contUpd    bool   // client asked for updates without polling for them
-	fencePend  bool   // waiting for the client to echo our fence, ie still drawing
-	jpegQual   int    // from the jpeg quality level pseudo encoding, 0 = our default
+	sentCut    string    // last selection pushed to this client as ServerCutText
+	contUpd    bool      // client asked for updates without polling for them
+	fencePend  bool      // waiting for the client to echo our fence, ie still drawing
+	fenceSent  time.Time // when, so the echo measures the round trip
+	adaptQual  int       // jpeg quality after link adaptation, 0 until measured
+	jpegQual   int       // from the jpeg quality level pseudo encoding, 0 = our default
 	// frame writer goroutine only: persistent zlib stream, last colormap, last
 	// tile hashes this client actually received
 	zbuf     bytes.Buffer
 	zw       *zlib.Writer
 	lastCmap []byte
 	tiles    []uint64
+	samp     *vncSamp // sample plane of what this client actually has
+	copies   int      // CopyRects sent since the last exact repaint
 	sentName string
 	lut      []int16 // memoized palette lookups for the current palette
 	palVer   uint64
@@ -147,6 +159,7 @@ type vncState struct {
 	frame      []byte          // current browser frame as jpeg, for tight passthrough
 	frameImg   *image.RGBA     // same frame decoded once, shared by every client
 	frameTiles []uint64        // tile hashes of frameImg
+	frameSamp  *vncSamp        // subsampled frameImg, for scroll detection
 	fgw, fgh   int             // tile grid dimensions
 	pals       map[int]*vncPal // adaptive palettes by size, shared by colormap clients
 	palSeq     uint64          // frames since the palettes were last rebuilt
@@ -165,9 +178,10 @@ type vncState struct {
 	vw, vh     int     // desired framebuffer size (viewport is vh-vncNavH)
 	zoom       float64 // page zoom, applied as css zoom in the browser
 	zoomScript page.ScriptIdentifier
-	clipboard  string // last ClientCutText, pasted on ctrl+v
-	selection  string // last page selection we pushed out as ServerCutText
-	suspend    int    // nested http capture count, screencast is off while > 0
+	menu       vncMenu // server drawn right click menu, composited into frames
+	clipboard  string  // last ClientCutText, pasted on ctrl+v
+	selection  string  // last page selection we pushed out as ServerCutText
+	suspend    int     // nested http capture count, screencast is off while > 0
 	casting    bool
 	inputCh    chan chromedp.Action
 	ackCh      chan vncAck
@@ -195,7 +209,9 @@ func vncClamp(v int) int {
 	return v
 }
 
-func vncStart() {
+// Server state, without anything that needs a browser attached
+func vncInit() {
+	vncSrv.Lock()
 	vncSrv.vw = vncClamp(int(defGeom.w))
 	vncSrv.vh = int(defGeom.h)
 	if vncSrv.vh < 10 {
@@ -208,28 +224,12 @@ func vncStart() {
 	vncSrv.inputCh = make(chan chromedp.Action, 256)
 	vncSrv.ackCh = make(chan vncAck, 64)
 	vncSrv.syncCh = make(chan struct{}, 1)
-	vncPublishPlaceholder()
-	ln, err := net.Listen("tcp", *vncAddr)
-	if err != nil { // http mode still works, don't take the whole proxy down
-		log.Printf("VNC: listen: %v, VNC server disabled", err)
-		return
-	}
-	go vncTabPoller()
-	go vncSelPoller()
-	go vncWatchTargets()
-	go func() { // ordered browser input dispatch
-		for a := range vncSrv.inputCh {
-			if err := chromedp.Run(brCtx(), a); err != nil {
-				log.Printf("VNC: input dispatch: %v", err)
-			}
-		}
-	}()
-	go func() {
-		for a := range vncSrv.ackCh {
-			chromedp.Run(a.ctx, page.ScreencastFrameAck(a.id))
-		}
-	}()
-	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
+	vncSrv.Unlock()
+	vncPublishPlaceholder() // takes the lock itself
+}
+
+// Accept loop, split out so tests can drive the protocol without a browser
+func vncServe(ln net.Listener) {
 	go func() {
 		for {
 			c, err := ln.Accept()
@@ -249,6 +249,49 @@ func vncStart() {
 				defer vncConns.Add(-1)
 				vncHandle(c)
 			}()
+		}
+	}()
+}
+
+func vncStart() {
+	vncInit()
+	ln, err := net.Listen("tcp", *vncAddr)
+	if err != nil { // http mode still works, don't take the whole proxy down
+		log.Printf("VNC: listen: %v, VNC server disabled", err)
+		return
+	}
+	vncWorkers()
+	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
+	vncServe(ln)
+}
+
+// Background goroutines the server needs once a browser is attached, split out
+// so a test can bring the server up on a listener of its own
+func vncWorkers() {
+	go vncTabPoller()
+	go vncSelPoller()
+	go vncWatchTargets()
+	go func() { // ordered browser input dispatch
+		for a := range vncSrv.inputCh {
+			if err := chromedp.Run(brCtx(), a); err != nil {
+				log.Printf("VNC: input dispatch: %v", err)
+			}
+		}
+	}()
+	// Chrome will not send the next frame until the last one is acked, so
+	// pacing the acks caps the frame rate at the source: no frame is ever
+	// produced just to be thrown away.
+	go func() {
+		var last time.Time
+		for a := range vncSrv.ackCh {
+			if *vncFPS > 0 {
+				gap := time.Second / time.Duration(*vncFPS)
+				if d := gap - time.Since(last); d > 0 {
+					time.Sleep(d)
+				}
+				last = time.Now()
+			}
+			chromedp.Run(a.ctx, page.ScreencastFrameAck(a.id))
 		}
 	}()
 }
@@ -295,7 +338,7 @@ func vncPublishJPEG(jpg []byte) {
 		log.Printf("VNC: bad frame")
 		return
 	}
-	tiles, gw, gh := vncHashTiles(img)
+	tiles, samp, gw, gh := vncHashFrame(img)
 	w, h := img.Bounds().Dx(), img.Bounds().Dy()
 
 	// only the dirty rects get mapped through a palette later, so all that is
@@ -316,7 +359,7 @@ func vncPublishJPEG(jpg []byte) {
 		vncSrv.Unlock()
 		return
 	}
-	vncSrv.frame, vncSrv.frameImg, vncSrv.frameTiles = jpg, img, tiles
+	vncSrv.frame, vncSrv.frameImg, vncSrv.frameTiles, vncSrv.frameSamp = jpg, img, tiles, samp
 	vncSrv.fgw, vncSrv.fgh = gw, gh
 	vncSrv.fw, vncSrv.fh = w, h
 	vncSrv.seq++
@@ -467,6 +510,165 @@ func vncDrawBar(w int) {
 	vncSrv.Unlock()
 }
 
+// ---- context menu ----
+
+// Chrome's own context menu is a native OS window, so the screencast never sees
+// it and right click would otherwise do nothing visible. This one is drawn by
+// us into the frame and composited before encoding.
+type vncMenu struct {
+	open  bool
+	x, y  int // top left, in frame coordinates
+	items []string
+	link  string // href under the pointer when it opened, "" if none
+}
+
+const (
+	vncMenuRow = 16
+	vncMenuPad = 6
+)
+
+func (m *vncMenu) size() (w, h int) {
+	for _, it := range m.items {
+		if n := len(it)*7 + vncMenuPad*2; n > w {
+			w = n
+		}
+	}
+	return w, len(m.items)*vncMenuRow + 2
+}
+
+// Open at a page position, listing link actions only when there is a link
+func vncOpenMenu(x, y int) {
+	var href string
+	if brCtx() != nil {
+		js := fmt.Sprintf(`(function(){var e=document.elementFromPoint(%d,%d);`+
+			`if(!e)return "";var a=e.closest("a");return a&&a.href?a.href:""})()`, x, y)
+		chromedp.Run(brCtx(), chromedp.Evaluate(js, &href))
+	}
+	items := []string{"Back", "Forward", "Reload"}
+	if href != "" {
+		items = append(items, "Open in new tab", "Copy link")
+	}
+	vncSrv.Lock()
+	vncSrv.menu = vncMenu{open: true, x: x, y: y, items: items, link: href}
+	for c := range vncSrv.clients {
+		vncPoke(c)
+	}
+	vncSrv.Unlock()
+	log.Printf("VNC: context menu at %d,%d link=%q", x, y, href)
+}
+
+func vncCloseMenu() {
+	vncSrv.Lock()
+	was := vncSrv.menu.open
+	vncSrv.menu = vncMenu{}
+	if was {
+		for c := range vncSrv.clients {
+			vncPoke(c)
+		}
+	}
+	vncSrv.Unlock()
+}
+
+// Returns true when the click was inside the menu and has been dealt with
+func vncMenuClick(x, y int) bool {
+	vncSrv.Lock()
+	m := vncSrv.menu
+	vncSrv.Unlock()
+	if !m.open {
+		return false
+	}
+	w, h := m.size()
+	if x < m.x || x >= m.x+w || y < m.y || y >= m.y+h {
+		vncCloseMenu() // a click anywhere else just dismisses it
+		return true
+	}
+	i := (y - m.y - 1) / vncMenuRow
+	if i < 0 || i >= len(m.items) {
+		vncCloseMenu()
+		return true
+	}
+	log.Printf("VNC: context menu %s", m.items[i])
+	vncCloseMenu()
+	switch m.items[i] {
+	case "Back":
+		vncDispatch(chromedp.NavigateBack())
+	case "Forward":
+		vncDispatch(chromedp.NavigateForward())
+	case "Reload":
+		vncDispatch(chromedp.Reload())
+	case "Open in new tab":
+		go vncOpenTabAt(m.link)
+	case "Copy link":
+		vncPushCutText(m.link)
+	}
+	return true
+}
+
+func vncOpenTabAt(url string) {
+	vncTabMu.Lock()
+	i, err := vncAddTab()
+	if err != nil {
+		vncTabMu.Unlock()
+		log.Printf("VNC: open in new tab: %v", err)
+		return
+	}
+	vncActivate(i)
+	vncTabMu.Unlock()
+	vncDispatch(chromedp.Navigate(url))
+}
+
+// Hand text to every client as its clipboard
+func vncPushCutText(s string) {
+	if s == "" {
+		return
+	}
+	vncSrv.Lock()
+	vncSrv.selection = s
+	var cs []*vncClient
+	for c := range vncSrv.clients {
+		c.sentCut = s
+		cs = append(cs, c)
+	}
+	vncSrv.Unlock()
+	msg := vncCutTextMsg(s)
+	for _, c := range cs {
+		c.wmu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
+		c.conn.Write(msg)
+		c.wmu.Unlock()
+	}
+}
+
+// Paint the menu into a frame that has already been copied for the purpose
+func vncDrawMenu(img *image.RGBA, m vncMenu) {
+	w, h := m.size()
+	b := img.Bounds()
+	x0, y0 := m.x, m.y
+	if x0+w > b.Dx() { // keep it on screen
+		x0 = max(0, b.Dx()-w)
+	}
+	if y0+h > b.Dy() {
+		y0 = max(0, b.Dy()-h)
+	}
+	r := image.Rect(x0, y0, min(x0+w, b.Dx()), min(y0+h, b.Dy()))
+	draw.Draw(img, r, image.NewUniform(color.RGBA{0xE8, 0xE8, 0xE8, 0xFF}), image.Point{}, draw.Src)
+	vncBorder(img, r.Min.X, r.Min.Y, r.Max.X, r.Max.Y, color.Black)
+	dr := font.Drawer{Dst: img, Src: image.NewUniform(color.Black), Face: basicfont.Face7x13}
+	for i, it := range m.items {
+		ty := y0 + 1 + i*vncMenuRow
+		if ty+vncMenuRow > r.Max.Y {
+			break
+		}
+		if i > 0 { // separator
+			for x := r.Min.X + 1; x < r.Max.X-1; x++ {
+				img.Set(x, ty, color.RGBA{0xB0, 0xB0, 0xB0, 0xFF})
+			}
+		}
+		dr.Dot = fixed.P(x0+vncMenuPad, ty+12)
+		dr.DrawString(it)
+	}
+}
+
 // Change page zoom: delta of +-0.25, or 0 to reset to 100%
 func vncZoom(delta float64) {
 	vncSrv.Lock()
@@ -572,6 +774,9 @@ func vncCastListen() {
 }
 
 func vncCastStart() {
+	if brCtx() == nil { // no browser, as in the protocol tests
+		return
+	}
 	vncSrv.Lock()
 	w, h := vncSrv.vw, vncSrv.vh-vncChromeH
 	zoom := vncSrv.zoom
@@ -614,6 +819,9 @@ func vncCastStart() {
 }
 
 func vncCastStop() {
+	if brCtx() == nil {
+		return
+	}
 	chromedp.Run(brCtx(), page.StopScreencast())
 	log.Printf("VNC: screencast stopped")
 }
@@ -886,6 +1094,16 @@ func vncReadLoop(c *vncClient) {
 			if !vncFence(c) {
 				return
 			}
+		case 255: // QEMU client message
+			b := make([]byte, 11)
+			if _, err := io.ReadFull(c.conn, b); err != nil {
+				return
+			}
+			if b[0] != 0 { // only the extended key event is defined
+				break
+			}
+			vncQemuKey(c, binary.BigEndian.Uint16(b[1:]) != 0,
+				binary.BigEndian.Uint32(b[3:]), binary.BigEndian.Uint32(b[7:]))
 		case 251: // SetDesktopSize
 			if !vncSetDesktopSize(c) {
 				return
@@ -907,7 +1125,7 @@ func vncSetEncodings(c *vncClient) bool {
 	if _, err := io.ReadFull(c.conn, encs); err != nil {
 		return false
 	}
-	var tight, zlb, hex, ext, desk, cur, dnm, fnc, cup bool
+	var tight, zlb, hex, cpr, ext, desk, cur, dnm, fnc, cup, qmk bool
 	qual := 0
 	for i := 0; i < len(encs); i += 4 {
 		e := int32(binary.BigEndian.Uint32(encs[i:]))
@@ -916,6 +1134,8 @@ func vncSetEncodings(c *vncClient) bool {
 			tight = true
 		case rfbEncodingZlib:
 			zlb = true
+		case rfbEncodingCopyRect:
+			cpr = true
 		case rfbEncodingHextile:
 			hex = true
 		case rfbEncodingExtDesk:
@@ -930,6 +1150,8 @@ func vncSetEncodings(c *vncClient) bool {
 			fnc = true
 		case rfbEncodingContUpd:
 			cup = true
+		case rfbEncodingQemuKey:
+			qmk = true
 		}
 		if e >= -32 && e <= -23 { // jpeg quality level 0..9
 			qual = int(e+32)*10 + 10
@@ -952,6 +1174,7 @@ func vncSetEncodings(c *vncClient) bool {
 	c.deskSize = desk
 	c.needCursor = cur
 	c.hasDeskNm = dnm
+	c.hasCopyR = cpr
 	c.hasFence = fnc
 	c.hasContUpd = cup
 	c.jpegQual = qual
@@ -969,8 +1192,8 @@ func vncSetEncodings(c *vncClient) bool {
 		c.wmu.Unlock()
 	}
 	vncPoke(c)
-	log.Printf("%s VNC client encodings: %v, resize ext=%v basic=%v, cursor=%v, jpegqual=%v, fence=%v contupd=%v",
-		c.conn.RemoteAddr(), enc, ext, desk, cur, qual, fnc, cup)
+	log.Printf("%s VNC client encodings: %v, copyrect=%v, resize ext=%v basic=%v, cursor=%v, jpegqual=%v, fence=%v contupd=%v qemukeys=%v",
+		c.conn.RemoteAddr(), enc, cpr, ext, desk, cur, qual, fnc, cup, qmk)
 	return true
 }
 
@@ -989,6 +1212,9 @@ func vncFence(c *vncClient) bool {
 	if flags&rfbFenceRequest == 0 { // an echo of ours: it has caught up
 		vncSrv.Lock()
 		c.fencePend = false
+		if !c.fenceSent.IsZero() {
+			c.adaptQuality(time.Since(c.fenceSent))
+		}
 		vncSrv.Unlock()
 		vncPoke(c)
 		return true
@@ -1052,7 +1278,12 @@ var vncTabMu sync.Mutex
 
 // Make tab i active: swap the active browser context, move the screencast.
 // Callers hold vncTabMu.
+//
+// Takes browserMu as well, so a tab cannot change under an http capture that is
+// midway between navigating and reading the page back.
 func vncActivate(i int) {
+	browserMu.Lock()
+	defer browserMu.Unlock()
 	vncSrv.Lock()
 	if i < 0 || i >= len(vncSrv.tabs) {
 		vncSrv.Unlock()
@@ -1412,6 +1643,39 @@ var vncKeysyms = map[uint32]string{
 	0xFFB5: "5", 0xFFB6: "6", 0xFFB7: "7", 0xFFB8: "8", 0xFFB9: "9",
 }
 
+// XT set 1 scancode to DOM code, with extended (0xe0 prefixed) keys carrying
+// the 0x80 bit as the QEMU extended key event defines them. This is the whole
+// point of that extension: the physical key, independent of the layout the
+// client has loaded.
+var vncScanCodes = map[uint32]string{
+	0x01: "Escape", 0x02: "Digit1", 0x03: "Digit2", 0x04: "Digit3", 0x05: "Digit4",
+	0x06: "Digit5", 0x07: "Digit6", 0x08: "Digit7", 0x09: "Digit8", 0x0a: "Digit9",
+	0x0b: "Digit0", 0x0c: "Minus", 0x0d: "Equal", 0x0e: "Backspace", 0x0f: "Tab",
+	0x10: "KeyQ", 0x11: "KeyW", 0x12: "KeyE", 0x13: "KeyR", 0x14: "KeyT",
+	0x15: "KeyY", 0x16: "KeyU", 0x17: "KeyI", 0x18: "KeyO", 0x19: "KeyP",
+	0x1a: "BracketLeft", 0x1b: "BracketRight", 0x1c: "Enter", 0x1d: "ControlLeft",
+	0x1e: "KeyA", 0x1f: "KeyS", 0x20: "KeyD", 0x21: "KeyF", 0x22: "KeyG",
+	0x23: "KeyH", 0x24: "KeyJ", 0x25: "KeyK", 0x26: "KeyL", 0x27: "Semicolon",
+	0x28: "Quote", 0x29: "Backquote", 0x2a: "ShiftLeft", 0x2b: "Backslash",
+	0x2c: "KeyZ", 0x2d: "KeyX", 0x2e: "KeyC", 0x2f: "KeyV", 0x30: "KeyB",
+	0x31: "KeyN", 0x32: "KeyM", 0x33: "Comma", 0x34: "Period", 0x35: "Slash",
+	0x36: "ShiftRight", 0x37: "NumpadMultiply", 0x38: "AltLeft", 0x39: "Space",
+	0x3a: "CapsLock",
+	0x3b: "F1", 0x3c: "F2", 0x3d: "F3", 0x3e: "F4", 0x3f: "F5", 0x40: "F6",
+	0x41: "F7", 0x42: "F8", 0x43: "F9", 0x44: "F10", 0x57: "F11", 0x58: "F12",
+	0x45: "NumLock", 0x46: "ScrollLock",
+	0x47: "Numpad7", 0x48: "Numpad8", 0x49: "Numpad9", 0x4a: "NumpadSubtract",
+	0x4b: "Numpad4", 0x4c: "Numpad5", 0x4d: "Numpad6", 0x4e: "NumpadAdd",
+	0x4f: "Numpad1", 0x50: "Numpad2", 0x51: "Numpad3", 0x52: "Numpad0",
+	0x53: "NumpadDecimal",
+	// extended set
+	0x9c: "NumpadEnter", 0x9d: "ControlRight", 0xb5: "NumpadDivide", 0xb8: "AltRight",
+	0xc7: "Home", 0xc8: "ArrowUp", 0xc9: "PageUp", 0xcb: "ArrowLeft",
+	0xcd: "ArrowRight", 0xcf: "End", 0xd0: "ArrowDown", 0xd1: "PageDown",
+	0xd2: "Insert", 0xd3: "Delete", 0xdb: "MetaLeft", 0xdc: "MetaRight",
+	0xdd: "ContextMenu",
+}
+
 // Keysym to the text it produces, or "" for keys with no printable form.
 // Latin-1 comes through directly, everything else via the unicode keysym range.
 func vncKeyText(ks uint32) string {
@@ -1427,27 +1691,20 @@ func vncKeyText(ks uint32) string {
 }
 
 func vncKeyEvent(c *vncClient, down bool, ks uint32) {
-	var mod int64
-	switch ks {
-	case 0xFFE1, 0xFFE2:
-		mod = int64(input.ModifierShift)
-	case 0xFFE3, 0xFFE4:
-		mod = int64(input.ModifierCtrl)
-	case 0xFFE9, 0xFFEA:
-		mod = int64(input.ModifierAlt)
-	case 0xFFE7, 0xFFE8, 0xFFEB, 0xFFEC:
-		mod = int64(input.ModifierMeta)
-	}
-	if mod != 0 {
-		if down {
-			c.mods |= mod
-		} else {
-			c.mods &^= mod
-		}
+	if vncModKeysym(c, down, ks) {
 		return
 	}
 	if !down {
 		return
+	}
+	if ks == 0xFF1B { // escape dismisses the context menu before anything else
+		vncSrv.Lock()
+		open := vncSrv.menu.open
+		vncSrv.Unlock()
+		if open {
+			vncCloseMenu()
+			return
+		}
 	}
 	// shortcuts first: ctrl+v has to reach the paste handler even when the url
 	// field has focus, otherwise it would just type a "v" into it
@@ -1473,6 +1730,81 @@ func vncKeyEvent(c *vncClient, down bool, ks uint32) {
 		return
 	}
 	vncDispatch(chromedp.KeyEvent(keys))
+}
+
+// QEMU extended key event: the scancode gives us the physical key, so the DOM
+// code is right even on a layout we know nothing about, and press and release
+// stay separate instead of being fused into one chromedp.KeyEvent.
+func vncQemuKey(c *vncClient, down bool, ks, sc uint32) {
+	code := vncScanCodes[sc]
+	if code == "" { // unknown scancode, the keysym path still works
+		vncKeyEvent(c, down, ks)
+		return
+	}
+	if vncModKeysym(c, down, ks) {
+		return
+	}
+	if !down { // releases never trigger our own shortcuts or url editing
+		vncQemuDispatch(c, false, ks, code)
+		return
+	}
+	if vncShortcut(c, ks) {
+		return
+	}
+	vncSrv.Lock()
+	focused := vncSrv.focused
+	vncSrv.Unlock()
+	if focused {
+		vncEditKey(ks)
+		return
+	}
+	vncQemuDispatch(c, true, ks, code)
+}
+
+// Send one half of a key event, taking the text from the keysym and the code
+// from the scancode
+func vncQemuDispatch(c *vncClient, down bool, ks uint32, code string) {
+	keys := vncKeysyms[ks]
+	if keys == "" {
+		keys = vncKeyText(ks)
+	}
+	r := []rune(keys)
+	if len(r) != 1 {
+		return
+	}
+	mods := input.Modifier(c.mods)
+	for _, p := range kb.Encode(r[0]) {
+		isDown := p.Type == input.KeyDown || p.Type == input.KeyRawDown
+		if isDown != down {
+			continue
+		}
+		p.Code = code
+		p.Modifiers = mods
+		vncDispatch(chromedp.ActionFunc(func(cx context.Context) error { return p.Do(cx) }))
+	}
+}
+
+// Track shift/ctrl/alt/meta state. Returns true when the keysym was a modifier.
+func vncModKeysym(c *vncClient, down bool, ks uint32) bool {
+	var mod int64
+	switch ks {
+	case 0xFFE1, 0xFFE2:
+		mod = int64(input.ModifierShift)
+	case 0xFFE3, 0xFFE4:
+		mod = int64(input.ModifierCtrl)
+	case 0xFFE9, 0xFFEA:
+		mod = int64(input.ModifierAlt)
+	case 0xFFE7, 0xFFE8, 0xFFEB, 0xFFEC:
+		mod = int64(input.ModifierMeta)
+	default:
+		return false
+	}
+	if down {
+		c.mods |= mod
+	} else {
+		c.mods &^= mod
+	}
+	return true
 }
 
 // Browser level shortcuts, handled by us rather than passed to the page.
@@ -1629,6 +1961,17 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 		return
 	}
 	fx, fy := float64(x), float64(int(y)-vncChromeH)
+	// the menu sits above the page, so it gets first refusal on clicks
+	if diff&0x01 != 0 && mask&0x01 != 0 && vncMenuClick(int(x), int(fy)) {
+		return
+	}
+	if diff&0x04 != 0 && mask&0x04 != 0 { // right press opens the menu
+		go vncOpenMenu(int(x), int(fy))
+		return
+	}
+	if diff&0x04 != 0 { // and swallow the matching release
+		return
+	}
 	if diff&0x01 != 0 && mask&0x01 != 0 { // click into the page takes focus away
 		vncSrv.Lock()
 		focused := vncSrv.focused
@@ -1752,18 +2095,19 @@ func vncWriter(c *vncClient) {
 		frame, seq, fw, fh := vncSrv.frame, vncSrv.seq, vncSrv.fw, vncSrv.fh
 		bar, barSeq, barW := vncSrv.barJpg, vncSrv.barSeq, vncSrv.barW
 		img, tiles, gw, gh := vncSrv.frameImg, vncSrv.frameTiles, vncSrv.fgw, vncSrv.fgh
-		barImg, name := vncSrv.barImg, vncSrv.deskName
+		samp := vncSrv.frameSamp
+		barImg, name, menu := vncSrv.barImg, vncSrv.deskName, vncSrv.menu
 		pal := vncSrv.pals[c.palSize]
 		if c.resetEnc {
 			c.resetEnc = false
 			c.zw = nil
 			c.zbuf.Reset()
 			c.lastCmap = nil
-			c.tiles = nil
+			c.tiles, c.samp, c.copies = nil, nil, 0
 		}
 		if c.forceFull { // client asked for a full repaint, forget what it has
 			c.forceFull = false
-			c.tiles = nil
+			c.tiles, c.samp, c.copies = nil, nil, 0
 		}
 		nameChanged := c.hasDeskNm && name != "" && name != c.sentName
 		// with continuous updates the client stops asking, we just push. The
@@ -1815,11 +2159,20 @@ func vncWriter(c *vncClient) {
 			}
 			frame = nil // the passthrough jpeg no longer matches the framebuffer
 			img = c.lbBuf
-			tiles, gw, gh = vncHashTiles(img)
+			tiles, samp, gw, gh = vncHashFrame(img)
 			fw, fh = aw, ah-vncChromeH
 		}
 		if img == nil {
 			continue
+		}
+		if menu.open { // overlay the menu, on a copy so the shared frame stays clean
+			if img != c.lbBuf {
+				c.lbBuf = vncLetterbox(c.lbBuf, img, fw, fh)
+				img = c.lbBuf
+			}
+			vncDrawMenu(img, menu)
+			tiles, samp, gw, gh = vncHashFrame(img)
+			frame = nil
 		}
 		var rects [][]byte
 		var cmap []byte
@@ -1836,8 +2189,36 @@ func vncWriter(c *vncClient) {
 		if sendBar && barImg != nil && barW == fw {
 			rects = append(rects, c.encodeRects(barImg, pal, barImg.Bounds(), 0, 0, bar)...)
 		}
-		// only the tiles that actually changed since this client's last update
+		// A copy is matched with a tolerance, so afterwards the client holds a
+		// slightly older jpeg generation of the same content and the server's
+		// model of it is approximate. Every vncCopyMax copies one exact repaint
+		// washes that out, which bounds how long any of it can survive.
+		wash := c.copies >= vncCopyMax
+		if wash {
+			c.copies, c.tiles = 0, nil
+		}
+		// a scroll moves content the client already has, so hand it a CopyRect
+		// and only encode what the move could not account for
 		dirty := vncDirtyRects(tiles, c.tiles, gw, gh, fw, fh)
+		// letterboxed clients hash their own padded buffer and the menu does not
+		// scroll with the page, so neither gets a copy. Detection only runs when
+		// most of the frame moved, which is the only thing a scroll looks like.
+		if !wash && c.hasCopyR && c.samp != nil && !fit && !menu.open &&
+			vncRectsArea(dirty)*100 >= fw*fh*vncScrollHint {
+			if dy := vncDetectShift(samp, c.samp); dy != 0 {
+				sd := vncShiftDirty(samp, c.samp, dy, fw, fh)
+				if vncRectsArea(sd)*100 < fw*fh*vncCopyGain { // has to actually save something
+					sy, dsty, ch := dy, 0, fh-dy
+					if dy < 0 {
+						sy, dsty, ch = 0, -dy, fh+dy
+					}
+					rects = append(rects, vncRectCopy(0, dsty+vncChromeH, fw, ch, 0, sy+vncChromeH))
+					dirty = sd
+					frame = nil // the client's framebuffer is no longer a whole frame
+					c.copies++
+				}
+			}
+		}
 		whole := len(dirty) == 1 && dirty[0].Dx() == fw && dirty[0].Dy() == fh
 		for _, r := range dirty {
 			var pass []byte
@@ -1847,6 +2228,7 @@ func vncWriter(c *vncClient) {
 			rects = append(rects, c.encodeRects(img, pal, r, r.Min.X, r.Min.Y+vncChromeH, pass)...)
 		}
 		c.tiles = append(c.tiles[:0], tiles...)
+		c.samp = c.samp.copyOf(samp)
 		c.wmu.Lock()
 		c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
 		var err error
@@ -1871,6 +2253,7 @@ func vncWriter(c *vncClient) {
 		if err == nil && c.contUpd && c.hasFence {
 			vncSrv.Lock()
 			c.fencePend = true
+			c.fenceSent = time.Now()
 			vncSrv.Unlock()
 			_, err = c.conn.Write(vncFenceMsg(rfbFenceRequest|rfbFenceBlockBefore, nil))
 		}
@@ -1921,11 +2304,34 @@ func (c *vncClient) encodeRect(img *image.RGBA, pal *vncPal, r image.Rectangle, 
 	return c.rectRaw(x, y, pix, w, h)
 }
 
+// Configured jpeg quality, lowered while the link cannot keep up
 func (c *vncClient) jpegQuality() int {
+	q := int(*defJpgQual)
 	if c.jpegQual > 0 {
-		return c.jpegQual
+		q = c.jpegQual
 	}
-	return int(*defJpgQual)
+	if c.adaptQual > 0 && c.adaptQual < q {
+		return c.adaptQual
+	}
+	return q
+}
+
+// How long the client took to acknowledge the last frame is a decent proxy for
+// how much room the link has. Callers hold the vncSrv lock.
+func (c *vncClient) adaptQuality(rtt time.Duration) {
+	base := int(*defJpgQual)
+	if c.jpegQual > 0 {
+		base = c.jpegQual
+	}
+	if c.adaptQual == 0 {
+		c.adaptQual = base
+	}
+	switch {
+	case rtt > vncSlowFrame:
+		c.adaptQual = max(c.adaptQual-10, vncMinQual)
+	case rtt < vncFastFrame:
+		c.adaptQual = min(c.adaptQual+5, base)
+	}
 }
 
 // Pad a frame into a larger framebuffer for clients that cannot resize. dst is

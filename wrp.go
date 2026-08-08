@@ -47,6 +47,7 @@ var (
 	userDataDir = flag.String("profile", "", "Chrome user data dir for persistent cookies/sessions")
 	bgColor     = flag.String("bgcolor", "#F0F0F0", "Background color for WRP UI")
 	vncAddr     = flag.String("vnc", "", "Enable interactive VNC server on address:port, eg :5900")
+	vncFPS      = flag.Int("vncfps", 25, "VNC max frames per second, 0 for unlimited")
 )
 
 var (
@@ -97,6 +98,11 @@ func setBrRoot(c context.Context, n context.CancelFunc) {
 	curCtx, curCncl, curRoot = c, n, c
 	ctxMu.Unlock()
 }
+
+// Every http request drives the one shared browser tab, so navigate plus
+// capture has to be atomic. Without this, an overlapping request can commit a
+// navigation between one request's DOM prep and its OuterHTML read.
+var browserMu sync.Mutex
 
 // Cancel the active tab and tear down the browser process
 func brStop() {
@@ -287,6 +293,8 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 		jQual:   *defJpgQual,
 		proxy:   true,
 	}
+	browserMu.Lock()
+	defer browserMu.Unlock()
 	var currentURL string
 	chromedp.Run(brCtx(), chromedp.Location(&currentURL))
 	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
@@ -328,6 +336,8 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
+	browserMu.Lock()
+	defer browserMu.Unlock()
 	if dl := rq.navigate(); dl != nil {
 		http.Redirect(w, r, cacheDownload(dl), http.StatusFound)
 		return

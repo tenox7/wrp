@@ -394,6 +394,8 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		rq.printUI(uiParams{})
 		return
 	}
+	browserMu.Lock()
+	defer browserMu.Unlock()
 	if dl := rq.navigate(); dl != nil {
 		if rq.proxy {
 			writeDownload(w, dl)
