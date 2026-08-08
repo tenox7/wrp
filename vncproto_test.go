@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -430,8 +431,9 @@ func TestProtoNoCopyRectUnlessOffered(t *testing.T) {
 	}
 }
 
-// TigerVNC style remote resize: the ack comes back inline and the framebuffer
-// follows on the next update
+// TigerVNC style remote resize: the ack rides the first frame at the new size,
+// and no rect may ever fall outside the framebuffer the client has been told to
+// hold - a viewer that gets one drops the connection with "Rect too big"
 func TestProtoDesktopResize(t *testing.T) {
 	addr := startTestServer(t)
 	publishTestFrame(t, solidFrame(320, 200, 0x55, 0x55, 0x55))
@@ -441,11 +443,31 @@ func TestProtoDesktopResize(t *testing.T) {
 	// SetDesktopSize: type, pad, w, h, screens, pad, then one screen
 	const nw, nh = 400, 260
 	m := make([]byte, 8+16)
-	m[0], m[5] = 251, 1
+	m[0] = 251
 	binary.BigEndian.PutUint16(m[2:], nw)
 	binary.BigEndian.PutUint16(m[4:], nh)
+	m[6] = 1 // screen count, after the height so it does not get overwritten
 	p.c.Write(m)
 
+	for i := 0; i < 400; i++ {
+		vncSrv.Lock()
+		got := vncSrv.vw == nw && vncSrv.vh == nh
+		vncSrv.Unlock()
+		if got {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	vncSrv.Lock()
+	gotW, gotH := vncSrv.vw, vncSrv.vh
+	vncSrv.Unlock()
+	if gotW != nw || gotH != nh {
+		t.Fatalf("server kept %dx%d after the resize request", gotW, gotH)
+	}
+	publishTestFrame(t, solidFrame(nw, nh-vncChromeH, 0x55, 0x55, 0x55))
+	p.fbur(true)
+
+	fbW, fbH := p.w, p.h // what the client has been told to allocate
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		hdr := make([]byte, 4)
@@ -457,6 +479,8 @@ func TestProtoDesktopResize(t *testing.T) {
 		for i := 0; i < n; i++ {
 			rh := make([]byte, 12)
 			p.read(rh)
+			x := int(binary.BigEndian.Uint16(rh[0:]))
+			y := int(binary.BigEndian.Uint16(rh[2:]))
 			w := int(binary.BigEndian.Uint16(rh[4:]))
 			h := int(binary.BigEndian.Uint16(rh[6:]))
 			switch enc := int32(binary.BigEndian.Uint32(rh[8:])); enc {
@@ -466,21 +490,111 @@ func TestProtoDesktopResize(t *testing.T) {
 				if w != nw || h != nh {
 					t.Fatalf("resize acked as %dx%d, asked for %dx%d", w, h, nw, nh)
 				}
-				vncSrv.Lock()
-				gotW, gotH := vncSrv.vw, vncSrv.vh
-				vncSrv.Unlock()
-				if gotW != nw || gotH != nh {
-					t.Fatalf("server kept %dx%d after the resize request", gotW, gotH)
-				}
-				return
+				fbW, fbH = w, h
+				continue
 			case rfbEncodingRaw:
 				p.read(make([]byte, w*h*4))
 			default:
 				t.Fatalf("unexpected encoding %d", enc)
 			}
+			if x+w > fbW || y+h > fbH {
+				t.Fatalf("rect %dx%d at %d,%d overflows the %dx%d framebuffer", w, h, x, y, fbW, fbH)
+			}
+			if fbW == nw && fbH == nh {
+				return // acked, and the rects that followed fit
+			}
 		}
 	}
 	t.Fatal("no ExtendedDesktopSize ack within the deadline")
+}
+
+// Resize requests arriving while the writer is mid frame. Dragging a viewer
+// window sends a stream of them, and if a size change reaches the client out of
+// band it can shrink the framebuffer under rects that were already picked for
+// the old one, which the viewer reports as "Rect too big" and disconnects.
+func TestProtoResizeUnderLoad(t *testing.T) {
+	addr := startTestServer(t)
+	publishTestFrame(t, solidFrame(320, 200, 0x55, 0x55, 0x55))
+	p := dialProto(t, addr)
+	p.setEncodings(rfbEncodingRaw, rfbEncodingExtDesk)
+	p.c.Write([]byte{150, 1, 0, 0, 0, 0, 0, 0, 0, 0}) // continuous updates on
+
+	stop, resized := make(chan struct{}), make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { // frames keep coming at whatever the viewport is right now
+		defer wg.Done()
+		jpgs := map[int][]byte{}
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			vncSrv.Lock()
+			w, h := vncSrv.vw, vncSrv.vh-vncChromeH
+			vncSrv.Unlock()
+			jpg := jpgs[w<<16|h]
+			if jpg == nil {
+				var buf bytes.Buffer
+				jpeg.Encode(&buf, solidFrame(w, h, 0x55, 0x66, 0x77), &jpeg.Options{Quality: 80})
+				jpg = buf.Bytes()
+				jpgs[w<<16|h] = jpg
+			}
+			vncPublishJPEG(jpg)
+			time.Sleep(time.Millisecond)
+		}
+	}()
+	go func() { // and the viewer window is being dragged all the while
+		defer wg.Done()
+		defer close(resized)
+		m := make([]byte, 8+16)
+		m[0], m[6] = 251, 1
+		for i := 0; i < 120; i++ {
+			binary.BigEndian.PutUint16(m[2:], uint16(300+(i*17)%200))
+			binary.BigEndian.PutUint16(m[4:], uint16(240+(i*29)%160))
+			p.c.Write(m)
+			time.Sleep(3 * time.Millisecond)
+		}
+	}()
+
+	fbW, fbH := p.w, p.h // what the client has been told to allocate
+	for done := false; !done; {
+		select {
+		case <-resized:
+			done = true // one last update, then stop reading
+		default:
+		}
+		hdr := make([]byte, 4)
+		p.read(hdr)
+		if hdr[0] != 0 {
+			t.Fatalf("unexpected server message %d", hdr[0])
+		}
+		for i, n := 0, int(binary.BigEndian.Uint16(hdr[2:])); i < n; i++ {
+			rh := make([]byte, 12)
+			p.read(rh)
+			x := int(binary.BigEndian.Uint16(rh[0:]))
+			y := int(binary.BigEndian.Uint16(rh[2:]))
+			w := int(binary.BigEndian.Uint16(rh[4:]))
+			h := int(binary.BigEndian.Uint16(rh[6:]))
+			switch enc := int32(binary.BigEndian.Uint32(rh[8:])); enc {
+			case rfbEncodingExtDesk:
+				p.read(make([]byte, 4))
+				p.read(make([]byte, 16))
+				fbW, fbH = w, h
+				continue
+			case rfbEncodingRaw:
+				p.read(make([]byte, w*h*4))
+			default:
+				t.Fatalf("unexpected encoding %d", enc)
+			}
+			if x+w > fbW || y+h > fbH {
+				t.Fatalf("rect %dx%d at %d,%d overflows the %dx%d framebuffer", w, h, x, y, fbW, fbH)
+			}
+		}
+	}
+	close(stop)
+	wg.Wait()
 }
 
 // Every client message has to be consumed to exactly the right length. Getting
@@ -524,6 +638,13 @@ func TestProtoMessageFraming(t *testing.T) {
 	fence := []byte{248, 0, 0, 0, 0, 0, 0, 0, 3, 'a', 'b', 'c'}
 	binary.BigEndian.PutUint32(fence[4:], 1<<31)
 
+	// SetDesktopSize: type, pad, w, h, screens, pad, then one 16 byte screen.
+	// Asks for the size it already has, so the frames after it still match.
+	desk := make([]byte, 8+16)
+	desk[0], desk[6] = 251, 1
+	binary.BigEndian.PutUint16(desk[2:], 320)
+	binary.BigEndian.PutUint16(desk[4:], 200+vncChromeH)
+
 	for _, tc := range []struct {
 		name string
 		msg  []byte
@@ -533,6 +654,7 @@ func TestProtoMessageFraming(t *testing.T) {
 		{"PointerEvent", ptr},
 		{"ClientCutText", cut},
 		{"QemuExtendedKey", qemu},
+		{"SetDesktopSize", desk},
 		{"ClientFence", fence},
 	} {
 		p.c.Write(tc.msg)

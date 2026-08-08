@@ -98,6 +98,7 @@ type vncClient struct {
 	sentSeq    uint64
 	sentBar    uint64
 	annW, annH int // framebuffer size announced to this client, includes nav bar
+	ackW, ackH int // size this client asked for, acked by the writer once reached
 	extDesk    bool
 	extInit    bool // owe the client its initial ExtendedDesktopSize announce
 	deskSize   bool
@@ -1234,7 +1235,14 @@ func vncFenceMsg(flags uint32, payload []byte) []byte {
 	return b.Bytes()
 }
 
-// TigerVNC remote resize: viewport follows the client window size
+// TigerVNC remote resize: viewport follows the client window size.
+//
+// The ack is not sent from here. It carries the new framebuffer size, and this
+// runs on the read goroutine: acking inline can shrink the client's framebuffer
+// after the writer has picked a frame but before it puts the rects on the wire,
+// and the client then sees rects wider than the buffer it just resized ("Rect
+// too big"). The writer owns every size change, so a size only ever reaches the
+// client in the same write as rects that fit it.
 func vncSetDesktopSize(c *vncClient) bool {
 	b := make([]byte, 7)
 	if _, err := io.ReadFull(c.conn, b); err != nil {
@@ -1251,19 +1259,12 @@ func vncSetDesktopSize(c *vncClient) bool {
 	log.Printf("%s VNC client requests desktop size %vx%v", c.conn.RemoteAddr(), w, h)
 	vncSrv.Lock()
 	vncSrv.vw, vncSrv.vh = w, h
-	c.annW, c.annH = w, h
+	c.ackW, c.ackH = w, h
 	c.sentSeq = 0 // full frame after resize
 	c.sentBar = 0
 	on := vncSrv.casting
 	vncSrv.Unlock()
-	// ack the requester: reason=1 (this client), result=0 (success)
-	c.wmu.Lock()
-	c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
-	err := vncSendExtDeskSize(c.conn, 1, 0, w, h)
-	c.wmu.Unlock()
-	if err != nil {
-		return false
-	}
+	vncPoke(c)
 	if on {
 		vncCastStart() // apply new viewport, emits fresh frame
 	}
@@ -2119,6 +2120,11 @@ func vncWriter(c *vncClient) {
 		}
 		resize := fw != c.annW || fh != c.annH-vncChromeH
 		announce := resize && (c.extDesk || c.deskSize)
+		// this frame is the answer to this client's own SetDesktopSize
+		ackReq := c.extDesk && c.ackW == fw && c.ackH == fh+vncChromeH
+		if ackReq {
+			c.ackW, c.ackH = 0, 0
+		}
 		if announce {
 			c.annW, c.annH = fw, fh+vncChromeH
 		}
@@ -2226,12 +2232,18 @@ func vncWriter(c *vncClient) {
 		if cmap != nil {
 			_, err = c.conn.Write(cmap)
 		}
-		if err == nil && extInit && !announce {
+		if err == nil && extInit && !announce && !ackReq {
 			err = vncSendExtDeskSize(c.conn, 0, 0, aw, ah)
 		}
-		if err == nil && announce {
+		// the size goes out ahead of the rects, in the same write, so the client
+		// never holds a framebuffer the rects that follow do not fit
+		if err == nil && (announce || ackReq) {
+			reason := 0
+			if ackReq { // reason 1: this client asked for it, result 0: success
+				reason = 1
+			}
 			if ext {
-				err = vncSendExtDeskSize(c.conn, 0, 0, fw, fh+vncChromeH)
+				err = vncSendExtDeskSize(c.conn, reason, 0, fw, fh+vncChromeH)
 			} else {
 				err = vncSendDeskSize(c.conn, fw, fh+vncChromeH)
 			}
