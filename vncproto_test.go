@@ -675,3 +675,28 @@ func TestProtoMessageFraming(t *testing.T) {
 		}
 	}
 }
+
+// Chrome hands us the url as the tab title until the page sets one, and a
+// google search url is hundreds of chars long - it must not reach the viewer's
+// title bar whole.
+func TestProtoShortName(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"https://www.google.com/search?q=foo&sca_esv=deadbeef&ei=BBBB", "https://www.google.com"},
+		{"google.com/search?q=foo&sca_esv=deadbeef", "google.com"},
+		{"http://host:8080/a/b?c#d", "http://host:8080"},
+		{"https://example.com/", "https://example.com"},
+		{"https://example.com", "https://example.com"},
+		{"data:text/html;base64,AAAAAAAAAAAAAAAAAAAA", "data:text"},
+		{"file:///Users/x/y.html", "file://"},
+		{"about:blank", "about:blank"},
+		{"foo - Google Search", "foo - Google Search"},
+		{"Node.js/Express", "Node.js/Express"},
+		{"AC/DC", "AC/DC"},
+		{"New Tab", "New Tab"},
+		{"", ""},
+	} {
+		if got := vncShortName(tc.in); got != tc.want {
+			t.Errorf("vncShortName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

@@ -430,9 +430,9 @@ func vncDrawBar(w int) {
 	pct := fmt.Sprintf("%d%%", int(vncSrv.zoom*100+0.5))
 	titles := make([]string, len(vncSrv.tabs))
 	for i, t := range vncSrv.tabs {
-		titles[i] = t.title
+		titles[i] = vncShortName(t.title)
 		if titles[i] == "" {
-			titles[i] = t.url
+			titles[i] = vncShortName(t.url)
 		}
 		if titles[i] == "" {
 			titles[i] = "New Tab"
@@ -712,6 +712,27 @@ func vncApplyZoom(z float64) {
 		}
 		return chromedp.Evaluate(src, nil).Do(cx)
 	}))
+}
+
+// Chrome reports the url as the tab title until the page sets a real one, so a
+// search result page would otherwise become a desktop name hundreds of chars
+// long. Anything that looks like a url is cut down to scheme and host.
+func vncShortName(s string) string {
+	if i := strings.Index(s, "://"); i >= 0 {
+		rest := s[i+3:]
+		if j := strings.IndexAny(rest, "/?#"); j >= 0 {
+			return s[:i+3+j]
+		}
+		return s
+	}
+	host, _, ok := strings.Cut(s, "/") // google.com/search?q=... or data:text/html;...
+	if !ok || strings.ContainsAny(s, " \t") {
+		return s
+	}
+	if !strings.ContainsAny(host, ".:") || host != strings.ToLower(host) {
+		return s // a real title that happens to have a slash in it
+	}
+	return host
 }
 
 // Update the url shown in the nav bar (from navigation events)
@@ -1583,7 +1604,7 @@ func vncTabSync() {
 	act := vncSrv.tabs[vncSrv.active]
 	ai := vncSrv.active
 	w := vncSrv.barW
-	if nm := act.title; nm != "" && nm != vncSrv.deskName { // viewer title bar
+	if nm := vncShortName(act.title); nm != "" && nm != vncSrv.deskName { // viewer title bar
 		vncSrv.deskName = nm
 		for c := range vncSrv.clients {
 			vncPoke(c)
