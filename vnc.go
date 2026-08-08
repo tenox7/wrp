@@ -21,8 +21,10 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -37,20 +39,32 @@ import (
 )
 
 const (
-	rfbEncodingTight   = 7
-	rfbEncodingDesk    = -223 // DesktopSize
-	rfbEncodingExtDesk = -308 // ExtendedDesktopSize
-	rfbEncodingCursor  = -239 // RichCursor
-	rfbTightJpeg       = 0x09
-	vncMaxDim          = 2048 // tight rects can't be wider, also sane viewport limit
-	vncMinDim          = 16 // smallest viewport dimension we ask the browser for
-	vncTabH            = 20                // tab bar height
-	vncNavH            = 20                // nav bar height
-	vncChromeH         = vncTabH + vncNavH // total ui strip above the page
-	vncTabW            = 160               // max tab width
-	vncBtnW            = 22
-	vncZoomX           = 172 // zoom percent label
-	vncURLX            = 204 // url field start
+	rfbEncodingTight    = 7
+	rfbEncodingDesk     = -223 // DesktopSize
+	rfbEncodingExtDesk  = -308 // ExtendedDesktopSize
+	rfbEncodingCursor   = -239 // RichCursor
+	rfbEncodingFence    = -312
+	rfbEncodingContUpd  = -313
+	rfbFenceRequest     = 1 << 31
+	rfbFenceBlockBefore = 1 << 0
+	rfbTightJpeg        = 0x09
+	vncMaxDim           = 4096    // sane viewport limit, wider rects get split
+	vncTightMax         = 2048    // a tight rect may not be wider than this
+	vncMinDim           = 16      // smallest viewport dimension we ask the browser for
+	vncMaxClients       = 16      // refuse further connections beyond this
+	vncMaxCut           = 1 << 20 // largest clipboard transfer we buffer
+	vncPalFrames        = 45      // frames between colormap palette rebuilds
+	vncReconcile        = 5 * time.Second
+	vncDblClick         = 500 * time.Millisecond
+	vncHandshakeTO      = 30 * time.Second  // whole handshake, before we know the client
+	vncWriteTO          = 60 * time.Second  // per framebuffer update, catches stalled clients
+	vncTabH             = 20                // tab bar height
+	vncNavH             = 20                // nav bar height
+	vncChromeH          = vncTabH + vncNavH // total ui strip above the page
+	vncTabW             = 160               // max tab width
+	vncBtnW             = 22
+	vncZoomX            = 172 // zoom percent label
+	vncURLX             = 204 // url field start
 )
 
 // True color pixel format negotiated with a client
@@ -83,23 +97,46 @@ type vncClient struct {
 	needCursor bool
 	pf         vncPixFmt
 	indexed    bool // colormap client: we control the palette via SetColourMapEntries
+	palSize    int  // colormap entries this client has, from its depth
 	warnedFit  bool
-	// frame writer goroutine only: persistent tight zlib stream and last sent colormap
+	enc        vncEnc // best encoding this client offered
+	hasDeskNm  bool
+	resetEnc   bool // encoding changed: writer must restart its zlib stream
+	forceFull  bool // non incremental request: resend every tile, not just dirty ones
+	hasFence   bool
+	hasContUpd bool
+	sentCut    string // last selection pushed to this client as ServerCutText
+	contUpd    bool   // client asked for updates without polling for them
+	fencePend  bool   // waiting for the client to echo our fence, ie still drawing
+	jpegQual   int    // from the jpeg quality level pseudo encoding, 0 = our default
+	// frame writer goroutine only: persistent zlib stream, last colormap, last
+	// tile hashes this client actually received
 	zbuf     bytes.Buffer
 	zw       *zlib.Writer
 	lastCmap []byte
+	tiles    []uint64
+	sentName string
+	lut      []int16 // memoized palette lookups for the current palette
+	palVer   uint64
+	lbBuf    *image.RGBA // reused letterbox buffer for clients that cannot resize
 	// read loop only
-	buttons byte
-	mods    int64
+	buttons  byte
+	mods     int64
+	lastBtn  byte
+	lastClkX int
+	lastClkY int
+	lastClk  time.Time
+	clicks   int
 }
 
-// One browser tab: its own chromedp context, the global ctx points at the active one
+// One browser tab: its own chromedp context, brCtx() points at the active one
 type vncTab struct {
-	ctx   context.Context
-	cncl  context.CancelFunc
-	id    target.ID
-	title string
-	url   string
+	ctx     context.Context
+	cncl    context.CancelFunc
+	listCtx context.Context // context the screencast listener is bound to
+	id      target.ID
+	title   string
+	url     string
 }
 
 type vncState struct {
@@ -107,11 +144,18 @@ type vncState struct {
 	clients    map[*vncClient]bool
 	tabs       []*vncTab
 	active     int
-	listened   map[interface{}]bool // browser contexts with a screencast listener
-	frame      []byte               // current browser frame as jpeg
-	fw, fh     int                  // dimensions of current frame
+	frame      []byte          // current browser frame as jpeg, for tight passthrough
+	frameImg   *image.RGBA     // same frame decoded once, shared by every client
+	frameTiles []uint64        // tile hashes of frameImg
+	fgw, fgh   int             // tile grid dimensions
+	pals       map[int]*vncPal // adaptive palettes by size, shared by colormap clients
+	palSeq     uint64          // frames since the palettes were last rebuilt
+	palVer     uint64
+	fw, fh     int // dimensions of current frame
 	seq        uint64
+	deskName   string // page title, pushed to viewers that asked for DesktopName
 	barJpg     []byte // nav bar strip as jpeg
+	barImg     *image.RGBA
 	barW       int
 	barSeq     uint64
 	urlText    string  // url shown in the bar
@@ -121,13 +165,25 @@ type vncState struct {
 	vw, vh     int     // desired framebuffer size (viewport is vh-vncNavH)
 	zoom       float64 // page zoom, applied as css zoom in the browser
 	zoomScript page.ScriptIdentifier
-	suspended  bool
+	clipboard  string // last ClientCutText, pasted on ctrl+v
+	selection  string // last page selection we pushed out as ServerCutText
+	suspend    int    // nested http capture count, screencast is off while > 0
 	casting    bool
 	inputCh    chan chromedp.Action
-	castCtx    interface{} // browser ctx the screencast listener is bound to
+	ackCh      chan vncAck
+	syncCh     chan struct{} // a target event wants the tab list reconciled
+}
+
+// Screencast frame acknowledgement, handled off the cdp event goroutine
+type vncAck struct {
+	ctx context.Context
+	id  int64
 }
 
 var vncSrv vncState
+
+// Open connections, including ones still in handshake
+var vncConns atomic.Int64
 
 func vncClamp(v int) int {
 	if v < vncMinDim {
@@ -148,22 +204,31 @@ func vncStart() {
 	vncSrv.vh = vncClamp(vncSrv.vh) + vncChromeH
 	vncSrv.zoom = 1.0
 	vncSrv.clients = make(map[*vncClient]bool)
-	vncSrv.listened = make(map[interface{}]bool)
-	vncSrv.tabs = []*vncTab{{ctx: ctx, cncl: cncl}}
+	vncSrv.tabs = []*vncTab{{ctx: brCtx(), cncl: brCncl()}}
 	vncSrv.inputCh = make(chan chromedp.Action, 256)
+	vncSrv.ackCh = make(chan vncAck, 64)
+	vncSrv.syncCh = make(chan struct{}, 1)
+	vncPublishPlaceholder()
+	ln, err := net.Listen("tcp", *vncAddr)
+	if err != nil { // http mode still works, don't take the whole proxy down
+		log.Printf("VNC: listen: %v, VNC server disabled", err)
+		return
+	}
 	go vncTabPoller()
+	go vncSelPoller()
+	go vncWatchTargets()
 	go func() { // ordered browser input dispatch
 		for a := range vncSrv.inputCh {
-			if err := chromedp.Run(ctx, a); err != nil {
+			if err := chromedp.Run(brCtx(), a); err != nil {
 				log.Printf("VNC: input dispatch: %v", err)
 			}
 		}
 	}()
-	vncPublishPlaceholder()
-	ln, err := net.Listen("tcp", *vncAddr)
-	if err != nil {
-		log.Fatalf("VNC: listen: %v", err)
-	}
+	go func() {
+		for a := range vncSrv.ackCh {
+			chromedp.Run(a.ctx, page.ScreencastFrameAck(a.id))
+		}
+	}()
 	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
 	go func() {
 		for {
@@ -172,7 +237,18 @@ func vncStart() {
 				log.Printf("VNC: accept: %v", err)
 				return
 			}
-			go vncHandle(c)
+			// count accepted conns, not handshaked ones: a burst would all
+			// be mid handshake and slip past a check on vncSrv.clients
+			if n := vncConns.Add(1); n > vncMaxClients {
+				log.Printf("%s VNC rejected, %d connections already open", c.RemoteAddr(), n-1)
+				vncConns.Add(-1)
+				c.Close()
+				continue
+			}
+			go func() {
+				defer vncConns.Add(-1)
+				vncHandle(c)
+			}()
 		}
 	}()
 }
@@ -196,29 +272,70 @@ func vncPublishPlaceholder() {
 	vncPublishJPEG(buf.Bytes())
 }
 
-// Publish a browser frame to all connected clients
+// Publish a browser frame to all connected clients. Decoding and tile hashing
+// happen once here rather than per client, and the colormap quantization only
+// runs when somebody is actually attached at 8 bpp.
 func vncPublishJPEG(jpg []byte) {
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(jpg))
-	if err != nil {
-		log.Printf("VNC: bad frame: %v", err)
-		return
-	}
 	vncSrv.Lock()
-	if vncSrv.suspended {
+	if vncSrv.suspend > 0 {
 		vncSrv.Unlock()
 		return
 	}
-	vncSrv.frame = jpg
-	vncSrv.fw = cfg.Width
-	vncSrv.fh = cfg.Height
+	var sizes []int // palette sizes in use, usually just the one
+	for c := range vncSrv.clients {
+		if c.indexed && !slices.Contains(sizes, c.palSize) {
+			sizes = append(sizes, c.palSize)
+		}
+	}
+	rebuild := vncSrv.palSeq == 0 || vncSrv.seq-vncSrv.palSeq >= vncPalFrames
+	vncSrv.Unlock()
+
+	img := vncDecodeRGBA(jpg)
+	if img == nil {
+		log.Printf("VNC: bad frame")
+		return
+	}
+	tiles, gw, gh := vncHashTiles(img)
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+
+	// only the dirty rects get mapped through a palette later, so all that is
+	// needed here is keeping the palettes themselves reasonably current
+	pals := map[int]*vncPal{}
+	if len(sizes) > 0 && rebuild {
+		vncSrv.Lock()
+		ver := vncSrv.palVer + 1
+		vncSrv.palVer = ver
+		vncSrv.Unlock()
+		for _, n := range sizes {
+			pals[n] = vncBuildPal(img, n, ver)
+		}
+	}
+
+	vncSrv.Lock()
+	if vncSrv.suspend > 0 {
+		vncSrv.Unlock()
+		return
+	}
+	vncSrv.frame, vncSrv.frameImg, vncSrv.frameTiles = jpg, img, tiles
+	vncSrv.fgw, vncSrv.fgh = gw, gh
+	vncSrv.fw, vncSrv.fh = w, h
 	vncSrv.seq++
+	if len(pals) > 0 {
+		if vncSrv.pals == nil {
+			vncSrv.pals = map[int]*vncPal{}
+		}
+		for n, p := range pals {
+			vncSrv.pals[n] = p
+		}
+		vncSrv.palSeq = vncSrv.seq
+	}
 	barW := vncSrv.barW
 	for c := range vncSrv.clients {
 		vncPoke(c)
 	}
 	vncSrv.Unlock()
-	if barW != cfg.Width {
-		vncDrawBar(cfg.Width)
+	if barW != w {
+		vncDrawBar(w)
 	}
 }
 
@@ -341,6 +458,7 @@ func vncDrawBar(w int) {
 	}
 	vncSrv.Lock()
 	vncSrv.barJpg = buf.Bytes()
+	vncSrv.barImg = img
 	vncSrv.barW = w
 	vncSrv.barSeq++
 	for c := range vncSrv.clients {
@@ -410,24 +528,36 @@ func vncSetURL(u string) {
 
 // ---- screencast ----
 
+// Bind a screencast listener to the active tab, at most once per context.
+// The flag lives on the tab so it goes away when the tab does.
 func vncCastListen() {
+	lctx := brCtx() // drop events from tabs that are no longer active
 	vncSrv.Lock()
-	seen := vncSrv.listened[ctx]
-	if !seen {
-		vncSrv.listened[ctx] = true
+	var t *vncTab
+	if vncSrv.active < len(vncSrv.tabs) {
+		t = vncSrv.tabs[vncSrv.active]
+	}
+	seen := t != nil && t.listCtx == lctx
+	if t != nil {
+		t.listCtx = lctx
 	}
 	vncSrv.Unlock()
 	if seen {
 		return
 	}
-	lctx := ctx // drop events from tabs that are no longer active
 	chromedp.ListenTarget(lctx, func(ev interface{}) {
-		if lctx != ctx {
+		if lctx != brCtx() {
 			return
 		}
 		switch e := ev.(type) {
 		case *page.EventScreencastFrame:
-			go chromedp.Run(lctx, page.ScreencastFrameAck(e.SessionID))
+			// chrome waits for the ack before sending more, so this must not be
+			// dropped; one worker handles them instead of a goroutine per frame
+			select {
+			case vncSrv.ackCh <- vncAck{lctx, e.SessionID}:
+			default:
+				go chromedp.Run(lctx, page.ScreencastFrameAck(e.SessionID))
+			}
 			b, err := base64.StdEncoding.DecodeString(e.Data)
 			if err != nil {
 				return
@@ -447,8 +577,9 @@ func vncCastStart() {
 	zoom := vncSrv.zoom
 	vncSrv.Unlock()
 	vncCastListen()
+	bc := brCtx()
 	var loc string
-	err := chromedp.Run(ctx,
+	err := chromedp.Run(bc,
 		emulation.SetDeviceMetricsOverride(int64(w), int64(h), 1, false),
 		chromedp.Location(&loc),
 		page.StartScreencast().
@@ -466,7 +597,7 @@ func vncCastStart() {
 	// never produce a frame, so push one screenshot at the new size ourselves
 	go func() {
 		var shot []byte
-		err := chromedp.Run(ctx, chromedp.ActionFunc(func(cx context.Context) error {
+		err := chromedp.Run(bc, chromedp.ActionFunc(func(cx context.Context) error {
 			var err error
 			shot, err = page.CaptureScreenshot().WithFormat(page.CaptureScreenshotFormatJpeg).WithQuality(*defJpgQual).Do(cx)
 			return err
@@ -483,21 +614,23 @@ func vncCastStart() {
 }
 
 func vncCastStop() {
-	chromedp.Run(ctx, page.StopScreencast())
+	chromedp.Run(brCtx(), page.StopScreencast())
 	log.Printf("VNC: screencast stopped")
 }
 
-// Called by http capture routines: they need the viewport for themselves
+// Called by http capture routines: they need the viewport for themselves.
+// Nests, so overlapping http requests don't resume each other's screencast.
 func vncSuspend() {
 	if *vncAddr == "" {
 		return
 	}
 	vncSrv.Lock()
+	vncSrv.suspend++
+	first := vncSrv.suspend == 1
 	on := vncSrv.casting
-	vncSrv.suspended = true
 	vncSrv.Unlock()
-	if on {
-		chromedp.Run(ctx, page.StopScreencast())
+	if first && on {
+		chromedp.Run(brCtx(), page.StopScreencast())
 	}
 }
 
@@ -507,10 +640,13 @@ func vncResume() {
 		return
 	}
 	vncSrv.Lock()
-	vncSrv.suspended = false
+	if vncSrv.suspend > 0 {
+		vncSrv.suspend--
+	}
+	last := vncSrv.suspend == 0
 	on := vncSrv.casting
 	vncSrv.Unlock()
-	if on {
+	if last && on {
 		vncCastStart()
 	}
 }
@@ -521,9 +657,9 @@ func vncCtxReset() {
 		return
 	}
 	vncSrv.Lock()
-	if len(vncSrv.tabs) > 0 { // the active tab context was replaced
+	if vncSrv.active < len(vncSrv.tabs) { // the active tab context was replaced
 		t := vncSrv.tabs[vncSrv.active]
-		t.ctx, t.cncl, t.id = ctx, cncl, ""
+		t.ctx, t.cncl, t.id, t.listCtx = brCtx(), brCncl(), "", nil
 	}
 	on := vncSrv.casting
 	vncSrv.Unlock()
@@ -537,10 +673,12 @@ func vncCtxReset() {
 func vncHandle(conn net.Conn) {
 	defer conn.Close()
 	log.Printf("%s VNC client connected", conn.RemoteAddr())
+	conn.SetDeadline(time.Now().Add(vncHandshakeTO))
 	if err := vncHandshake(conn); err != nil {
 		log.Printf("%s VNC handshake: %v", conn.RemoteAddr(), err)
 		return
 	}
+	conn.SetDeadline(time.Time{}) // a connected client may idle for hours
 	c := &vncClient{conn: conn, poke: make(chan struct{}, 1), done: make(chan struct{}), pf: vncDefaultPF}
 	vncSrv.Lock()
 	vncSrv.clients[c] = true
@@ -597,8 +735,21 @@ func vncHandshake(conn net.Conn) error {
 	} else {
 		conn.Write([]byte{0, 0, 0, 1}) // 3.3: security type none
 	}
-	if _, err := io.ReadFull(conn, make([]byte, 1)); err != nil { // ClientInit / shared flag
-		return fmt.Errorf("client gave up after security none - macOS Screen Sharing is not supported (no tight encoding), use TigerVNC or TightVNC viewer: %w", err)
+	ci := make([]byte, 1)
+	if _, err := io.ReadFull(conn, ci); err != nil { // ClientInit / shared flag
+		return fmt.Errorf("client gave up after security none: %w", err)
+	}
+	if ci[0] == 0 { // exclusive access requested, drop everyone else
+		log.Printf("%s VNC client asked for exclusive access", conn.RemoteAddr())
+		vncSrv.Lock()
+		var others []*vncClient
+		for c := range vncSrv.clients {
+			others = append(others, c)
+		}
+		vncSrv.Unlock()
+		for _, c := range others {
+			c.conn.Close()
+		}
 	}
 	vncSrv.Lock()
 	w, h := vncSrv.vw, vncSrv.vh
@@ -632,17 +783,37 @@ func vncReadLoop(c *vncClient) {
 				rMax: binary.BigEndian.Uint16(b[7:]), gMax: binary.BigEndian.Uint16(b[9:]), bMax: binary.BigEndian.Uint16(b[11:]),
 				rSh: b[13], gSh: b[14], bSh: b[15],
 			}
-			indexed := b[6] == 0 && b[3] == 8
-			if indexed { // colormap client: we drive the palette adaptively per frame
-				pf = vncBGR233
-				log.Printf("%s VNC client wants a colormap, using adaptive quantized palette", c.conn.RemoteAddr())
+			depth := b[4]
+			if pf.bpp != 8 && pf.bpp != 16 && pf.bpp != 32 {
+				// rfb only defines 8, 16 and 32; anything else would desync
+				// every pixel we write, so keep what we already had
+				log.Printf("%s VNC client asked for %d bpp which rfb does not define, ignoring", c.conn.RemoteAddr(), pf.bpp)
+				break
+			}
+			indexed := b[6] == 0
+			if indexed && pf.bpp != 8 {
+				log.Printf("%s VNC client wants a %d bpp colormap, too large to drive, staying true color", c.conn.RemoteAddr(), pf.bpp)
+				indexed = false
+			}
+			palSize := 0
+			if indexed { // colormap client: we drive the palette adaptively
+				palSize = min(1<<min(depth, 8), int(defGeom.c), 256)
+				if palSize < 2 {
+					palSize = 2
+				}
+				pf = vncBGR233 // only bpp and byte width matter for indices
+				log.Printf("%s VNC client wants a colormap at depth %d, using %d adaptive colors", c.conn.RemoteAddr(), depth, palSize)
 			}
 			vncSrv.Lock()
 			c.pf = pf
 			c.indexed = indexed
+			c.palSize = palSize
+			c.lut = nil
+			c.palVer = 0
+			c.resetEnc = true // pixel size changed, resend in the new format
 			vncSrv.Unlock()
-			if pf.bpp < 16 {
-				log.Printf("%s VNC client at %d bpp, using tight palette with %d color quantization instead of jpeg", c.conn.RemoteAddr(), pf.bpp, defGeom.c)
+			if pf.bpp == 8 && !indexed {
+				log.Printf("%s VNC client at 8 bpp true color, dithering into its own format", c.conn.RemoteAddr())
 			}
 		case 2: // SetEncodings
 			if !vncSetEncodings(c) {
@@ -658,6 +829,7 @@ func vncReadLoop(c *vncClient) {
 			if b[0] == 0 { // non incremental - force full resend
 				c.sentSeq = 0
 				c.sentBar = 0
+				c.forceFull = true
 			}
 			vncSrv.Unlock()
 			vncPoke(c)
@@ -678,7 +850,40 @@ func vncReadLoop(c *vncClient) {
 			if _, err := io.ReadFull(c.conn, b); err != nil {
 				return
 			}
-			if _, err := io.CopyN(io.Discard, c.conn, int64(binary.BigEndian.Uint32(b[3:]))); err != nil {
+			n := int64(binary.BigEndian.Uint32(b[3:]))
+			if n > vncMaxCut { // keep the rest on the wire but don't buffer it
+				if _, err := io.CopyN(io.Discard, c.conn, n); err != nil {
+					return
+				}
+				log.Printf("%s VNC cut text of %d bytes ignored, over limit", c.conn.RemoteAddr(), n)
+				break
+			}
+			txt := make([]byte, n)
+			if _, err := io.ReadFull(c.conn, txt); err != nil {
+				return
+			}
+			vncSrv.Lock()
+			vncSrv.clipboard = string(txt) // latin-1 on the wire, per the spec
+			vncSrv.Unlock()
+		case 150: // EnableContinuousUpdates
+			b := make([]byte, 9)
+			if _, err := io.ReadFull(c.conn, b); err != nil {
+				return
+			}
+			vncSrv.Lock()
+			c.contUpd = b[0] != 0
+			c.pending = c.pending || c.contUpd
+			vncSrv.Unlock()
+			log.Printf("%s VNC continuous updates %v", c.conn.RemoteAddr(), b[0] != 0)
+			if b[0] == 0 {
+				c.wmu.Lock()
+				c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
+				c.conn.Write([]byte{150})
+				c.wmu.Unlock()
+			}
+			vncPoke(c)
+		case 248: // ClientFence
+			if !vncFence(c) {
 				return
 			}
 		case 251: // SetDesktopSize
@@ -702,22 +907,43 @@ func vncSetEncodings(c *vncClient) bool {
 	if _, err := io.ReadFull(c.conn, encs); err != nil {
 		return false
 	}
-	var tight, ext, desk, cur bool
+	var tight, zlb, hex, ext, desk, cur, dnm, fnc, cup bool
+	qual := 0
 	for i := 0; i < len(encs); i += 4 {
-		switch int32(binary.BigEndian.Uint32(encs[i:])) {
+		e := int32(binary.BigEndian.Uint32(encs[i:]))
+		switch e {
 		case rfbEncodingTight:
 			tight = true
+		case rfbEncodingZlib:
+			zlb = true
+		case rfbEncodingHextile:
+			hex = true
 		case rfbEncodingExtDesk:
 			ext = true
 		case rfbEncodingDesk:
 			desk = true
 		case rfbEncodingCursor:
 			cur = true
+		case rfbEncodingDeskName:
+			dnm = true
+		case rfbEncodingFence:
+			fnc = true
+		case rfbEncodingContUpd:
+			cup = true
+		}
+		if e >= -32 && e <= -23 { // jpeg quality level 0..9
+			qual = int(e+32)*10 + 10
 		}
 	}
-	if !tight {
-		log.Printf("%s VNC client does not support tight encoding, disconnecting", c.conn.RemoteAddr())
-		return false
+	// best first: tight, then zlib, then hextile, then raw which everybody has
+	enc := encRaw
+	switch {
+	case tight:
+		enc = encTight
+	case zlb:
+		enc = encZlib
+	case hex:
+		enc = encHextile
 	}
 	vncSrv.Lock()
 	// TigerVNC only sends SetDesktopSize after it saw an ExtendedDesktopSize from us
@@ -725,12 +951,62 @@ func vncSetEncodings(c *vncClient) bool {
 	c.extDesk = ext
 	c.deskSize = desk
 	c.needCursor = cur
+	c.hasDeskNm = dnm
+	c.hasFence = fnc
+	c.hasContUpd = cup
+	c.jpegQual = qual
+	c.enc = enc
+	c.resetEnc = true // writer drops its zlib stream and resends everything
+	c.sentSeq = 0
+	c.sentBar = 0
 	vncSrv.Unlock()
-	if cur || ext {
-		vncPoke(c)
+	// the way to advertise continuous update support is to send an
+	// EndOfContinuousUpdates before the client has enabled anything
+	if cup {
+		c.wmu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
+		c.conn.Write([]byte{150})
+		c.wmu.Unlock()
 	}
-	log.Printf("%s VNC client encodings: tight, resize ext=%v basic=%v, cursor=%v", c.conn.RemoteAddr(), ext, desk, cur)
+	vncPoke(c)
+	log.Printf("%s VNC client encodings: %v, resize ext=%v basic=%v, cursor=%v, jpegqual=%v, fence=%v contupd=%v",
+		c.conn.RemoteAddr(), enc, ext, desk, cur, qual, fnc, cup)
 	return true
+}
+
+// Fence: the client either asks us to echo one back, or is echoing ours. Our
+// own fences are how we tell it has finished drawing the last update.
+func vncFence(c *vncClient) bool {
+	b := make([]byte, 8)
+	if _, err := io.ReadFull(c.conn, b); err != nil {
+		return false
+	}
+	flags := binary.BigEndian.Uint32(b[3:])
+	payload := make([]byte, b[7])
+	if _, err := io.ReadFull(c.conn, payload); err != nil {
+		return false
+	}
+	if flags&rfbFenceRequest == 0 { // an echo of ours: it has caught up
+		vncSrv.Lock()
+		c.fencePend = false
+		vncSrv.Unlock()
+		vncPoke(c)
+		return true
+	}
+	c.wmu.Lock()
+	c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
+	_, err := c.conn.Write(vncFenceMsg(flags&^rfbFenceRequest, payload))
+	c.wmu.Unlock()
+	return err == nil
+}
+
+func vncFenceMsg(flags uint32, payload []byte) []byte {
+	var b bytes.Buffer
+	b.Write([]byte{248, 0, 0, 0})
+	binary.Write(&b, binary.BigEndian, flags)
+	b.WriteByte(byte(len(payload)))
+	b.Write(payload)
+	return b.Bytes()
 }
 
 // TigerVNC remote resize: viewport follows the client window size
@@ -757,6 +1033,7 @@ func vncSetDesktopSize(c *vncClient) bool {
 	vncSrv.Unlock()
 	// ack the requester: reason=1 (this client), result=0 (success)
 	c.wmu.Lock()
+	c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
 	err := vncSendExtDeskSize(c.conn, 1, 0, w, h)
 	c.wmu.Unlock()
 	if err != nil {
@@ -773,7 +1050,7 @@ func vncSetDesktopSize(c *vncClient) bool {
 // Serializes tab list changes and active tab switches
 var vncTabMu sync.Mutex
 
-// Make tab i active: swap the global browser context, move the screencast.
+// Make tab i active: swap the active browser context, move the screencast.
 // Callers hold vncTabMu.
 func vncActivate(i int) {
 	vncSrv.Lock()
@@ -793,7 +1070,7 @@ func vncActivate(i int) {
 	if on && old != nt {
 		chromedp.Run(old.ctx, page.StopScreencast())
 	}
-	ctx, cncl = nt.ctx, nt.cncl
+	setBrCtx(nt.ctx, nt.cncl)
 	if on {
 		vncCastStart()
 	}
@@ -825,7 +1102,7 @@ func vncNewTab() {
 // but accept it as a new window, which headless has no real windows anyway.
 func vncAddTab() (int, error) {
 	var tid target.ID
-	err := chromedp.Run(ctx, chromedp.ActionFunc(func(cx context.Context) error {
+	err := chromedp.Run(brCtx(), chromedp.ActionFunc(func(cx context.Context) error {
 		id, err := target.CreateTarget("about:blank").WithNewWindow(true).Do(cx)
 		tid = id
 		return err
@@ -833,7 +1110,7 @@ func vncAddTab() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	nctx, ncncl := chromedp.NewContext(ctx, chromedp.WithTargetID(tid))
+	nctx, ncncl := chromedp.NewContext(brRoot(), chromedp.WithTargetID(tid))
 	if err := chromedp.Run(nctx, chromedp.Navigate("about:blank")); err != nil {
 		ncncl()
 		return 0, err
@@ -872,10 +1149,19 @@ func vncCloseTab(i int) {
 	}
 	vncSrv.active = a
 	vncSrv.Unlock()
-	// close the target, not the context: cancelling would cascade to tabs
-	// whose contexts were derived from this one
 	chromedp.Run(t.ctx, page.Close())
+	vncDropTab(t)
 	vncActivate(a)
+}
+
+// Release a tab's chromedp context. Every tab hangs off brRoot() so this only
+// tears down that one tab, but cancelling the root itself would kill the
+// browser, so the first tab keeps its context until shutdown.
+func vncDropTab(t *vncTab) {
+	if t.cncl == nil || t.ctx == brRoot() {
+		return
+	}
+	t.cncl()
 }
 
 func vncTabClick(x int) {
@@ -906,22 +1192,112 @@ func vncTabClick(x int) {
 
 // Watch browser targets: adopt tabs opened by pages (window.open, target=_blank),
 // refresh titles for the tab bar, reap externally closed tabs
+// Reconcile the tab list when chrome says something changed, with a slow tick
+// as a backstop in case an event is ever missed.
 func vncTabPoller() {
+	for {
+		select {
+		case <-vncSrv.syncCh:
+		case <-time.After(vncReconcile):
+		}
+		vncSrv.Lock()
+		on := vncSrv.casting
+		vncSrv.Unlock()
+		if on {
+			vncTabSync()
+		}
+	}
+}
+
+// Ask chrome to report target lifecycle instead of us listing them every second
+func vncWatchTargets() {
+	root := brRoot()
+	chromedp.ListenBrowser(root, func(ev interface{}) {
+		switch ev.(type) {
+		case *target.EventTargetCreated, *target.EventTargetDestroyed,
+			*target.EventTargetInfoChanged, *target.EventTargetCrashed:
+			select {
+			case vncSrv.syncCh <- struct{}{}:
+			default: // a sync is already queued, it will pick this up too
+			}
+		}
+	})
+	if err := chromedp.Run(root, target.SetDiscoverTargets(true)); err != nil {
+		log.Printf("VNC: target discovery unavailable, falling back to polling: %v", err)
+	}
+}
+
+// The page selection has no cdp event, so it stays on a timer
+func vncSelPoller() {
 	for range time.Tick(time.Second) {
 		vncSrv.Lock()
 		on := vncSrv.casting
 		vncSrv.Unlock()
-		if !on {
-			continue
+		if on {
+			vncSyncSelection()
 		}
-		vncTabSync()
 	}
+}
+
+// Push the page's text selection to clients as ServerCutText, so selecting in
+// the browser makes the text pasteable locally. Chrome has no clipboard in
+// headless mode, so the selection is the closest useful thing.
+func vncSyncSelection() {
+	var sel string
+	err := chromedp.Run(brCtx(), chromedp.Evaluate(`(document.getSelection()||'').toString().slice(0,65536)`, &sel))
+	if err != nil {
+		return
+	}
+	if sel == "" {
+		return
+	}
+	vncSrv.Lock()
+	vncSrv.selection = sel
+	// tracked per client, so one that connects later still gets the current
+	// selection instead of waiting for it to change again
+	var cs []*vncClient
+	for c := range vncSrv.clients {
+		if c.sentCut != sel {
+			c.sentCut = sel
+			cs = append(cs, c)
+		}
+	}
+	vncSrv.Unlock()
+	if len(cs) == 0 {
+		return
+	}
+	msg := vncCutTextMsg(sel)
+	for _, c := range cs {
+		c.wmu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
+		_, err := c.conn.Write(msg)
+		c.wmu.Unlock()
+		if err != nil {
+			c.conn.Close()
+		}
+	}
+}
+
+// ServerCutText: latin-1 on the wire, so anything else degrades to '?'
+func vncCutTextMsg(s string) []byte {
+	var b bytes.Buffer
+	b.Write([]byte{3, 0, 0, 0})
+	l1 := make([]byte, 0, len(s))
+	for _, r := range s {
+		if r > 0xFF {
+			r = '?'
+		}
+		l1 = append(l1, byte(r))
+	}
+	binary.Write(&b, binary.BigEndian, uint32(len(l1)))
+	b.Write(l1)
+	return b.Bytes()
 }
 
 func vncTabSync() {
 	vncTabMu.Lock()
 	defer vncTabMu.Unlock()
-	infos, err := chromedp.Targets(ctx)
+	infos, err := chromedp.Targets(brCtx())
 	if err != nil {
 		return
 	}
@@ -942,6 +1318,7 @@ func vncTabSync() {
 	alive := make(map[target.ID]bool)
 	changed := false
 	var adopt []*target.Info
+	var reaped []*vncTab
 	for _, ti := range infos {
 		if ti.Type != "page" {
 			continue
@@ -963,6 +1340,7 @@ func vncTabSync() {
 			continue
 		}
 		log.Printf("VNC: tab %d (%s) is gone, removing", i, t.url)
+		reaped = append(reaped, t)
 		vncSrv.tabs = append(vncSrv.tabs[:i], vncSrv.tabs[i+1:]...)
 		if vncSrv.active >= len(vncSrv.tabs) {
 			vncSrv.active = len(vncSrv.tabs) - 1
@@ -974,12 +1352,21 @@ func vncTabSync() {
 	act := vncSrv.tabs[vncSrv.active]
 	ai := vncSrv.active
 	w := vncSrv.barW
+	if nm := act.title; nm != "" && nm != vncSrv.deskName { // viewer title bar
+		vncSrv.deskName = nm
+		for c := range vncSrv.clients {
+			vncPoke(c)
+		}
+	}
 	vncSrv.Unlock()
-	if ctx != act.ctx { // the active tab was reaped
+	for _, t := range reaped {
+		vncDropTab(t)
+	}
+	if brCtx() != act.ctx { // the active tab was reaped
 		vncActivate(ai)
 	}
 	for _, ti := range adopt {
-		nctx, ncncl := chromedp.NewContext(ctx, chromedp.WithTargetID(ti.TargetID))
+		nctx, ncncl := chromedp.NewContext(brRoot(), chromedp.WithTargetID(ti.TargetID))
 		t := &vncTab{ctx: nctx, cncl: ncncl, id: ti.TargetID, title: ti.Title, url: ti.URL}
 		vncSrv.Lock()
 		vncSrv.tabs = append(vncSrv.tabs, t)
@@ -1010,6 +1397,33 @@ var vncKeysyms = map[uint32]string{
 	0xFF1B: kb.Escape, 0xFFFF: kb.Delete, 0xFF63: kb.Insert,
 	0xFF51: kb.ArrowLeft, 0xFF52: kb.ArrowUp, 0xFF53: kb.ArrowRight, 0xFF54: kb.ArrowDown,
 	0xFF55: kb.PageUp, 0xFF56: kb.PageDown, 0xFF50: kb.Home, 0xFF57: kb.End,
+	0xFF13: kb.Pause, 0xFF14: kb.ScrollLock, 0xFF61: kb.PrintScreen, 0xFF7F: kb.NumLock,
+	0xFFE5: kb.CapsLock,
+	// function keys
+	0xFFBE: kb.F1, 0xFFBF: kb.F2, 0xFFC0: kb.F3, 0xFFC1: kb.F4,
+	0xFFC2: kb.F5, 0xFFC3: kb.F6, 0xFFC4: kb.F7, 0xFFC5: kb.F8,
+	0xFFC6: kb.F9, 0xFFC7: kb.F10, 0xFFC8: kb.F11, 0xFFC9: kb.F12,
+	// keypad, both the navigation names and the digits
+	0xFF95: kb.Home, 0xFF96: kb.ArrowLeft, 0xFF97: kb.ArrowUp, 0xFF98: kb.ArrowRight,
+	0xFF99: kb.ArrowDown, 0xFF9A: kb.PageUp, 0xFF9B: kb.PageDown, 0xFF9C: kb.End,
+	0xFF9E: kb.Insert, 0xFF9F: kb.Delete, 0xFF80: " ", 0xFF89: kb.Tab,
+	0xFFAA: "*", 0xFFAB: "+", 0xFFAD: "-", 0xFFAE: ".", 0xFFAF: "/",
+	0xFFB0: "0", 0xFFB1: "1", 0xFFB2: "2", 0xFFB3: "3", 0xFFB4: "4",
+	0xFFB5: "5", 0xFFB6: "6", 0xFFB7: "7", 0xFFB8: "8", 0xFFB9: "9",
+}
+
+// Keysym to the text it produces, or "" for keys with no printable form.
+// Latin-1 comes through directly, everything else via the unicode keysym range.
+func vncKeyText(ks uint32) string {
+	switch {
+	case ks >= 0x20 && ks <= 0x7E, ks >= 0xA0 && ks <= 0xFF:
+		return string(rune(ks))
+	case ks >= 0x01000000 && ks <= 0x0110FFFF: // unicode keysyms
+		if r := rune(ks - 0x01000000); r >= 0x20 {
+			return string(r)
+		}
+	}
+	return ""
 }
 
 func vncKeyEvent(c *vncClient, down bool, ks uint32) {
@@ -1032,37 +1446,26 @@ func vncKeyEvent(c *vncClient, down bool, ks uint32) {
 		}
 		return
 	}
+	if !down {
+		return
+	}
+	// shortcuts first: ctrl+v has to reach the paste handler even when the url
+	// field has focus, otherwise it would just type a "v" into it
+	if vncShortcut(c, ks) {
+		return
+	}
 	vncSrv.Lock()
 	focused := vncSrv.focused
 	vncSrv.Unlock()
 	if focused {
-		if down {
-			vncEditKey(ks)
-		}
+		vncEditKey(ks)
 		return
 	}
-	if !down {
-		return
+	keys := vncKeysyms[ks]
+	if keys == "" {
+		keys = vncKeyText(ks)
 	}
-	if c.mods&int64(input.ModifierCtrl) != 0 { // browser style zoom shortcuts
-		switch ks {
-		case '+', '=':
-			vncZoom(0.25)
-			return
-		case '-':
-			vncZoom(-0.25)
-			return
-		case '0':
-			vncZoom(0)
-			return
-		}
-	}
-	var keys string
-	if s, ok := vncKeysyms[ks]; ok {
-		keys = s
-	} else if (ks >= 0x20 && ks <= 0x7E) || (ks >= 0xA0 && ks <= 0xFF) {
-		keys = string(rune(ks))
-	} else {
+	if keys == "" {
 		return
 	}
 	if c.mods != 0 {
@@ -1070,6 +1473,93 @@ func vncKeyEvent(c *vncClient, down bool, ks uint32) {
 		return
 	}
 	vncDispatch(chromedp.KeyEvent(keys))
+}
+
+// Browser level shortcuts, handled by us rather than passed to the page.
+// Returns true when the key was consumed.
+func vncShortcut(c *vncClient, ks uint32) bool {
+	alt := c.mods&int64(input.ModifierAlt) != 0
+	if alt {
+		switch ks {
+		case 0xFF51: // alt+left, back
+			vncDispatch(chromedp.NavigateBack())
+			return true
+		case 0xFF53: // alt+right, forward
+			vncDispatch(chromedp.NavigateForward())
+			return true
+		}
+	}
+	if c.mods&int64(input.ModifierCtrl) == 0 {
+		return false
+	}
+	switch ks {
+	case '+', '=':
+		vncZoom(0.25)
+	case '-':
+		vncZoom(-0.25)
+	case '0':
+		vncZoom(0)
+	case 'l', 'L', 0x0C: // focus the url field, ctrl sends the control code on some clients
+		vncFocusURL()
+	case 't', 'T', 0x14:
+		go vncNewTab()
+	case 'w', 'W', 0x17:
+		vncSrv.Lock()
+		i := vncSrv.active
+		vncSrv.Unlock()
+		go vncCloseTab(i)
+	case 'r', 'R', 0x12:
+		vncDispatch(chromedp.Reload())
+	case 0xFF09, 0x09: // ctrl+tab, next tab
+		vncSrv.Lock()
+		n, i := len(vncSrv.tabs), vncSrv.active
+		vncSrv.Unlock()
+		if n > 1 {
+			go vncSwitchTab((i + 1) % n)
+		}
+	case 'v', 'V', 0x16:
+		vncPaste()
+	default:
+		return false
+	}
+	return true
+}
+
+// Put the client's clipboard into the page, or into the url field when it has
+// focus. Chrome has no clipboard of its own in headless, so we insert directly.
+func vncPaste() {
+	vncSrv.Lock()
+	txt := vncSrv.clipboard
+	focused := vncSrv.focused
+	if focused {
+		if vncSrv.selAll {
+			vncSrv.edit = ""
+			vncSrv.selAll = false
+		}
+		vncSrv.edit += txt
+	}
+	w := vncSrv.barW
+	vncSrv.Unlock()
+	if txt == "" {
+		return
+	}
+	if focused {
+		vncDrawBar(w)
+		return
+	}
+	vncDispatch(chromedp.ActionFunc(func(cx context.Context) error {
+		return input.InsertText(txt).Do(cx)
+	}))
+}
+
+func vncFocusURL() {
+	vncSrv.Lock()
+	vncSrv.focused = true
+	vncSrv.edit = vncSrv.urlText
+	vncSrv.selAll = true
+	w := vncSrv.barW
+	vncSrv.Unlock()
+	vncDrawBar(w)
 }
 
 // Keystroke into the url field
@@ -1149,12 +1639,15 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 			vncDrawBar(w)
 		}
 	}
-	// wheel: buttons 4/5 are single notch press+release pairs
-	if diff&0x08 != 0 && mask&0x08 != 0 {
-		vncDispatch(input.DispatchMouseEvent(input.MouseWheel, fx, fy).WithDeltaY(-120))
-	}
-	if diff&0x10 != 0 && mask&0x10 != 0 {
-		vncDispatch(input.DispatchMouseEvent(input.MouseWheel, fx, fy).WithDeltaY(120))
+	// wheel: buttons 4/5 vertical and 6/7 horizontal, each a press+release pair
+	for _, wh := range []struct {
+		bit    byte
+		dx, dy float64
+	}{{0x08, 0, -120}, {0x10, 0, 120}, {0x20, -120, 0}, {0x40, 120, 0}} {
+		if diff&wh.bit != 0 && mask&wh.bit != 0 {
+			vncDispatch(input.DispatchMouseEvent(input.MouseWheel, fx, fy).
+				WithDeltaX(wh.dx).WithDeltaY(wh.dy))
+		}
 	}
 	btns := []struct {
 		bit byte
@@ -1169,9 +1662,10 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 		typ := input.MouseReleased
 		if mask&bt.bit != 0 {
 			typ = input.MousePressed
+			c.clicks = c.clickCount(bt.bit, int(x), int(y))
 		}
 		vncDispatch(input.DispatchMouseEvent(typ, fx, fy).
-			WithButton(bt.b).WithClickCount(1).WithModifiers(input.Modifier(c.mods)))
+			WithButton(bt.b).WithClickCount(int64(c.clicks)).WithModifiers(input.Modifier(c.mods)))
 	}
 	if !moved {
 		return
@@ -1184,6 +1678,30 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 		}
 	}
 	vncDispatch(input.DispatchMouseEvent(input.MouseMoved, fx, fy).WithButton(held))
+}
+
+// Chrome needs a real click count for double click to select a word or for
+// dblclick handlers to fire; VNC only gives us button transitions.
+func (c *vncClient) clickCount(bit byte, x, y int) int {
+	now := time.Now()
+	near := abs(x-c.lastClkX) <= 4 && abs(y-c.lastClkY) <= 4
+	if bit == c.lastBtn && near && now.Sub(c.lastClk) < vncDblClick {
+		c.clicks++
+		if c.clicks > 3 {
+			c.clicks = 1
+		}
+	} else {
+		c.clicks = 1
+	}
+	c.lastBtn, c.lastClkX, c.lastClkY, c.lastClk = bit, x, y, now
+	return c.clicks
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func vncBarClick(x int) {
@@ -1218,13 +1736,7 @@ func vncBarClick(x int) {
 	if x < vncURLX {
 		return
 	}
-	vncSrv.Lock()
-	vncSrv.focused = true
-	vncSrv.edit = vncSrv.urlText
-	vncSrv.selAll = true
-	w := vncSrv.barW
-	vncSrv.Unlock()
-	vncDrawBar(w)
+	vncFocusURL()
 }
 
 // ---- frame delivery ----
@@ -1239,7 +1751,28 @@ func vncWriter(c *vncClient) {
 		vncSrv.Lock()
 		frame, seq, fw, fh := vncSrv.frame, vncSrv.seq, vncSrv.fw, vncSrv.fh
 		bar, barSeq, barW := vncSrv.barJpg, vncSrv.barSeq, vncSrv.barW
-		if !c.pending || frame == nil || (c.sentSeq == seq && c.sentBar == barSeq && !c.extInit) {
+		img, tiles, gw, gh := vncSrv.frameImg, vncSrv.frameTiles, vncSrv.fgw, vncSrv.fgh
+		barImg, name := vncSrv.barImg, vncSrv.deskName
+		pal := vncSrv.pals[c.palSize]
+		if c.resetEnc {
+			c.resetEnc = false
+			c.zw = nil
+			c.zbuf.Reset()
+			c.lastCmap = nil
+			c.tiles = nil
+		}
+		if c.forceFull { // client asked for a full repaint, forget what it has
+			c.forceFull = false
+			c.tiles = nil
+		}
+		nameChanged := c.hasDeskNm && name != "" && name != c.sentName
+		// with continuous updates the client stops asking, we just push. The
+		// outstanding fence is what stops us pushing faster than it can draw.
+		want := c.pending || c.contUpd
+		if c.contUpd && c.fencePend {
+			want = false
+		}
+		if !want || frame == nil || (c.sentSeq == seq && c.sentBar == barSeq && !c.extInit && !nameChanged) {
 			vncSrv.Unlock()
 			continue
 		}
@@ -1266,37 +1799,56 @@ func vncWriter(c *vncClient) {
 		if sendBar {
 			c.sentBar = barSeq
 		}
+		if nameChanged {
+			c.sentName = name
+		}
 		vncSrv.Unlock()
 		if fit { // client can't resize - letterbox into its framebuffer
 			if !c.warnedFit {
 				c.warnedFit = true
 				log.Printf("%s VNC client has no resize support, letterboxing %vx%v into %vx%v", c.conn.RemoteAddr(), fw, fh, aw, ah-vncChromeH)
 			}
-			frame = vncLetterbox(frame, aw, ah-vncChromeH)
-			if frame == nil {
+			// reuse the pad buffer, this runs on every frame for such a client
+			c.lbBuf = vncLetterbox(c.lbBuf, img, aw, ah-vncChromeH)
+			if c.lbBuf == nil {
 				continue
 			}
+			frame = nil // the passthrough jpeg no longer matches the framebuffer
+			img = c.lbBuf
+			tiles, gw, gh = vncHashTiles(img)
 			fw, fh = aw, ah-vncChromeH
+		}
+		if img == nil {
+			continue
 		}
 		var rects [][]byte
 		var cmap []byte
 		if cursor {
 			rects = append(rects, vncRectCursor(pf, indexed))
 		}
-		if pf.bpp < 16 { // tight jpeg needs 16/32 bpp, quantize and use tight palette filter
-			lr, cm := c.lowBppRects(frame, bar, sendBar && barW == fw)
-			if lr == nil {
-				continue
-			}
-			rects = append(rects, lr...)
-			cmap = cm
-		} else {
-			if sendBar && barW == fw {
-				rects = append(rects, vncRectJpeg(0, 0, barW, vncChromeH, bar))
-			}
-			rects = append(rects, vncRectJpeg(0, vncChromeH, fw, fh, frame))
+		if nameChanged {
+			rects = append(rects, vncRectDeskName(name))
 		}
+		if indexed && pal != nil && !bytes.Equal(pal.cmap, c.lastCmap) {
+			cmap = pal.cmap
+			c.lastCmap = pal.cmap
+		}
+		if sendBar && barImg != nil && barW == fw {
+			rects = append(rects, c.encodeRects(barImg, pal, barImg.Bounds(), 0, 0, bar)...)
+		}
+		// only the tiles that actually changed since this client's last update
+		dirty := vncDirtyRects(tiles, c.tiles, gw, gh, fw, fh)
+		whole := len(dirty) == 1 && dirty[0].Dx() == fw && dirty[0].Dy() == fh
+		for _, r := range dirty {
+			var pass []byte
+			if whole {
+				pass = frame // reuse chrome's jpeg untranscoded when we can
+			}
+			rects = append(rects, c.encodeRects(img, pal, r, r.Min.X, r.Min.Y+vncChromeH, pass)...)
+		}
+		c.tiles = append(c.tiles[:0], tiles...)
 		c.wmu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(vncWriteTO))
 		var err error
 		if cmap != nil {
 			_, err = c.conn.Write(cmap)
@@ -1314,6 +1866,14 @@ func vncWriter(c *vncClient) {
 		if err == nil {
 			err = vncSendUpdate(c.conn, rects)
 		}
+		// ask the client to tell us when it has drawn this, so the next frame
+		// waits for a slow link instead of queueing up behind it
+		if err == nil && c.contUpd && c.hasFence {
+			vncSrv.Lock()
+			c.fencePend = true
+			vncSrv.Unlock()
+			_, err = c.conn.Write(vncFenceMsg(rfbFenceRequest|rfbFenceBlockBefore, nil))
+		}
 		c.wmu.Unlock()
 		if err != nil {
 			log.Printf("%s VNC send: %v", c.conn.RemoteAddr(), err)
@@ -1323,19 +1883,63 @@ func vncWriter(c *vncClient) {
 	}
 }
 
-func vncLetterbox(jpg []byte, w, h int) []byte {
-	i, err := jpeg.Decode(bytes.NewReader(jpg))
-	if err != nil {
+// Encode a framebuffer rect, splitting it if the encoding cannot take it whole.
+// x,y are the framebuffer coordinates of r.Min.
+func (c *vncClient) encodeRects(img *image.RGBA, pal *vncPal, r image.Rectangle, x, y int, jpg []byte) [][]byte {
+	if c.enc != encTight || c.pf.bpp < 16 || r.Dx() <= vncTightMax {
+		return [][]byte{c.encodeRect(img, pal, r, x, y, jpg)}
+	}
+	var out [][]byte // a passthrough jpeg covers the whole rect, so it can't be reused
+	for x0 := r.Min.X; x0 < r.Max.X; x0 += vncTightMax {
+		s := image.Rect(x0, r.Min.Y, min(x0+vncTightMax, r.Max.X), r.Max.Y)
+		out = append(out, c.encodeRect(img, pal, s, x+(x0-r.Min.X), y, nil))
+	}
+	return out
+}
+
+// Encode one framebuffer rect in this client's negotiated encoding. jpg, when
+// non nil, is chrome's own jpeg for exactly this rect and goes out untranscoded.
+func (c *vncClient) encodeRect(img *image.RGBA, pal *vncPal, r image.Rectangle, x, y int, jpg []byte) []byte {
+	w, h := r.Dx(), r.Dy()
+	if c.enc == encTight && c.pf.bpp >= 16 { // tight jpeg needs 16 or 32 bpp
+		if jpg == nil {
+			jpg = vncJpegRegion(img, r, c.jpegQuality())
+		}
+		if jpg != nil {
+			return vncRectJpeg(x, y, w, h, jpg)
+		}
+	}
+	pix := c.pixels(img, pal, r)
+	switch c.enc {
+	case encTight: // low bpp: tight basic, copy filter, through the zlib stream
+		return c.rectTightIdx(x, y, pix, w, h)
+	case encZlib:
+		return c.rectZlib(x, y, pix, w, h)
+	case encHextile:
+		return c.rectHextile(x, y, pix, w, h)
+	}
+	return c.rectRaw(x, y, pix, w, h)
+}
+
+func (c *vncClient) jpegQuality() int {
+	if c.jpegQual > 0 {
+		return c.jpegQual
+	}
+	return int(*defJpgQual)
+}
+
+// Pad a frame into a larger framebuffer for clients that cannot resize. dst is
+// reused when it already has the right size, this runs once per frame.
+func vncLetterbox(dst, img *image.RGBA, w, h int) *image.RGBA {
+	if img == nil {
 		return nil
 	}
-	fb := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.Draw(fb, fb.Bounds(), image.NewUniform(vncBgColor()), image.Point{}, draw.Src)
-	draw.Draw(fb, fb.Bounds(), i, image.Point{}, draw.Over)
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, fb, &jpeg.Options{Quality: int(*defJpgQual)}); err != nil {
-		return nil
+	if dst == nil || dst.Bounds().Dx() != w || dst.Bounds().Dy() != h {
+		dst = image.NewRGBA(image.Rect(0, 0, w, h))
 	}
-	return buf.Bytes()
+	draw.Draw(dst, dst.Bounds(), image.NewUniform(vncBgColor()), image.Point{}, draw.Src)
+	draw.Draw(dst, img.Bounds(), img, img.Bounds().Min, draw.Src)
+	return dst
 }
 
 // FramebufferUpdate from pre-built rects
@@ -1373,140 +1977,6 @@ func vncRectJpeg(x, y, w, h int, jpg []byte) []byte {
 	vncCompact(len(jpg), &b)
 	b.Write(jpg)
 	return b.Bytes()
-}
-
-// Low bpp clients: truecolor gets floyd steinberg dithering into its own pixel
-// format, colormap clients get gif mode style median cut quantization via
-// gifPalette with the palette pushed as their colormap.
-func (c *vncClient) lowBppRects(frame, bar []byte, withBar bool) ([][]byte, []byte) {
-	fimg, err := jpeg.Decode(bytes.NewReader(frame))
-	if err != nil {
-		return nil, nil
-	}
-	var rects [][]byte
-	var cmap []byte
-	if c.indexed {
-		nq := defGeom.c
-		if nq < 2 {
-			nq = 2
-		}
-		if nq > 254 { // leave room for the fixed cursor colors
-			nq = 254
-		}
-		q := vncPaletted(gifPalette(fimg, nq))
-		pal := make(color.Palette, 256)
-		for i := range pal {
-			pal[i] = color.Black
-		}
-		copy(pal, q.Palette)
-		pal[254], pal[255] = color.Black, color.White // cursor colors
-		cm := vncColorMapMsg(pal)
-		if !bytes.Equal(cm, c.lastCmap) {
-			cmap = cm
-			c.lastCmap = cm
-		}
-		if withBar {
-			if bimg, err := jpeg.Decode(bytes.NewReader(bar)); err == nil {
-				rects = append(rects, c.rectTightIdx(0, 0, vncIndex(bimg, q.Palette), bimg.Bounds().Dx(), bimg.Bounds().Dy()))
-			}
-		}
-		b := q.Bounds()
-		rects = append(rects, c.rectTightIdx(0, vncChromeH, q.Pix, b.Dx(), b.Dy()))
-		return rects, cmap
-	}
-	// truecolor low bpp: floyd steinberg dither straight into the client format,
-	// error diffusion is what keeps greys grey in 3-3-2 color
-	if withBar {
-		if bimg, err := jpeg.Decode(bytes.NewReader(bar)); err == nil {
-			rects = append(rects, c.rectTightIdx(0, 0, c.dither8(bimg), bimg.Bounds().Dx(), bimg.Bounds().Dy()))
-		}
-	}
-	b := fimg.Bounds()
-	rects = append(rects, c.rectTightIdx(0, vncChromeH, c.dither8(fimg), b.Dx(), b.Dy()))
-	return rects, nil
-}
-
-// Floyd steinberg dithering with O(1) quantization to the client's 8 bpp
-// true color format, the bit packed formats need no palette search
-func (c *vncClient) dither8(img image.Image) []byte {
-	pf := c.pf
-	rMax, gMax, bMax := int32(pf.rMax), int32(pf.gMax), int32(pf.bMax)
-	if rMax < 1 || gMax < 1 || bMax < 1 {
-		rMax, gMax, bMax = 7, 7, 3
-	}
-	bd := img.Bounds()
-	w, h := bd.Dx(), bd.Dy()
-	pix := make([]byte, 0, w*h)
-	cur := make([][3]int32, w+2)
-	next := make([][3]int32, w+2)
-	clamp := func(v int32) int32 {
-		if v < 0 {
-			return 0
-		}
-		if v > 255 {
-			return 255
-		}
-		return v
-	}
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			r, g, bl, _ := img.At(bd.Min.X+x, bd.Min.Y+y).RGBA()
-			cr := clamp(int32(r>>8) + cur[x+1][0])
-			cg := clamp(int32(g>>8) + cur[x+1][1])
-			cb := clamp(int32(bl>>8) + cur[x+1][2])
-			qr := (cr*rMax + 127) / 255
-			qg := (cg*gMax + 127) / 255
-			qb := (cb*bMax + 127) / 255
-			pix = append(pix, byte(qr<<pf.rSh|qg<<pf.gSh|qb<<pf.bSh))
-			er := cr - (qr*255+rMax/2)/rMax
-			eg := cg - (qg*255+gMax/2)/gMax
-			eb := cb - (qb*255+bMax/2)/bMax
-			for i, d := range [4]struct {
-				row *[][3]int32
-				x   int
-				mul int32
-			}{{&cur, x + 2, 7}, {&next, x, 3}, {&next, x + 1, 5}, {&next, x + 2, 1}} {
-				_ = i
-				(*d.row)[d.x][0] += er * d.mul / 16
-				(*d.row)[d.x][1] += eg * d.mul / 16
-				(*d.row)[d.x][2] += eb * d.mul / 16
-			}
-		}
-		cur, next = next, cur
-		for i := range next {
-			next[i] = [3]int32{}
-		}
-	}
-	return pix
-}
-
-// gifPalette returns a dithered grayscale image for 2 colors, normalize to paletted
-func vncPaletted(i image.Image) *image.Paletted {
-	if p, ok := i.(*image.Paletted); ok {
-		return p
-	}
-	b := i.Bounds()
-	p := image.NewPaletted(b, color.Palette{color.Black, color.White})
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			r, g, bl, _ := i.At(x, y).RGBA()
-			if r+g+bl >= 3*0x8000 {
-				p.SetColorIndex(x, y, 1)
-			}
-		}
-	}
-	return p
-}
-
-func vncIndex(i image.Image, pal color.Palette) []byte {
-	b := i.Bounds()
-	idx := make([]byte, 0, b.Dx()*b.Dy())
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			idx = append(idx, byte(pal.Index(i.At(x, y))))
-		}
-	}
-	return idx
 }
 
 func (c *vncClient) deflate(data []byte) []byte {

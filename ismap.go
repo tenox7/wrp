@@ -79,7 +79,7 @@ func (c *wrpCache) clear() {
 	c.maps = make(map[string]cachedMap)
 }
 
-func chromedpStart() (context.CancelFunc, context.CancelFunc) {
+func chromedpStart() {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
@@ -107,8 +107,7 @@ func chromedpStart() (context.CancelFunc, context.CancelFunc) {
 		opts = append(opts, chromedp.UserDataDir(*userDataDir))
 	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, cncl = chromedp.NewContext(actx)
-	return cncl, acncl
+	setBrRoot(chromedp.NewContext(actx))
 }
 
 // Determine what action to take
@@ -161,7 +160,7 @@ func (rq *wrpReq) action() chromedp.Action {
 // Navigate to the desired URL, returns the downloaded file if one was triggered.
 func (rq *wrpReq) navigate() *dlFile {
 	resetDownloadState()
-	ctxErr(chromedp.Run(ctx, rq.action()), rq.w)
+	ctxErr(chromedp.Run(brCtx(), rq.action()), rq.w)
 	return waitForDownload()
 }
 
@@ -177,7 +176,7 @@ func ctxErr(err error, w io.Writer) {
 	if err.Error() != "context canceled" {
 		return
 	}
-	ctx, cncl = chromedp.NewContext(actx)
+	setBrRoot(chromedp.NewContext(actx))
 	setupDownloads()
 	vncCtxReset()
 	log.Printf("Created new context, try again")
@@ -247,7 +246,8 @@ func (rq *wrpReq) captureScreenshot() {
 	wrpCach.clear()
 	var h int64
 	var pngCap []byte
-	chromedp.Run(ctx,
+	bc := brCtx() // pin the tab for the whole capture
+	chromedp.Run(bc,
 		emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), 10, rq.zoom, false),
 		chromedp.Location(&rq.url),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -267,11 +267,11 @@ func (rq *wrpReq) captureScreenshot() {
 		height = h + 30
 	}
 	chromedp.Run(
-		ctx, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
+		bc, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
 		waitForRender(),
 	)
 	// Capture screenshot...
-	ctxErr(chromedp.Run(ctx, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
+	ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
 	seq := shortuuid.New()
 	var imgExt string
 	if rq.imgType == "gip" {
@@ -403,9 +403,10 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rq.proxy {
-		chromedp.Run(ctx, waitForRender())
+		bc := brCtx()
+		chromedp.Run(bc, waitForRender())
 		var loc string
-		chromedp.Run(ctx, chromedp.Location(&loc))
+		chromedp.Run(bc, chromedp.Location(&loc))
 		loc = strings.Replace(loc, "https://", "http://", 1)
 		http.Redirect(w, r, loc, http.StatusFound)
 		return

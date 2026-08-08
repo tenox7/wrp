@@ -35,6 +35,17 @@ var imgStor imageStore
 
 const imgZpfx = "/imgz/"
 
+// Invisible elements are tagged rather than deleted: the page stays intact for
+// the vnc client and for subsequent captures, goquery drops them on our side
+const hidAttr = "data-wrp-hidden"
+
+const (
+	jsMarkHidden = `(function(){var h=[];document.querySelectorAll('*').forEach(function(e){` +
+		`if(getComputedStyle(e).display==='none'){e.setAttribute('` + hidAttr + `','');h.push(e)}});window.__wrpHidden=h})()`
+	jsUnmarkHidden = `(function(){(window.__wrpHidden||[]).forEach(function(e){` +
+		`e.removeAttribute('` + hidAttr + `')});delete window.__wrpHidden})()`
+)
+
 func init() {
 	imgStor.img = make(map[string]imageContainer)
 }
@@ -335,14 +346,17 @@ func simplifyDOM(doc *goquery.Document, rq *wrpReq) int {
 }
 
 func (rq *wrpReq) captureMarkdown() {
+	vncSuspend() // print media and the hidden markers must not reach the vnc client
+	defer vncResume()
 	imgStor.clear()
 	log.Printf("Processing simple HTML conversion for %v", rq.url)
 	var outerHTML string
-	err := chromedp.Run(ctx,
+	err := chromedp.Run(brCtx(),
 		waitForRender(),
 		emulation.SetEmulatedMedia().WithMedia("print"),
-		chromedp.Evaluate(`(function(){document.querySelectorAll('*').forEach(function(e){if(getComputedStyle(e).display==='none')e.remove()})})()`, nil),
+		chromedp.Evaluate(jsMarkHidden, nil),
 		chromedp.OuterHTML("html", &outerHTML, chromedp.ByQuery),
+		chromedp.Evaluate(jsUnmarkHidden, nil),
 		emulation.SetEmulatedMedia().WithMedia(""),
 	)
 	if err != nil {
@@ -358,6 +372,7 @@ func (rq *wrpReq) captureMarkdown() {
 		http.Error(rq.w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	doc.Find("[" + hidAttr + "]").Remove()
 
 	totSize := simplifyDOM(doc, rq)
 

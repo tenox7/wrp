@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"text/template"
 	"time"
@@ -49,13 +50,63 @@ var (
 )
 
 var (
-	srv         http.Server
-	actx, ctx   context.Context
-	acncl, cncl context.CancelFunc
-	wrpCach     wrpCache
-	defGeom     geom
-	htmlTmpl    *template.Template
+	srv      http.Server
+	actx     context.Context
+	acncl    context.CancelFunc
+	wrpCach  wrpCache
+	defGeom  geom
+	htmlTmpl *template.Template
 )
+
+// The browser context is swapped at runtime, by vnc tab switching and by
+// ctxErr, while http handlers are running on it. Always go through these.
+var (
+	ctxMu   sync.RWMutex
+	curCtx  context.Context // active tab
+	curCncl context.CancelFunc
+	curRoot context.Context // owns the browser process, parents all new tabs
+)
+
+func brCtx() context.Context {
+	ctxMu.RLock()
+	defer ctxMu.RUnlock()
+	return curCtx
+}
+
+func brCncl() context.CancelFunc {
+	ctxMu.RLock()
+	defer ctxMu.RUnlock()
+	return curCncl
+}
+
+func brRoot() context.Context {
+	ctxMu.RLock()
+	defer ctxMu.RUnlock()
+	return curRoot
+}
+
+func setBrCtx(c context.Context, n context.CancelFunc) {
+	ctxMu.Lock()
+	curCtx, curCncl = c, n
+	ctxMu.Unlock()
+}
+
+// A fresh browser process: this context owns it and parents every new tab
+func setBrRoot(c context.Context, n context.CancelFunc) {
+	ctxMu.Lock()
+	curCtx, curCncl, curRoot = c, n, c
+	ctxMu.Unlock()
+}
+
+// Cancel the active tab and tear down the browser process
+func brStop() {
+	if c := brCncl(); c != nil {
+		c()
+	}
+	if acncl != nil {
+		acncl()
+	}
+}
 
 //go:embed *.html
 var fs embed.FS
@@ -237,7 +288,7 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 		proxy:   true,
 	}
 	var currentURL string
-	chromedp.Run(ctx, chromedp.Location(&currentURL))
+	chromedp.Run(brCtx(), chromedp.Location(&currentURL))
 	currentURL = strings.Replace(currentURL, "https://", "http://", 1)
 	if currentURL != strings.Replace(rq.url, "https://", "http://", 1) {
 		if dl := rq.navigate(); dl != nil {
@@ -310,8 +361,7 @@ func haltServer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Shutting down WRP...\n")
 	w.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
-	cncl()
-	acncl()
+	brStop()
 	srv.Shutdown(context.Background())
 	os.Exit(1)
 }
@@ -363,9 +413,8 @@ func main() {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
 
-	cncl, acncl = chromedpStart()
-	defer cncl()
-	defer acncl()
+	chromedpStart()
+	defer brStop()
 	setupDownloads()
 	if *vncAddr != "" {
 		vncStart()
@@ -377,8 +426,7 @@ func main() {
 		<-c
 		log.Printf("Interrupt - shutting down.")
 		os.RemoveAll(dlDir)
-		cncl()
-		acncl()
+		brStop()
 		srv.Shutdown(context.Background())
 		os.Exit(1)
 	}()

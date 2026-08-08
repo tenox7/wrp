@@ -51,7 +51,7 @@ func setupDownloads() {
 		}
 		dlCache.files = make(map[string]dlFile)
 	}
-	chromedp.ListenTarget(ctx, func(ev interface{}) {
+	chromedp.ListenTarget(brCtx(), func(ev interface{}) {
 		switch e := ev.(type) {
 		case *browser.EventDownloadWillBegin:
 			log.Printf("Download started: %s (%s)", e.SuggestedFilename, e.GUID)
@@ -79,7 +79,7 @@ func setupDownloads() {
 			}
 		}
 	})
-	err := chromedp.Run(ctx,
+	err := chromedp.Run(brCtx(),
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
 			WithDownloadPath(dlDir).
 			WithEventsEnabled(true),
