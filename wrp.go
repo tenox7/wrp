@@ -444,6 +444,7 @@ func main() {
 	}
 	defer brStop()
 	setupDownloads()
+	selPopupInstall(brCtx())
 	if *vncAddr != "" {
 		vncStart()
 	} else {

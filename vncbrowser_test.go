@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"image"
+	"image/draw"
+	"image/png"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -82,6 +85,222 @@ func TestBrowserScroll(t *testing.T) {
 				g.name, live.mean, live.worst, live.over, live.samples)
 		}
 	}
+}
+
+// Chrome renders a <select> dropdown as a native OS window that no screencast
+// frame ever contains, so a viewer clicking one used to see nothing at all.
+// This drives the whole path a viewer does - RFB pointer events in, framebuffer
+// updates out - and checks the list is really in the pixels the client got, and
+// that clicking a row in it lands on the page.
+//
+// WRP_BROWSER_TEST=1 go test -run TestBrowserSelectPopup -v .
+func TestBrowserSelectPopup(t *testing.T) {
+	if os.Getenv("WRP_BROWSER_TEST") == "" {
+		t.Skip("set WRP_BROWSER_TEST=1 to run, needs a browser")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, testSelectPage())
+	}))
+	defer srv.Close()
+
+	defGeom = geom{w: 900, h: 700, c: 216}
+	*headless = true
+	if err := chromedpStart(); err != nil {
+		t.Fatalf("start browser: %v", err)
+	}
+	defer brStop()
+	selPopupInstall(brCtx())
+	ctx, cncl := context.WithTimeout(brCtx(), 60*time.Second)
+	defer cncl()
+	if err := chromedp.Run(ctx, chromedp.Navigate(srv.URL), chromedp.WaitReady("#s", chromedp.ByID)); err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+
+	vncInit()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	vncWorkers()
+	vncServe(ln)
+	vncCastStart()
+	time.Sleep(2 * time.Second)
+
+	p := dialProto(t, ln.Addr())
+	p.setEncodings(rfbEncodingRaw)
+	fb := image.NewRGBA(image.Rect(0, 0, p.w, p.h))
+	p.fbur(false)
+	p.apply(fb, p.readUpdate())
+	// only ever look below the select: a focused one wears a blue ring of its
+	// own, and the list is the only thing that can put colour under it
+	sx, sy, below := testRect(t, ctx, "#s")
+	below += vncChromeH + 4
+	if n := testBlue(fb, below); n > 200 {
+		t.Fatalf("%d highlight pixels before the select was ever clicked", n)
+	}
+
+	p.click(sx, sy+vncChromeH)
+	p.settle(fb, 3*time.Second)
+	if n := testBlue(fb, below); n < 500 {
+		t.Fatalf("only %d highlight pixels after clicking the select: the dropdown never reached the client", n)
+	}
+
+	// and a click on the fourth row has to land on the page
+	ox, oy, _ := testRect(t, ctx, "body>div>div:nth-child(4)")
+	p.click(ox, oy+vncChromeH)
+	p.settle(fb, 3*time.Second)
+	var val, out string
+	chromedp.Run(ctx, chromedp.Evaluate(`document.getElementById('s').value`, &val))
+	chromedp.Run(ctx, chromedp.Evaluate(`document.getElementById('out').textContent`, &out))
+	if val != "Books" {
+		t.Fatalf("select value %q after picking the fourth row, want Books", val)
+	}
+	if out != "CHANGED TO: Books" {
+		t.Fatalf("page change handler saw %q", out)
+	}
+	if n := testBlue(fb, below); n > 200 {
+		t.Errorf("%d highlight pixels left after the dropdown was dismissed", n)
+	}
+
+	// WRP's own zoom is css zoom on the root, which scales every length the
+	// script sets, so placement has to be checked at more than 100%
+	for _, z := range []float64{1, 0.5, 1.5} {
+		vncApplyZoom(z)
+		time.Sleep(700 * time.Millisecond)
+		zx, zy, _ := testRect(t, ctx, "#s")
+		p.click(zx, zy+vncChromeH)
+		time.Sleep(700 * time.Millisecond)
+		var d []float64
+		if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{
+			const s=document.querySelector('#s'),b=document.querySelector('body>div');
+			if(!b)return[];const r=s.getBoundingClientRect(),g=b.getBoundingClientRect();
+			return[g.left-r.left,g.top-r.bottom,g.width,r.width]})()`, &d)); err != nil || len(d) != 4 {
+			t.Fatalf("zoom %v: no listbox in the dom: %v %v", z, err, d)
+		}
+		t.Logf("zoom %v: listbox offset %.1f,%.1f width %.1f vs select %.1f", z, d[0], d[1], d[2], d[3])
+		if abs(int(d[0])) > 3 || abs(int(d[1])) > 3 {
+			t.Errorf("zoom %v: listbox is %.1f,%.1f from where it belongs under the select", z, d[0], d[1])
+		}
+		if d[2] < d[3]-1 {
+			t.Errorf("zoom %v: listbox %.1f narrower than the select %.1f", z, d[2], d[3])
+		}
+		chromedp.Run(ctx, chromedp.Evaluate(`document.body.dispatchEvent(
+			new MouseEvent('mousedown',{bubbles:true}))`, nil)) // dismiss
+	}
+	vncApplyZoom(1)
+}
+
+// The same native popup problem breaks ISMAP mode, where the dropdown has the
+// extra hazard that captureScreenshot stretches the viewport to the whole page
+// between the click and the shot. Drives the real capture path and looks for
+// the list in the image a browser would have been served.
+//
+// WRP_BROWSER_TEST=1 go test -run TestIsmapSelectPopup -v .
+func TestIsmapSelectPopup(t *testing.T) {
+	if os.Getenv("WRP_BROWSER_TEST") == "" {
+		t.Skip("set WRP_BROWSER_TEST=1 to run, needs a browser")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, testSelectPage())
+	}))
+	defer srv.Close()
+
+	defGeom = geom{w: 900, h: 700, c: 216}
+	*headless = true
+	*vncAddr = ""
+	wrpCach.imgs = make(map[string]cachedImg)
+	wrpCach.maps = make(map[string]cachedMap)
+	if err := chromedpStart(); err != nil {
+		t.Fatalf("start browser: %v", err)
+	}
+	defer brStop()
+	selPopupInstall(brCtx())
+	ctx, cncl := context.WithTimeout(brCtx(), 60*time.Second)
+	defer cncl()
+	if err := chromedp.Run(ctx, chromedp.Navigate(srv.URL), chromedp.WaitReady("#s", chromedp.ByID)); err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+
+	rq := &wrpReq{
+		url: srv.URL, width: 900, height: 700, zoom: 1, jQual: 80, imgType: "png",
+		proxy: true, w: httptest.NewRecorder(), r: httptest.NewRequest("GET", "/", nil),
+	}
+	sx, sy, below := testRect(t, ctx, "#s")
+	if err := chromedp.Run(ctx, chromedp.MouseClickXY(float64(sx), float64(sy))); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	rq.captureScreenshot()
+
+	var buf bytes.Buffer
+	for _, b := range wrpCach.imgs {
+		buf = b.buf
+	}
+	if buf.Len() == 0 {
+		t.Fatal("capture produced no image")
+	}
+	img, err := png.Decode(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	rgba := image.NewRGBA(img.Bounds())
+	draw.Draw(rgba, img.Bounds(), img, img.Bounds().Min, draw.Src)
+	if n := testBlue(rgba, below+4); n < 500 {
+		t.Fatalf("only %d highlight pixels below the select in a %v capture: the dropdown is not in the image",
+			n, img.Bounds().Size())
+	}
+}
+
+// Viewport centre and bottom edge of the first element matching sel, in css pixels
+func testRect(t *testing.T, ctx context.Context, sel string) (x, y, bottom int) {
+	t.Helper()
+	var r []float64
+	js := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return[];
+		const r=e.getBoundingClientRect();return[r.x+r.width/2,r.y+r.height/2,r.bottom]})()`, sel)
+	if err := chromedp.Run(ctx, chromedp.Evaluate(js, &r)); err != nil || len(r) != 3 {
+		t.Fatalf("rect of %s: %v %v", sel, err, r)
+	}
+	return int(r[0]), int(r[1]), int(r[2])
+}
+
+// Pixels close to the listbox highlight, #1a73e8, after a round trip through jpeg
+func testBlue(fb *image.RGBA, minY int) int {
+	n := 0
+	b := fb.Bounds()
+	for y := max(b.Min.Y, minY); y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			o := fb.PixOffset(x, y)
+			if abs(int(fb.Pix[o])-0x1a) < 40 && abs(int(fb.Pix[o+1])-0x73) < 40 && abs(int(fb.Pix[o+2])-0xe8) < 40 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// Pull updates until the picture stops changing, so the assertion sees the
+// frame the viewer would be looking at rather than one mid repaint
+func (p *protoConn) settle(fb *image.RGBA, d time.Duration) {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		p.fbur(true)
+		rects, ok := p.readUpdateWithin(400 * time.Millisecond)
+		if !ok {
+			return
+		}
+		p.apply(fb, rects)
+	}
+}
+
+func testSelectPage() string {
+	return `<html><body style="font:16px sans-serif;padding:40px;background:#fff">
+<select id=s style="font-size:20px;padding:6px">
+<option>All Categories</option><option>Antiques</option><option>Art</option>
+<option>Books</option><option>Cameras</option><option>Computers</option>
+</select><p id=out>below the select</p>
+<script>document.getElementById('s').addEventListener('change',function(e){
+document.getElementById('out').textContent='CHANGED TO: '+e.target.value})</script>
+</body></html>`
 }
 
 type scrollStats struct {

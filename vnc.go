@@ -1479,6 +1479,7 @@ func vncAddTab() (int, error) {
 		ncncl()
 		return 0, err
 	}
+	selPopupInstall(nctx)
 	t := &vncTab{ctx: nctx, cncl: ncncl, id: tid, url: "about:blank"}
 	vncSrv.Lock()
 	vncSrv.tabs = append(vncSrv.tabs, t)
@@ -1732,6 +1733,7 @@ func vncTabSync() {
 	}
 	for _, ti := range adopt {
 		nctx, ncncl := chromedp.NewContext(brRoot(), chromedp.WithTargetID(ti.TargetID))
+		selPopupInstall(nctx)
 		t := &vncTab{ctx: nctx, cncl: ncncl, id: ti.TargetID, title: ti.Title, url: ti.URL}
 		vncSrv.Lock()
 		vncSrv.tabs = append(vncSrv.tabs, t)
@@ -1872,6 +1874,7 @@ func vncCheckBrowser() {
 		return
 	}
 	setupDownloads()
+	selPopupInstall(nctx)
 	if *vncAddr != "" {
 		vncWatchTargets() // the old listener died with the old browser
 	}
