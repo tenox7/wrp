@@ -210,7 +210,7 @@ func (rq *wrpReq) parseForm() {
 	}
 	rq.zoom, _ = strconv.ParseFloat(rq.r.FormValue("z"), 64)
 	if rq.zoom < 0.1 {
-		rq.zoom = 1.0
+		rq.zoom = defZoom
 	}
 	rq.imgType = rq.r.FormValue("t")
 	switch rq.imgType {
@@ -233,6 +233,7 @@ func (rq *wrpReq) parseForm() {
 		rq.maxSize = *defImgSize
 	}
 	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
+	sessSaveUI(rq)
 }
 
 func (rq *wrpReq) printUI(p uiParams) {
@@ -334,6 +335,7 @@ func pageServer(w http.ResponseWriter, r *http.Request) {
 	}
 	rq.parseForm()
 	if len(rq.url) < 4 {
+		rq.url = sessLastURL() // prefill the form, do not navigate
 		rq.printUI(uiParams{})
 		return
 	}
@@ -372,6 +374,7 @@ func haltServer(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Shutting down WRP...\n")
 	w.(http.Flusher).Flush()
 	time.Sleep(time.Second * 2)
+	sessFlush()
 	brStop()
 	srv.Shutdown(context.Background())
 	os.Exit(1)
@@ -411,6 +414,7 @@ func main() {
 	var err error
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
+	sessCmdLine()
 	log.Printf("Web Rendering Proxy Version %s (%v)\n", version, runtime.GOARCH)
 	log.Printf("Using embedded ca-certs from github.com/breml/rootcerts")
 	log.Printf("Args: %q", os.Args)
@@ -423,13 +427,17 @@ func main() {
 	if err != nil || n != 3 {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
+	sessLoad()
 
 	chromedpStart()
 	defer brStop()
 	setupDownloads()
 	if *vncAddr != "" {
 		vncStart()
+	} else {
+		sessRestoreURL()
 	}
+	go sessSaver()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -437,6 +445,7 @@ func main() {
 		<-c
 		log.Printf("Interrupt - shutting down.")
 		os.RemoveAll(dlDir)
+		sessFlush()
 		brStop()
 		srv.Shutdown(context.Background())
 		os.Exit(1)

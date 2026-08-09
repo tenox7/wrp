@@ -231,6 +231,7 @@ func vncClamp(v int) int {
 
 // Server state, without anything that needs a browser attached
 func vncInit() {
+	sw, sh, sz := sessVncGeom() // saved framebuffer, takes its own lock
 	vncSrv.Lock()
 	vncSrv.vw = vncClamp(int(defGeom.w))
 	vncSrv.vh = int(defGeom.h)
@@ -239,6 +240,12 @@ func vncInit() {
 	}
 	vncSrv.vh = vncClamp(vncSrv.vh) + vncChromeH
 	vncSrv.zoom = 1.0
+	if sw > 0 { // already includes the bars, do not add them again
+		vncSrv.vw, vncSrv.vh = sw, sh
+	}
+	if sz > 0 {
+		vncSrv.zoom = sz
+	}
 	vncSrv.clients = make(map[*vncClient]bool)
 	vncSrv.tabs = []*vncTab{{ctx: brCtx(), cncl: brCncl()}}
 	vncSrv.inputCh = make(chan chromedp.Action, 256)
@@ -283,7 +290,7 @@ func vncStart() {
 	}
 	vncWorkers()
 	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
-	if *vncPage != "" {
+	if !sessRestoreTabs() && *vncPage != "" {
 		vncSetURL(*vncPage)
 		vncDispatch(chromedp.Navigate(*vncPage))
 	}
@@ -727,6 +734,7 @@ func vncZoom(delta float64) {
 		return
 	}
 	log.Printf("VNC: zoom %v%%", int(z*100+0.5))
+	sessMark()
 	vncApplyZoom(z)
 	vncDrawBar(w)
 }
@@ -1354,6 +1362,7 @@ func vncSetDesktopSize(c *vncClient) bool {
 		return false
 	}
 	log.Printf("%s VNC client requests desktop size %vx%v", c.conn.RemoteAddr(), w, h)
+	sessMark()
 	vncSrv.Lock()
 	vncSrv.vw, vncSrv.vh = w, h
 	c.ackW, c.ackH = w, h
@@ -1392,6 +1401,7 @@ func vncActivate(i int) {
 	old := vncSrv.tabs[vncSrv.active]
 	nt := vncSrv.tabs[i]
 	vncSrv.active = i
+	sessMark()
 	on := vncSrv.casting
 	w := vncSrv.barW
 	vncSrv.Unlock()
@@ -1711,6 +1721,7 @@ func vncTabSync() {
 		}
 	}
 	if changed {
+		sessMark()
 		vncDrawBar(w)
 	}
 }

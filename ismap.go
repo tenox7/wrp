@@ -262,6 +262,7 @@ func (rq *wrpReq) captureScreenshot() {
 		rq.url = strings.Replace(rq.url, "https://", "http://", 1)
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
+	sessSaveURL(rq.url)
 	height := int64(float64(rq.height) / rq.zoom)
 	if rq.height == 0 && h > 0 {
 		height = h + 30

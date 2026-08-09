@@ -350,6 +350,7 @@ func (rq *wrpReq) captureMarkdown() {
 	defer vncResume()
 	imgStor.clear()
 	log.Printf("Processing simple HTML conversion for %v", rq.url)
+	sessSaveURL(rq.url)
 	var outerHTML string
 	err := chromedp.Run(brCtx(),
 		waitForRender(),

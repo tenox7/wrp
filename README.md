@@ -160,7 +160,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -ua  user agent, override the default "headless" agent (only for ismap mode)
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 -b   browser executable path (e.g., for Brave Browser)
--profile  Chrome user-data dir, persists cookies/logins between runs
+-profile  Chrome user-data dir, persists cookies/logins and the session between runs
 ```
 
 ## Minimal Requirements
@@ -195,6 +195,10 @@ $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (K
 ### Staying logged in to Gmail and other sites
 
 Use `-profile ~/.wrp-chrome` to persist cookies/logins between runs. Log in once with `-h=false`, then restart headless. Run WRP on the same machine you logged in on (the cookie key lives in the OS keychain).
+
+### Saving and restoring the session
+
+With `-profile` WRP also remembers the session in `wrp-session.json` inside the profile dir and restores it on the next run: image geometry, zoom, image type, colors, quality and mode for the ISMAP/HTML UI, the VNC framebuffer size and zoom, plus the open tabs, which are reopened where you left off. Flags given on the command line always win, for example `-g 1024x768x256` overrides the saved geometry and `-vncpage` skips reopening tabs.
 
 ### Why isn't there a Docker image for armv6
 
