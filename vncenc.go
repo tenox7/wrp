@@ -491,7 +491,7 @@ func (c *vncClient) rectRaw(x, y int, pix []byte, w, h int) []byte {
 // Zlib: raw pixels through the client's persistent deflate stream
 func (c *vncClient) rectZlib(x, y int, pix []byte, w, h int) []byte {
 	b := vncRectHdrEnc(x, y, w, h, rfbEncodingZlib)
-	comp := c.deflate(pix)
+	comp := c.deflate(zsZlib, pix)
 	binary.Write(b, binary.BigEndian, uint32(len(comp)))
 	b.Write(comp)
 	return b.Bytes()

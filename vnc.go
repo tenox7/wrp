@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -49,6 +50,8 @@ const (
 	rfbFenceRequest     = 1 << 31
 	rfbFenceBlockBefore = 1 << 0
 	rfbTightJpeg        = 0x09
+	rfbSecNone          = 1
+	rfbSecVNCAuth       = 2
 	vncMaxDim           = 4096    // sane viewport limit, wider rects get split
 	vncTightMax         = 2048    // a tight rect may not be wider than this
 	vncMinDim           = 16      // smallest viewport dimension we ask the browser for
@@ -120,10 +123,10 @@ type vncClient struct {
 	fenceSent  time.Time // when, so the echo measures the round trip
 	adaptQual  int       // jpeg quality after link adaptation, 0 until measured
 	jpegQual   int       // from the jpeg quality level pseudo encoding, 0 = our default
-	// frame writer goroutine only: persistent zlib stream, last colormap, last
+	// frame writer goroutine only: persistent zlib streams, last colormap, last
 	// tile hashes this client actually received
-	zbuf     bytes.Buffer
-	zw       *zlib.Writer
+	zbuf     [2]bytes.Buffer
+	zw       [2]*zlib.Writer
 	lastCmap []byte
 	tiles    []uint64
 	samp     *vncSamp // sample plane of what this client actually has
@@ -184,8 +187,25 @@ type vncState struct {
 	suspend    int     // nested http capture count, screencast is off while > 0
 	casting    bool
 	inputCh    chan chromedp.Action
+	coalCh     chan struct{} // a coalesced pointer event is waiting
+	coal       vncCoal
 	ackCh      chan vncAck
 	syncCh     chan struct{} // a target event wants the tab list reconciled
+}
+
+// Motion and wheel are the two inputs a viewer produces faster than chrome can
+// consume them: one cdp round trip each, and a single flick of the mouse is
+// hundreds of motion events. Dispatching them all put clicks seconds behind the
+// pointer, because a click queues behind every move that preceded it. Motion
+// coalesces to the newest position - a press carries its own coordinates, so
+// dropping stale moves changes nothing - and wheel deltas add up, so a fast
+// scroll keeps its full distance in one event.
+type vncCoal struct {
+	move     chromedp.Action // newest pointer position, nil if none pending
+	whl      bool
+	wx, wy   float64 // where the accumulated wheel happened
+	wdx, wdy float64
+	wmod     input.Modifier
 }
 
 // Screencast frame acknowledgement, handled off the cdp event goroutine
@@ -222,6 +242,7 @@ func vncInit() {
 	vncSrv.clients = make(map[*vncClient]bool)
 	vncSrv.tabs = []*vncTab{{ctx: brCtx(), cncl: brCncl()}}
 	vncSrv.inputCh = make(chan chromedp.Action, 256)
+	vncSrv.coalCh = make(chan struct{}, 1)
 	vncSrv.ackCh = make(chan vncAck, 64)
 	vncSrv.syncCh = make(chan struct{}, 1)
 	vncSrv.Unlock()
@@ -276,9 +297,21 @@ func vncWorkers() {
 	go vncSelPoller()
 	go vncWatchTargets()
 	go func() { // ordered browser input dispatch
-		for a := range vncSrv.inputCh {
+		run := func(a chromedp.Action) {
 			if err := chromedp.Run(brCtx(), a); err != nil {
 				log.Printf("VNC: input dispatch: %v", err)
+			}
+		}
+		for {
+			// discrete events keep their order and are never dropped; the
+			// coalesced pointer state is at most two actions behind
+			select {
+			case a := <-vncSrv.inputCh:
+				run(a)
+			case <-vncSrv.coalCh:
+				for _, a := range vncTakeCoal() {
+					run(a)
+				}
 			}
 		}
 	}()
@@ -954,19 +987,33 @@ func vncHandshake(conn net.Conn) error {
 	}
 	log.Printf("%s VNC client version 3.%d", conn.RemoteAddr(), min)
 	if min >= 7 {
-		conn.Write([]byte{1, 1}) // one security type: none
+		// None first: every modern viewer picks it and never sees a password
+		// prompt. VNC auth is only here for clients that refuse None.
+		conn.Write([]byte{2, rfbSecNone, rfbSecVNCAuth})
 		one := make([]byte, 1)
 		if _, err := io.ReadFull(conn, one); err != nil {
 			return err
 		}
-		if one[0] != 1 {
+		switch one[0] {
+		case rfbSecNone:
+			if min >= 8 {
+				conn.Write([]byte{0, 0, 0, 0}) // security result ok
+			}
+		case rfbSecVNCAuth:
+			if err := vncAuth(conn); err != nil {
+				return err
+			}
+		default:
 			return fmt.Errorf("unsupported security type %d", one[0])
 		}
-		if min >= 8 {
-			conn.Write([]byte{0, 0, 0, 0}) // security result ok
-		}
 	} else {
-		conn.Write([]byte{0, 0, 0, 1}) // 3.3: security type none
+		// 3.3 has the server pick, and there is only one sensible pick: macOS
+		// Screen Sharing always answers 3.3 and then hangs forever if offered
+		// None, while every real 3.3 viewer implements vnc auth.
+		conn.Write([]byte{0, 0, 0, rfbSecVNCAuth})
+		if err := vncAuth(conn); err != nil {
+			return err
+		}
 	}
 	ci := make([]byte, 1)
 	if _, err := io.ReadFull(conn, ci); err != nil { // ClientInit / shared flag
@@ -996,6 +1043,31 @@ func vncHandshake(conn net.Conn) error {
 	binary.Write(&si, binary.BigEndian, uint32(len(name)))
 	si.WriteString(name)
 	_, err := conn.Write(si.Bytes())
+	return err
+}
+
+// VNC authentication that accepts any password. It exists because macOS Screen
+// Sharing answers RFB 3.3 and will not talk to a server offering security type
+// None - it just spins on "Connecting". There is deliberately nothing to
+// configure and nothing is verified: the listening address is still the only
+// access control, exactly as it was when None was all we offered.
+//
+// The challenge has to be real, or the client has nothing to hash and never
+// replies. Screen Sharing also probes once and drops at this point before
+// reconnecting with credentials, so an EOF here is normal and not an error
+// worth worrying about in the log.
+func vncAuth(conn net.Conn) error {
+	var chal [16]byte
+	if _, err := rand.Read(chal[:]); err != nil {
+		return err
+	}
+	if _, err := conn.Write(chal[:]); err != nil {
+		return err
+	}
+	if _, err := io.ReadFull(conn, make([]byte, 16)); err != nil {
+		return fmt.Errorf("challenge response: %w", err)
+	}
+	_, err := conn.Write([]byte{0, 0, 0, 0}) // accepted, whatever it was
 	return err
 }
 
@@ -1652,6 +1724,48 @@ func vncDispatch(a chromedp.Action) {
 	}
 }
 
+func vncCoalesce(f func(*vncCoal)) {
+	vncSrv.Lock()
+	f(&vncSrv.coal)
+	vncSrv.Unlock()
+	select {
+	case vncSrv.coalCh <- struct{}{}:
+	default: // already signalled, the worker will see the newer state
+	}
+}
+
+// Replace the pending pointer position rather than queueing another one
+func vncDispatchMove(a chromedp.Action) {
+	vncCoalesce(func(c *vncCoal) { c.move = a })
+}
+
+// Add to the pending wheel rather than queueing another one. Position comes
+// from the newest event; chrome only needs somewhere sane to apply the scroll.
+func vncDispatchWheel(x, y, dx, dy float64, mod input.Modifier) {
+	vncCoalesce(func(c *vncCoal) {
+		c.whl, c.wx, c.wy, c.wmod = true, x, y, mod
+		c.wdx, c.wdy = c.wdx+dx, c.wdy+dy
+	})
+}
+
+// Take whatever pointer state accumulated, wheel before move so the pointer
+// ends up where the viewer last put it
+func vncTakeCoal() []chromedp.Action {
+	vncSrv.Lock()
+	c := vncSrv.coal
+	vncSrv.coal = vncCoal{}
+	vncSrv.Unlock()
+	var out []chromedp.Action
+	if c.whl {
+		out = append(out, input.DispatchMouseEvent(input.MouseWheel, c.wx, c.wy).
+			WithDeltaX(c.wdx).WithDeltaY(c.wdy).WithModifiers(c.wmod))
+	}
+	if c.move != nil {
+		out = append(out, c.move)
+	}
+	return out
+}
+
 var vncKeysyms = map[uint32]string{
 	0xFF08: kb.Backspace, 0xFF09: kb.Tab, 0xFF0D: kb.Enter, 0xFF8D: kb.Enter,
 	0xFF1B: kb.Escape, 0xFFFF: kb.Delete, 0xFF63: kb.Insert,
@@ -2009,8 +2123,7 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 		dx, dy float64
 	}{{0x08, 0, -120}, {0x10, 0, 120}, {0x20, -120, 0}, {0x40, 120, 0}} {
 		if diff&wh.bit != 0 && mask&wh.bit != 0 {
-			vncDispatch(input.DispatchMouseEvent(input.MouseWheel, fx, fy).
-				WithDeltaX(wh.dx).WithDeltaY(wh.dy))
+			vncDispatchWheel(fx, fy, wh.dx, wh.dy, input.Modifier(c.mods))
 		}
 	}
 	btns := []struct {
@@ -2041,7 +2154,7 @@ func vncPointerEvent(c *vncClient, mask byte, x, y uint16) {
 			break
 		}
 	}
-	vncDispatch(input.DispatchMouseEvent(input.MouseMoved, fx, fy).WithButton(held))
+	vncDispatchMove(input.DispatchMouseEvent(input.MouseMoved, fx, fy).WithButton(held))
 }
 
 // Chrome needs a real click count for double click to select a word or for
@@ -2119,10 +2232,8 @@ func vncWriter(c *vncClient) {
 		samp := vncSrv.frameSamp
 		barImg, name, menu := vncSrv.barImg, vncSrv.deskName, vncSrv.menu
 		pal := vncSrv.pals[c.palSize]
-		if c.resetEnc {
+		if c.resetEnc { // note: the zlib streams deliberately survive this
 			c.resetEnc = false
-			c.zw = nil
-			c.zbuf.Reset()
 			c.lastCmap = nil
 			c.tiles, c.samp, c.copies = nil, nil, 0
 		}
@@ -2417,14 +2528,23 @@ func vncRectJpeg(x, y, w, h int, jpg []byte) []byte {
 	return b.Bytes()
 }
 
-func (c *vncClient) deflate(data []byte) []byte {
-	if c.zw == nil {
-		c.zw = zlib.NewWriter(&c.zbuf)
+// The Zlib encoding and tight's basic stream 0 are separate zlib streams on the
+// client, so they need separate deflaters here. Neither may ever be restarted
+// mid connection: rfb has no way to tell a client to reset its inflater, and a
+// second stream header arrives as a data error.
+const (
+	zsZlib = iota
+	zsTight
+)
+
+func (c *vncClient) deflate(s int, data []byte) []byte {
+	if c.zw[s] == nil {
+		c.zw[s] = zlib.NewWriter(&c.zbuf[s])
 	}
-	c.zw.Write(data)
-	c.zw.Flush()
-	comp := append([]byte(nil), c.zbuf.Bytes()...)
-	c.zbuf.Reset()
+	c.zw[s].Write(data)
+	c.zw[s].Flush()
+	comp := append([]byte(nil), c.zbuf[s].Bytes()...)
+	c.zbuf[s].Reset()
 	return comp
 }
 
@@ -2442,7 +2562,7 @@ func vncRectHdr(x, y, w, h int) *bytes.Buffer {
 func (c *vncClient) rectTightIdx(x, y int, idx []byte, w, h int) []byte {
 	b := vncRectHdr(x, y, w, h)
 	b.WriteByte(0x00) // basic compression, stream 0, copy filter
-	comp := c.deflate(idx)
+	comp := c.deflate(zsTight, idx)
 	vncCompact(len(comp), b)
 	b.Write(comp)
 	return b.Bytes()
