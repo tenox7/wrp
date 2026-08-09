@@ -105,7 +105,10 @@ func setBrRoot(c context.Context, n context.CancelFunc) {
 // navigation between one request's DOM prep and its OuterHTML read.
 var browserMu sync.Mutex
 
-// Cancel the active tab and tear down the browser process
+// Cancel the active tab and tear down the browser process. The allocator's
+// cancel waits for the process to actually be gone, which matters: a headless
+// browser left running keeps the profile directory locked, and the next start
+// fails on that lock rather than on whatever went wrong the first time.
 func brStop() {
 	if c := brCncl(); c != nil {
 		c()
@@ -113,6 +116,13 @@ func brStop() {
 	if acncl != nil {
 		acncl()
 	}
+}
+
+// log.Fatal skips deferred calls, so every exit after the browser is up has to
+// take it down by hand or leave it orphaned on the profile
+func brFatalf(format string, v ...interface{}) {
+	brStop()
+	log.Fatalf(format, v...)
 }
 
 //go:embed *.html
@@ -398,13 +408,13 @@ func wrpTemplate(t string) string {
 builtin:
 	fhs, err := fs.Open("wrp.html")
 	if err != nil {
-		log.Fatal(err)
+		brFatalf("%v", err)
 	}
 	defer fhs.Close()
 
 	tmpl, err = io.ReadAll(fhs)
 	if err != nil {
-		log.Fatal(err)
+		brFatalf("%v", err)
 	}
 	log.Printf("Got HTML UI template from embed\n")
 	return string(tmpl)
@@ -429,7 +439,9 @@ func main() {
 	}
 	sessLoad()
 
-	chromedpStart()
+	if err := chromedpStart(); err != nil {
+		brFatalf("Unable to start the browser: %v", err)
+	}
 	defer brStop()
 	setupDownloads()
 	if *vncAddr != "" {
@@ -467,7 +479,7 @@ func main() {
 
 	htmlTmpl, err = template.New("wrp.html").Parse(wrpTemplate(*htmFnam))
 	if err != nil {
-		log.Fatal(err)
+		brFatalf("%v", err)
 	}
 
 	log.Print("Starting WRP http server")
@@ -481,6 +493,6 @@ func main() {
 	})
 	err = srv.ListenAndServe()
 	if err != nil {
-		log.Fatal(err)
+		brFatalf("%v", err)
 	}
 }

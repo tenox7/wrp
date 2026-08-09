@@ -14,8 +14,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/chromedp/chromedp"
 )
 
 const (
@@ -284,9 +282,7 @@ func sessLastURL() string {
 }
 
 func sessNavigate(ctx context.Context, u string) {
-	tctx, cncl := context.WithTimeout(ctx, sessNavTO)
-	defer cncl()
-	if err := chromedp.Run(tctx, chromedp.Navigate(u)); err != nil {
+	if err := vncRun(ctx, sessNavTO, vncNav(u)); err != nil {
 		log.Printf("Session: navigate %v: %v", u, err)
 	}
 }

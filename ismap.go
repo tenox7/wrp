@@ -79,7 +79,7 @@ func (c *wrpCache) clear() {
 	c.maps = make(map[string]cachedMap)
 }
 
-func chromedpStart() {
+func chromedpStart() error {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", *headless),
 		chromedp.Flag("hide-scrollbars", false),
@@ -108,6 +108,19 @@ func chromedpStart() {
 	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
 	setBrRoot(chromedp.NewContext(actx))
+	// Start the browser here rather than on the first request that needs it.
+	// A context whose browser failed to start cannot be used again: chromedp
+	// allocates once per context and closes the same channel on the way out,
+	// so the second attempt panics inside the allocator. There is nothing to
+	// limp on with either, so say what went wrong and stop.
+	if err := chromedp.Run(brCtx()); err != nil {
+		brStop() // whatever did come up must not be left holding the profile
+		if strings.Contains(err.Error(), "SingletonLock") {
+			return fmt.Errorf("%v is in use by another browser, close it or use a different -profile", *userDataDir)
+		}
+		return err
+	}
+	return nil
 }
 
 // Determine what action to take
@@ -173,13 +186,10 @@ func ctxErr(err error, w io.Writer) {
 	}
 	log.Printf("Context error: %s", err)
 	fmt.Fprintf(w, "Context error: %s<BR>\n", err)
-	if err.Error() != "context canceled" {
-		return
+	if err.Error() != "context canceled" || brRoot().Err() == nil {
+		return // one tab context went away, the browser itself is still there
 	}
-	setBrRoot(chromedp.NewContext(actx))
-	setupDownloads()
-	vncCtxReset()
-	log.Printf("Created new context, try again")
+	vncCheckBrowser()
 	fmt.Fprintln(w, "Created new context, try again")
 }
 

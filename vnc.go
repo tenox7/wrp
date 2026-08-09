@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -68,6 +69,8 @@ const (
 	vncDblClick         = 500 * time.Millisecond
 	vncHandshakeTO      = 30 * time.Second  // whole handshake, before we know the client
 	vncWriteTO          = 60 * time.Second  // per framebuffer update, catches stalled clients
+	vncActTO            = 10 * time.Second  // per cdp call on the input path
+	vncTabTO            = 20 * time.Second  // and on the tab management path
 	vncTabH             = 20                // tab bar height
 	vncNavH             = 20                // nav bar height
 	vncChromeH          = vncTabH + vncNavH // total ui strip above the page
@@ -292,7 +295,7 @@ func vncStart() {
 	log.Printf("Started VNC server on %v, initial framebuffer %vx%v", *vncAddr, vncSrv.vw, vncSrv.vh)
 	if !sessRestoreTabs() && *vncPage != "" {
 		vncSetURL(*vncPage)
-		vncDispatch(chromedp.Navigate(*vncPage))
+		vncDispatch(vncNav(*vncPage))
 	}
 	vncServe(ln)
 }
@@ -305,8 +308,9 @@ func vncWorkers() {
 	go vncWatchTargets()
 	go func() { // ordered browser input dispatch
 		run := func(a chromedp.Action) {
-			if err := chromedp.Run(brCtx(), a); err != nil {
+			if err := vncRun(brCtx(), vncActTO, a); err != nil {
 				log.Printf("VNC: input dispatch: %v", err)
+				vncCheckBrowser()
 			}
 		}
 		for {
@@ -341,7 +345,9 @@ func vncWorkers() {
 				}
 				next = next.Add(time.Second / time.Duration(*vncFPS))
 			}
-			chromedp.Run(a.ctx, page.ScreencastFrameAck(a.id))
+			// an ack that never comes back stops the screencast for good, so
+			// this worker gives up on it like everything else on the vnc path
+			vncRun(a.ctx, vncActTO, page.ScreencastFrameAck(a.id))
 		}
 	}()
 }
@@ -592,7 +598,7 @@ func vncOpenMenu(x, y int) {
 	if brCtx() != nil {
 		js := fmt.Sprintf(`(function(){var e=document.elementFromPoint(%d,%d);`+
 			`if(!e)return "";var a=e.closest("a");return a&&a.href?a.href:""})()`, x, y)
-		chromedp.Run(brCtx(), chromedp.Evaluate(js, &href))
+		vncRun(brCtx(), vncActTO, chromedp.Evaluate(js, &href))
 	}
 	items := []string{"Back", "Forward", "Reload"}
 	if href != "" {
@@ -641,11 +647,11 @@ func vncMenuClick(x, y int) bool {
 	vncCloseMenu()
 	switch m.items[i] {
 	case "Back":
-		vncDispatch(chromedp.NavigateBack())
+		vncDispatch(vncHistory(-1))
 	case "Forward":
-		vncDispatch(chromedp.NavigateForward())
+		vncDispatch(vncHistory(1))
 	case "Reload":
-		vncDispatch(chromedp.Reload())
+		vncDispatch(vncReload())
 	case "Open in new tab":
 		go vncOpenTabAt(m.link)
 	case "Copy link":
@@ -664,7 +670,7 @@ func vncOpenTabAt(url string) {
 	}
 	vncActivate(i)
 	vncTabMu.Unlock()
-	vncDispatch(chromedp.Navigate(url))
+	vncDispatch(vncNav(url))
 }
 
 // Hand text to every client as its clipboard
@@ -820,6 +826,12 @@ func vncCastListen() {
 		return
 	}
 	chromedp.ListenTarget(lctx, func(ev interface{}) {
+		// a dialog blocks its own tab whether or not we are looking at it, and
+		// the tab stays blocked once we switch back, so answer it either way
+		if e, ok := ev.(*page.EventJavascriptDialogOpening); ok {
+			go vncDialog(lctx, e)
+			return
+		}
 		if lctx != brCtx() {
 			return
 		}
@@ -830,7 +842,7 @@ func vncCastListen() {
 			select {
 			case vncSrv.ackCh <- vncAck{lctx, e.SessionID}:
 			default:
-				go chromedp.Run(lctx, page.ScreencastFrameAck(e.SessionID))
+				go vncRun(lctx, vncActTO, page.ScreencastFrameAck(e.SessionID))
 			}
 			b, err := base64.StdEncoding.DecodeString(e.Data)
 			if err != nil {
@@ -856,7 +868,7 @@ func vncCastStart() {
 	vncCastListen()
 	bc := brCtx()
 	var loc string
-	err := chromedp.Run(bc,
+	err := vncRun(bc, vncTabTO,
 		emulation.SetDeviceMetricsOverride(int64(w), int64(h), 1, false),
 		chromedp.Location(&loc),
 		page.StartScreencast().
@@ -874,7 +886,7 @@ func vncCastStart() {
 	// never produce a frame, so push one screenshot at the new size ourselves
 	go func() {
 		var shot []byte
-		err := chromedp.Run(bc, chromedp.ActionFunc(func(cx context.Context) error {
+		err := vncRun(bc, vncTabTO, chromedp.ActionFunc(func(cx context.Context) error {
 			var err error
 			shot, err = page.CaptureScreenshot().WithFormat(page.CaptureScreenshotFormatJpeg).WithQuality(*defJpgQual).Do(cx)
 			return err
@@ -894,7 +906,7 @@ func vncCastStop() {
 	if brCtx() == nil {
 		return
 	}
-	chromedp.Run(brCtx(), page.StopScreencast())
+	vncRun(brCtx(), vncActTO, page.StopScreencast())
 	log.Printf("VNC: screencast stopped")
 }
 
@@ -910,7 +922,7 @@ func vncSuspend() {
 	on := vncSrv.casting
 	vncSrv.Unlock()
 	if first && on {
-		chromedp.Run(brCtx(), page.StopScreencast())
+		vncRun(brCtx(), vncActTO, page.StopScreencast())
 	}
 }
 
@@ -931,20 +943,24 @@ func vncResume() {
 	}
 }
 
-// Called from ctxErr when a new browser context is created
+// Called from ctxErr and from the watchdog when a new browser context is
+// created. The process behind it is new, so every tab we were tracking died
+// with the old one and the list starts over at the one tab we now have.
 func vncCtxReset() {
 	if *vncAddr == "" {
 		return
 	}
 	vncSrv.Lock()
-	if vncSrv.active < len(vncSrv.tabs) { // the active tab context was replaced
-		t := vncSrv.tabs[vncSrv.active]
-		t.ctx, t.cncl, t.id, t.listCtx = brCtx(), brCncl(), "", nil
-	}
+	vncSrv.tabs = []*vncTab{{ctx: brCtx(), cncl: brCncl(), url: "about:blank"}}
+	vncSrv.active = 0
 	on := vncSrv.casting
+	w := vncSrv.barW
 	vncSrv.Unlock()
 	if on {
 		vncCastStart()
+	}
+	if w > 0 {
+		vncDrawBar(w)
 	}
 }
 
@@ -1412,7 +1428,7 @@ func vncActivate(i int) {
 	w := vncSrv.barW
 	vncSrv.Unlock()
 	if on && old != nt {
-		chromedp.Run(old.ctx, page.StopScreencast())
+		vncRun(old.ctx, vncActTO, page.StopScreencast())
 	}
 	setBrCtx(nt.ctx, nt.cncl)
 	if on {
@@ -1441,7 +1457,7 @@ func vncNewTab() {
 	vncActivate(i)
 	vncTabMu.Unlock()
 	if *vncPage != "" && *vncPage != "about:blank" {
-		vncDispatch(chromedp.Navigate(*vncPage))
+		vncDispatch(vncNav(*vncPage))
 	}
 }
 
@@ -1450,7 +1466,7 @@ func vncNewTab() {
 // but accept it as a new window, which headless has no real windows anyway.
 func vncAddTab() (int, error) {
 	var tid target.ID
-	err := chromedp.Run(brCtx(), chromedp.ActionFunc(func(cx context.Context) error {
+	err := vncRun(brCtx(), vncTabTO, chromedp.ActionFunc(func(cx context.Context) error {
 		id, err := target.CreateTarget("about:blank").WithNewWindow(true).Do(cx)
 		tid = id
 		return err
@@ -1459,7 +1475,7 @@ func vncAddTab() (int, error) {
 		return 0, err
 	}
 	nctx, ncncl := chromedp.NewContext(brRoot(), chromedp.WithTargetID(tid))
-	if err := chromedp.Run(nctx, chromedp.Navigate("about:blank")); err != nil {
+	if err := vncRun(nctx, vncTabTO, vncNav("about:blank")); err != nil {
 		ncncl()
 		return 0, err
 	}
@@ -1497,7 +1513,7 @@ func vncCloseTab(i int) {
 	}
 	vncSrv.active = a
 	vncSrv.Unlock()
-	chromedp.Run(t.ctx, page.Close())
+	vncRun(t.ctx, vncTabTO, page.Close())
 	vncDropTab(t)
 	vncActivate(a)
 }
@@ -1551,6 +1567,7 @@ func vncTabPoller() {
 		vncSrv.Lock()
 		on := vncSrv.casting
 		vncSrv.Unlock()
+		vncCheckBrowser() // the tick doubles as the browser watchdog
 		if on {
 			vncTabSync()
 		}
@@ -1570,7 +1587,7 @@ func vncWatchTargets() {
 			}
 		}
 	})
-	if err := chromedp.Run(root, target.SetDiscoverTargets(true)); err != nil {
+	if err := vncRun(root, vncTabTO, target.SetDiscoverTargets(true)); err != nil {
 		log.Printf("VNC: target discovery unavailable, falling back to polling: %v", err)
 	}
 }
@@ -1592,7 +1609,7 @@ func vncSelPoller() {
 // headless mode, so the selection is the closest useful thing.
 func vncSyncSelection() {
 	var sel string
-	err := chromedp.Run(brCtx(), chromedp.Evaluate(`(document.getSelection()||'').toString().slice(0,65536)`, &sel))
+	err := vncRun(brCtx(), vncActTO, chromedp.Evaluate(`(document.getSelection()||'').toString().slice(0,65536)`, &sel))
 	if err != nil {
 		return
 	}
@@ -1645,7 +1662,7 @@ func vncCutTextMsg(s string) []byte {
 func vncTabSync() {
 	vncTabMu.Lock()
 	defer vncTabMu.Unlock()
-	infos, err := chromedp.Targets(brCtx())
+	infos, err := vncTargets()
 	if err != nil {
 		return
 	}
@@ -1730,6 +1747,136 @@ func vncTabSync() {
 		sessMark()
 		vncDrawBar(w)
 	}
+}
+
+// ---- browser calls ----
+
+// Every cdp call the VNC path makes goes through here, because none of them
+// have a deadline of their own. Chrome answers input dispatch from the
+// renderer, so a modal dialog or a script stuck in a loop leaves the call
+// outstanding for as long as the page feels like it, and the input worker is a
+// single goroutine: one call that never returns and the session goes deaf to
+// every click and keystroke behind it, while the screencast keeps running and
+// makes it look alive.
+func vncRun(ctx context.Context, to time.Duration, acts ...chromedp.Action) error {
+	if ctx == nil {
+		return errors.New("no browser")
+	}
+	if err := ctx.Err(); err != nil {
+		return err // dead context, running on it would allocate a browser again
+	}
+	// chromedp ties a tab to whichever context first runs on it, so a deadline
+	// must never be the one to open it: the tab would go down with the timer.
+	// An empty Run does the opening, on the context that owns the tab.
+	if c := chromedp.FromContext(ctx); c == nil || c.Target == nil {
+		if err := chromedp.Run(ctx); err != nil {
+			return err
+		}
+	}
+	tctx, cncl := context.WithTimeout(ctx, to)
+	defer cncl()
+	return chromedp.Run(tctx, acts...)
+}
+
+// chromedp's navigation actions do not return until the load event fires, and
+// a page holding one unfinished subresource - a tracker pixel, a stalled ad
+// frame, a streaming endpoint - never fires it. Chrome commits the navigation
+// either way and the url bar follows frameNavigated, so waiting buys the VNC
+// path nothing and costs it everything.
+func vncNav(u string) chromedp.Action {
+	return chromedp.ActionFunc(func(cx context.Context) error {
+		_, _, errText, _, err := page.Navigate(u).Do(cx)
+		if err != nil {
+			return err
+		}
+		if errText != "" {
+			return fmt.Errorf("page load error %s", errText)
+		}
+		return nil
+	})
+}
+
+func vncTargets() ([]*target.Info, error) {
+	ctx := brCtx()
+	if ctx == nil {
+		return nil, errors.New("no browser")
+	}
+	tctx, cncl := context.WithTimeout(ctx, vncTabTO)
+	defer cncl()
+	return chromedp.Targets(tctx)
+}
+
+func vncReload() chromedp.Action {
+	return chromedp.ActionFunc(func(cx context.Context) error {
+		return page.Reload().Do(cx)
+	})
+}
+
+// Step through session history, d is -1 for back and 1 for forward
+func vncHistory(d int64) chromedp.Action {
+	return chromedp.ActionFunc(func(cx context.Context) error {
+		cur, ents, err := page.GetNavigationHistory().Do(cx)
+		if err != nil {
+			return err
+		}
+		i := cur + d
+		if i < 0 || i >= int64(len(ents)) {
+			return nil // end of the history, not an error worth logging
+		}
+		return page.NavigateToHistoryEntry(ents[i].ID).Do(cx)
+	})
+}
+
+// A dialog blocks its renderer until something answers it, and headless has
+// nobody to show it to, so an unanswered alert takes the tab out entirely:
+// every later input dispatch to it hangs. Accept what only reports something,
+// refuse what asks for a decision we can't put to the viewer.
+func vncDialog(ctx context.Context, e *page.EventJavascriptDialogOpening) {
+	ok := e.Type == page.DialogTypeAlert || e.Type == page.DialogTypeBeforeunload
+	log.Printf("VNC: %s dialog %q, answering %v", e.Type, e.Message, ok)
+	err := vncRun(ctx, vncActTO, chromedp.ActionFunc(func(cx context.Context) error {
+		return page.HandleJavaScriptDialog(ok).Do(cx)
+	}))
+	if err != nil {
+		log.Printf("VNC: dialog: %v", err)
+	}
+}
+
+// ---- browser recovery ----
+
+var vncRestartMu sync.Mutex
+
+// When the browser process goes away chromedp cancels every context hanging
+// off it, so from then on every call fails instantly and the session never
+// recovers on its own. Called from the paths that talk to chrome, so a viewer
+// that keeps clicking gets a working browser back instead of a dead one.
+func vncCheckBrowser() {
+	root := brRoot()
+	if root == nil || root.Err() == nil {
+		return
+	}
+	vncRestartMu.Lock()
+	defer vncRestartMu.Unlock()
+	if r := brRoot(); r != nil && r.Err() == nil {
+		return // another goroutine got here first
+	}
+	log.Printf("VNC: lost the browser (%v), starting a new one", root.Err())
+	nctx, ncncl := chromedp.NewContext(actx)
+	setBrRoot(nctx, ncncl)
+	if err := vncRun(nctx, vncTabTO, vncNav("about:blank")); err != nil {
+		// cancel it: a context whose browser never started panics the
+		// allocator on the next try, and a dead one is what makes the
+		// watchdog come back here with a fresh context instead
+		ncncl()
+		log.Printf("VNC: browser restart failed: %v", err)
+		return
+	}
+	setupDownloads()
+	if *vncAddr != "" {
+		vncWatchTargets() // the old listener died with the old browser
+	}
+	vncCtxReset()
+	log.Printf("Browser restarted")
 }
 
 // ---- input ----
@@ -1974,10 +2121,10 @@ func vncShortcut(c *vncClient, ks uint32) bool {
 	if alt {
 		switch ks {
 		case 0xFF51: // alt+left, back
-			vncDispatch(chromedp.NavigateBack())
+			vncDispatch(vncHistory(-1))
 			return true
 		case 0xFF53: // alt+right, forward
-			vncDispatch(chromedp.NavigateForward())
+			vncDispatch(vncHistory(1))
 			return true
 		}
 	}
@@ -2001,7 +2148,7 @@ func vncShortcut(c *vncClient, ks uint32) bool {
 		vncSrv.Unlock()
 		go vncCloseTab(i)
 	case 'r', 'R', 0x12:
-		vncDispatch(chromedp.Reload())
+		vncDispatch(vncReload())
 	case 0xFF09, 0x09: // ctrl+tab, next tab
 		vncSrv.Lock()
 		n, i := len(vncSrv.tabs), vncSrv.active
@@ -2071,7 +2218,7 @@ func vncEditKey(ks uint32) {
 		w := vncSrv.barW
 		vncSrv.Unlock()
 		log.Printf("VNC: navigate to %s", u)
-		vncDispatch(chromedp.Navigate(u))
+		vncDispatch(vncNav(u))
 		vncDrawBar(w)
 		return
 	case ks == 0xFF1B: // escape - cancel edit
@@ -2207,15 +2354,15 @@ func vncBarClick(x int) {
 		log.Printf("VNC: nav button %s", vncBtnLabels[i])
 		switch i {
 		case 0:
-			vncDispatch(chromedp.NavigateBack())
+			vncDispatch(vncHistory(-1))
 		case 1:
-			vncDispatch(chromedp.NavigateForward())
+			vncDispatch(vncHistory(1))
 		case 2:
-			vncDispatch(chromedp.Reload())
+			vncDispatch(vncReload())
 		case 3:
 			vncDispatch(chromedp.Stop())
 		case 4: // home
-			vncDispatch(chromedp.Navigate(*vncPage))
+			vncDispatch(vncNav(*vncPage))
 		case 5:
 			vncZoom(-0.25)
 		case 6:

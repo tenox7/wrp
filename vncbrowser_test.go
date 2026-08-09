@@ -34,7 +34,9 @@ func TestBrowserScroll(t *testing.T) {
 
 	defGeom = geom{w: 1152, h: 600, c: 216}
 	*headless = true
-	chromedpStart()
+	if err := chromedpStart(); err != nil {
+		t.Fatalf("start browser: %v", err)
+	}
 	defer brStop()
 	// load the page before the server's workers exist, so they are not racing
 	// chromedp to bring the browser up
