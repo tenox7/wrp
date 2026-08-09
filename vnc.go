@@ -326,14 +326,20 @@ func vncWorkers() {
 	// pacing the acks caps the frame rate at the source: no frame is ever
 	// produced just to be thrown away.
 	go func() {
-		var last time.Time
+		// on an absolute schedule: timing the gap from when the last ack was
+		// sent makes every period that gap plus a cdp round trip, so the real
+		// rate sits under the one asked for and wanders
+		var next time.Time
 		for a := range vncSrv.ackCh {
 			if *vncFPS > 0 {
-				gap := time.Second / time.Duration(*vncFPS)
-				if d := gap - time.Since(last); d > 0 {
+				now := time.Now()
+				if next.Before(now) { // first frame, or chrome fell behind
+					next = now
+				}
+				if d := next.Sub(now); d > 0 {
 					time.Sleep(d)
 				}
-				last = time.Now()
+				next = next.Add(time.Second / time.Duration(*vncFPS))
 			}
 			chromedp.Run(a.ctx, page.ScreencastFrameAck(a.id))
 		}
