@@ -135,7 +135,7 @@ func (rq *wrpReq) action() chromedp.Action {
 		log.Printf("%s Button %v\n", rq.r.RemoteAddr, rq.buttons)
 		switch rq.buttons {
 		case "Bk":
-			return chromedp.NavigateBack()
+			return navigateBack()
 		case "St":
 			return chromedp.Stop()
 		case "Re":
@@ -168,6 +168,56 @@ func (rq *wrpReq) action() chromedp.Action {
 	// Navigate to URL
 	log.Printf("%s Processing Navigate Request for %s\n", rq.r.RemoteAddr, rq.url)
 	return chromedp.Navigate(rq.url)
+}
+
+// Go one page back in the tab's history. chromedp.NavigateBack waits for a
+// load event, and Chrome sends none when it takes the page from its
+// back-forward cache: the request never ended, and as it held browserMu,
+// nothing else could use the browser either. This waits only until the page
+// is there, at most 10 seconds; captureScreenshot then waits for the render.
+func navigateBack() chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		cur, entries, err := page.GetNavigationHistory().Do(ctx)
+		if err != nil {
+			return err
+		}
+		if cur <= 0 || cur >= int64(len(entries)) {
+			return nil // nothing to go back to
+		}
+		tree, err := page.GetFrameTree().Do(ctx)
+		if err != nil {
+			return err
+		}
+		done := make(chan struct{}, 1)
+		lctx, lcancel := context.WithTimeout(ctx, 10*time.Second)
+		defer lcancel()
+		chromedp.ListenTarget(lctx, func(ev interface{}) {
+			switch e := ev.(type) {
+			case *page.EventFrameNavigated: // also for a page from the cache
+				if e.Frame.ParentID != "" {
+					return
+				}
+			case *page.EventNavigatedWithinDocument: // back to an #anchor or pushState
+				if e.FrameID != tree.Frame.ID {
+					return
+				}
+			default:
+				return
+			}
+			select {
+			case done <- struct{}{}:
+			default:
+			}
+		})
+		if err := page.NavigateToHistoryEntry(entries[cur-1].ID).Do(ctx); err != nil {
+			return err
+		}
+		select {
+		case <-done:
+		case <-lctx.Done():
+		}
+		return nil
+	}
 }
 
 // Navigate to the desired URL, returns the downloaded file if one was triggered.
