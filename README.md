@@ -38,6 +38,7 @@ Different modes have different uses. ISMAP mode will be better for flashy modern
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
 * Scroll web page by clicking on the in-image scroll bar on the right.
 * WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` (or flag `-g 1152x0x216`. However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
+* **Slices** (`sl=1`), for clients that scroll the page themselves, such as [Archaic](https://github.com/tenox7/archaic): WRP renders the whole page once, as one tall image, and keeps it. The `IMG` tag has the whole page's height. The client gets only the rows it shows, with `/img/ID.gif?y=Y&h=H`, so it does not need the whole image in memory. Clicks on the image map are page coordinates. **Up** and **Dn** are left out. A browser that gets the image without `y` and `h` gets the whole page.
 * Do not use client browser history-back, instead use **Bk** button in the app.
 * You can re-capture screenshot without reloading page by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload page and re-capture screenshot with **Re** (Reload).
@@ -64,9 +65,9 @@ render takes a long time or it updates / changes periodically
 
 `Re` Remote Reload / Refresh
 
-`Up` Page Up
+`Up` Page Up (not shown with slices, `sl=1`)
 
-`Dn` Page Down
+`Dn` Page Down (not shown with slices, `sl=1`)
 
 `W` is width in pixels, adjust it to get rid of horizontal scroll bar
 

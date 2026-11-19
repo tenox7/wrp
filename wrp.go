@@ -157,6 +157,7 @@ type uiData struct {
 	MapURL     string
 	PageHeight string
 	TeXT       string
+	Slices     bool
 }
 
 // Parameters for HTML print function
@@ -187,6 +188,7 @@ type wrpReq struct {
 	wrpMode string
 	maxSize int64
 	proxy   bool
+	slices  bool // sl=1: the whole page in one picture, sent in slices (imgServerMap)
 	w       http.ResponseWriter
 	r       *http.Request
 }
@@ -238,6 +240,7 @@ func (rq *wrpReq) parseForm() {
 	}
 	rq.keys = rq.r.FormValue("k")
 	rq.buttons = rq.r.FormValue("Fn")
+	rq.slices = rq.r.FormValue("sl") == "1"
 	rq.maxSize, _ = strconv.ParseInt(rq.r.FormValue("s"), 10, 64)
 	if rq.maxSize == 0 {
 		rq.maxSize = *defImgSize
@@ -273,6 +276,7 @@ func (rq *wrpReq) printUI(p uiParams) {
 		MapURL:     p.mapURL,
 		PageHeight: p.pageHeight,
 		TeXT:       p.text,
+		Slices:     rq.slices,
 	}
 	err := htmlTmpl.Execute(rq.w, data)
 	if err != nil {

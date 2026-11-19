@@ -10,8 +10,10 @@
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bk">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="St">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Re">
+            {{ if not .Slices }}
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Up">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Dn">
+            {{ end }}
             W <INPUT TYPE="TEXT" NAME="w" VALUE="{{.Width}}" SIZE="4">
             H <INPUT TYPE="TEXT" NAME="h" VALUE="{{.Height}}" SIZE="4">
             {{ end }}

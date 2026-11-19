@@ -6,6 +6,9 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
+	"image/color/palette"
+	"image/draw"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -28,6 +31,11 @@ import (
 
 type cachedImg struct {
 	buf bytes.Buffer
+	// Slice mode (sl=1): the whole page, kept decoded (for GIF already
+	// dithered or quantized) and encoded in slices on request
+	full image.Image
+	typ  string
+	jq   int
 }
 
 type cachedMap struct {
@@ -44,6 +52,22 @@ func (c *wrpCache) addImg(path string, buf bytes.Buffer) {
 	c.Lock()
 	defer c.Unlock()
 	c.imgs[path] = cachedImg{buf: buf}
+}
+
+func (c *wrpCache) addFull(path string, full image.Image, typ string, jq int) {
+	c.Lock()
+	defer c.Unlock()
+	c.imgs[path] = cachedImg{full: full, typ: typ, jq: jq}
+}
+
+func (c *wrpCache) getFull(path string) (cachedImg, bool) {
+	c.Lock()
+	defer c.Unlock()
+	e, ok := c.imgs[path]
+	if !ok || e.full == nil {
+		return cachedImg{}, false
+	}
+	return e, true
 }
 
 func (c *wrpCache) getImg(path string) (bytes.Buffer, bool) {
@@ -323,8 +347,12 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	sessSaveURL(rq.url)
+	capH := rq.height
+	if rq.slices {
+		capH = 0 // the whole page: the client asks for the slices it shows
+	}
 	height := int64(float64(rq.height) / rq.zoom)
-	if rq.height == 0 && h > 0 {
+	if capH == 0 && h > 0 {
 		height = h + 30
 	}
 	chromedp.Run(
@@ -332,7 +360,7 @@ func (rq *wrpReq) captureScreenshot() {
 		waitForRender(),
 	)
 	// Capture screenshot...
-	ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, rq.height)), rq.w)
+	ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, capH)), rq.w)
 	seq := shortuuid.New()
 	var imgExt string
 	if rq.imgType == "gip" {
@@ -345,7 +373,27 @@ func (rq *wrpReq) captureScreenshot() {
 	wrpCach.addMap(mapPath, *rq)
 	var sSize string
 	var iW, iH int
-	switch rq.imgType {
+	imgType := rq.imgType
+	if rq.slices {
+		imgType = "slices"
+	}
+	switch imgType {
+	case "slices":
+		i, err := png.Decode(bytes.NewReader(pngCap))
+		if err != nil {
+			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
+			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
+			return
+		}
+		st := time.Now()
+		if rq.imgType == "gif" {
+			i = paletted(gifPalette(i, rq.nColors))
+		}
+		wrpCach.addFull(imgPath, i, rq.imgType, int(rq.jQual))
+		iW = i.Bounds().Dx()
+		iH = i.Bounds().Dy()
+		sSize = "slices"
+		log.Printf("%s Kept the page for slices: %s, Type: %s, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, rq.imgType, iW, iH, time.Since(st).Milliseconds())
 	case "gip":
 		i, err := png.Decode(bytes.NewReader(pngCap))
 		if err != nil {
@@ -480,6 +528,10 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 // TODO: merge this with html mode IMGZ
 func imgServerMap(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
+	if f, ok := wrpCach.getFull(r.URL.Path); ok {
+		sliceServer(w, r, f)
+		return
+	}
 	imgBuf, ok := wrpCach.getImg(r.URL.Path)
 	if !ok || imgBuf.Bytes() == nil {
 		fmt.Fprintf(w, "Unable to find image %s\n", r.URL.Path)
@@ -500,4 +552,107 @@ func imgServerMap(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Write(imgBuf.Bytes())
 	w.(http.Flusher).Flush()
+}
+
+// Slice mode: rows y up to y+h of the page (?y=Y&h=H), or the whole page
+// when the request has neither
+func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
+	st := time.Now()
+	i := f.full
+	q := r.URL.Query()
+	if q.Has("y") || q.Has("h") {
+		y, _ := strconv.Atoi(q.Get("y"))
+		h := i.Bounds().Dy()
+		if q.Has("h") {
+			h, _ = strconv.Atoi(q.Get("h"))
+		}
+		i = cut(i, y, h)
+		if i == nil {
+			http.Error(w, "No such rows in "+r.URL.Path, http.StatusNotFound)
+			log.Printf("%s No rows y=%v h=%v in %s\n", r.RemoteAddr, q.Get("y"), q.Get("h"), r.URL.Path)
+			return
+		}
+	}
+	var buf bytes.Buffer
+	if err := encodeImg(&buf, i, f.typ, f.jq); err != nil {
+		http.Error(w, "Unable to encode "+r.URL.Path+": "+err.Error(), http.StatusInternalServerError)
+		log.Printf("%s Unable to encode %s: %s\n", r.RemoteAddr, r.URL.Path, err)
+		return
+	}
+	switch f.typ {
+	case "png":
+		w.Header().Set("Content-Type", "image/png")
+	case "jpg":
+		w.Header().Set("Content-Type", "image/jpeg")
+	default:
+		w.Header().Set("Content-Type", "image/gif")
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	w.Header().Set("Cache-Control", "max-age=0")
+	w.Header().Set("Expires", "-1")
+	w.Header().Set("Pragma", "no-cache")
+	w.Write(buf.Bytes())
+	log.Printf("%s Slice %s y=%v h=%v: %dx%d, %d bytes, %vms\n", r.RemoteAddr, r.URL.Path, q.Get("y"), q.Get("h"), i.Bounds().Dx(), i.Bounds().Dy(), buf.Len(), time.Since(st).Milliseconds())
+}
+
+// Rows y up to y+h of a picture, as a picture of its own that starts at
+// 0,0 (gif.Encode wants that), or nil if it has no such rows. A paletted
+// picture shares its rows with the page; others are copied.
+func cut(i image.Image, y, h int) image.Image {
+	b := i.Bounds()
+	if y < 0 {
+		y = 0
+	}
+	if y+h > b.Dy() {
+		h = b.Dy() - y
+	}
+	if h <= 0 {
+		return nil
+	}
+	r := image.Rect(b.Min.X, b.Min.Y+y, b.Max.X, b.Min.Y+y+h)
+	if p, ok := i.(*image.Paletted); ok {
+		s := p.SubImage(r).(*image.Paletted)
+		return &image.Paletted{Pix: s.Pix, Stride: s.Stride, Rect: image.Rect(0, 0, r.Dx(), r.Dy()), Palette: s.Palette}
+	}
+	o := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+	draw.Draw(o, o.Bounds(), i, r.Min, draw.Src)
+	return o
+}
+
+// A picture for gif.Encode that needs no conversion for each slice: the
+// 2 color dither (gray, 0 or 255) gets a black and white palette
+func paletted(i image.Image) image.Image {
+	switch p := i.(type) {
+	case *image.Paletted:
+		return p
+	case *image.Gray:
+		b := p.Bounds()
+		o := image.NewPaletted(image.Rect(0, 0, b.Dx(), b.Dy()), color.Palette{color.Black, color.White})
+		for y := 0; y < b.Dy(); y++ {
+			s := p.Pix[y*p.Stride : y*p.Stride+b.Dx()]
+			d := o.Pix[y*o.Stride : y*o.Stride+b.Dx()]
+			for x, v := range s {
+				if v >= 128 {
+					d[x] = 1
+				}
+			}
+		}
+		return o
+	}
+	b := i.Bounds()
+	o := image.NewPaletted(image.Rect(0, 0, b.Dx(), b.Dy()), palette.Plan9)
+	draw.FloydSteinberg.Draw(o, o.Bounds(), i, b.Min)
+	return o
+}
+
+func encodeImg(w io.Writer, i image.Image, typ string, jq int) error {
+	switch typ {
+	case "gif":
+		return gif.Encode(w, i, &gif.Options{NumColors: 256})
+	case "gip":
+		return gip.Encode(w, i, nil)
+	case "jpg":
+		return jpeg.Encode(w, i, &jpeg.Options{Quality: jq})
+	}
+	return png.Encode(w, i)
 }
