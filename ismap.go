@@ -203,40 +203,68 @@ func (rq *wrpReq) action() chromedp.Action {
 // waitNav runs a (a click, keys), and when that starts a new page in the tab
 // (a link, Return in a form), waits until the new page has loaded, at most
 // *delay. The capture measures the page first: a page that had not come yet
-// measured 10 px, and the picture was a thin strip. A click on the page itself
-// costs a quarter of a second: that long a new page may take to be asked for.
+// measured 10 px, and the picture was a thin strip. Some pages change their
+// own address first and then go to the link (DuckDuckGo's results): a change
+// within the page ends the wait only when no new page follows it within a
+// quarter of a second. A click on the page itself costs a quarter of a second
+// too: that long a new page may take to be asked for.
 func waitNav(a chromedp.Action) chromedp.ActionFunc {
 	return func(ctx context.Context) error {
 		tree, err := page.GetFrameTree().Do(ctx)
 		if err != nil {
 			return a.Do(ctx)
 		}
-		top := tree.Frame.ID
-		started := make(chan struct{}, 1)
-		done := make(chan struct{}, 1)
+		top, cur := tree.Frame.ID, tree.Frame.URL // the URL without its #fragment
+		const (
+			navStart = iota + 1 // something began: maybe a new page, maybe not
+			navDoc              // a new page (document) began in the tab
+			navQuiet            // a change within the page ended, or a load ended
+			navLoad             // the page's load event
+		)
+		ev := make(chan int, 64)
 		lctx, lcancel := context.WithCancel(ctx)
 		defer lcancel()
-		chromedp.ListenTarget(lctx, func(ev interface{}) {
-			var ch chan struct{}
-			switch e := ev.(type) {
+		chromedp.ListenTarget(lctx, func(e interface{}) {
+			n := 0
+			switch e := e.(type) {
 			case *page.EventFrameRequestedNavigation:
 				if e.FrameID == top {
-					ch = started
+					n = navStart
+					u, _, _ := strings.Cut(e.URL, "#")
+					if u != cur && (e.Disposition == "" || e.Disposition == page.ClientNavigationDispositionCurrentTab) {
+						n = navDoc
+					}
+				}
+			case *page.EventFrameStartedNavigating:
+				if e.FrameID == top {
+					n = navDoc
+					if e.NavigationType == page.FrameStartedNavigatingNavigationTypeSameDocument ||
+						e.NavigationType == page.FrameStartedNavigatingNavigationTypeHistorySameDocument {
+						n = navStart
+					}
 				}
 			case *page.EventFrameStartedLoading:
 				if e.FrameID == top {
-					ch = started
+					n = navStart
+				}
+			case *page.EventFrameNavigated:
+				if e.Frame.ParentID == "" {
+					n = navDoc
+				}
+			case *page.EventNavigatedWithinDocument:
+				if e.FrameID == top {
+					n = navQuiet
+				}
+			case *page.EventFrameStoppedLoading:
+				if e.FrameID == top {
+					n = navQuiet
 				}
 			case *page.EventLoadEventFired:
-				ch = done
-			case *page.EventNavigatedWithinDocument: // an #anchor, no load
-				if e.FrameID == top {
-					ch = done
-				}
+				n = navLoad
 			}
-			if ch != nil {
+			if n != 0 {
 				select {
-				case ch <- struct{}{}:
+				case ev <- n:
 				default:
 				}
 			}
@@ -244,29 +272,47 @@ func waitNav(a chromedp.Action) chromedp.ActionFunc {
 		if err := a.Do(ctx); err != nil {
 			return err
 		}
-		select {
-		case <-started:
-		case <-time.After(250 * time.Millisecond):
-			return nil // the same page: the capture waits for it to render
-		case <-ctx.Done():
-			return nil
-		}
-		for end := time.Now().Add(*delay); time.Now().Before(end); {
+		first := time.After(250 * time.Millisecond)
+		end := time.After(*delay)
+		tick := time.NewTicker(100 * time.Millisecond)
+		defer tick.Stop()
+		var grace <-chan time.Time
+		started, doc := false, false
+		for {
 			select {
-			case <-done:
+			case n := <-ev:
+				started = true
+				switch n {
+				case navDoc:
+					doc, grace = true, nil
+				case navQuiet:
+					if !doc {
+						grace = time.After(250 * time.Millisecond)
+					}
+				case navLoad:
+					if doc {
+						return nil
+					}
+				}
+			case <-first:
+				if !started {
+					return nil // the same page: the capture waits for it to render
+				}
+			case <-grace:
+				return nil // a change within the page, and no new page after it
+			case <-end:
 				return nil
 			case <-ctx.Done():
 				return nil
-			case <-time.After(100 * time.Millisecond):
-			}
-			dlTrack.Lock()
-			dl := dlTrack.ev != nil
-			dlTrack.Unlock()
-			if dl {
-				return nil // a download, not a page: navigate() waits for it
+			case <-tick.C:
+				dlTrack.Lock()
+				dl := dlTrack.ev != nil
+				dlTrack.Unlock()
+				if dl {
+					return nil // a download, not a page: navigate() waits for it
+				}
 			}
 		}
-		return nil
 	}
 }
 
