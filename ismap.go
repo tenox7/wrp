@@ -460,6 +460,58 @@ func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
 	})
 }
 
+// maxCapH: Chrome makes a screenshot at most 16384 device px tall (its
+// largest surface). In a taller one, the rows past that show the top of
+// the page again.
+const maxCapH = 16384
+
+// captureTall takes a viewport taller than maxCapH device px (w x h CSS px at
+// zoom) in clipped parts of at most maxCapH device px, and joins them into one
+// picture of the type png.Decode gives for one screenshot (RGBA). The parts
+// wait as PNG and are decoded one at a time, so the memory is that of one
+// screenshot.
+func captureTall(ctx context.Context, w, h int64, zoom float64) (image.Image, error) {
+	// a part is a whole number of device px, so the parts join exactly
+	ph := int64(maxCapH / zoom)
+	for ph > 1 && math.Abs(float64(ph)*zoom-math.Round(float64(ph)*zoom)) > 1e-6 {
+		ph--
+	}
+	var parts [][]byte
+	pw, sum := 0, 0
+	for y := int64(0); y < h; y += ph {
+		n := min(ph, h-y)
+		var b []byte
+		err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+			var err error
+			b, err = page.CaptureScreenshot().WithFromSurface(true).
+				WithClip(&page.Viewport{Y: float64(y), Width: float64(w), Height: float64(n), Scale: 1}).
+				Do(ctx)
+			return err
+		}))
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, b)
+		pw = max(pw, cfg.Width)
+		sum += cfg.Height
+	}
+	o := image.NewRGBA(image.Rect(0, 0, pw, sum))
+	y := 0
+	for _, b := range parts {
+		i, err := png.Decode(bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+		draw.Draw(o, image.Rect(0, y, pw, y+i.Bounds().Dy()), i, i.Bounds().Min, draw.Src)
+		y += i.Bounds().Dy()
+	}
+	return o, nil
+}
+
 // Capture Screenshot using CDP
 func (rq *wrpReq) captureScreenshot() {
 	vncSuspend() // borrow the viewport from the vnc screencast
@@ -496,8 +548,22 @@ func (rq *wrpReq) captureScreenshot() {
 		bc, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
 		waitForRender(),
 	)
-	// Capture screenshot...
-	ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, capH)), rq.w)
+	// Capture screenshot. Chrome can't take a viewport taller than maxCapH
+	// device px in one: captureTall takes it in parts and joins them (tall).
+	var tall image.Image
+	if float64(height)*rq.zoom > maxCapH {
+		var err error
+		tall, err = captureTall(bc, int64(float64(rq.width)/rq.zoom), height, rq.zoom)
+		ctxErr(err, rq.w)
+	} else {
+		ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, capH)), rq.w)
+	}
+	decode := func() (image.Image, error) {
+		if tall != nil {
+			return tall, nil
+		}
+		return png.Decode(bytes.NewReader(pngCap))
+	}
 	seq := shortuuid.New()
 	var imgExt string
 	if rq.imgType == "gip" {
@@ -516,7 +582,7 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	switch imgType {
 	case "slices":
-		i, err := png.Decode(bytes.NewReader(pngCap))
+		i, err := decode()
 		if err != nil {
 			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
@@ -532,7 +598,7 @@ func (rq *wrpReq) captureScreenshot() {
 		sSize = "slices"
 		log.Printf("%s Kept the page for slices: %s, Type: %s, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, rq.imgType, iW, iH, time.Since(st).Milliseconds())
 	case "gip":
-		i, err := png.Decode(bytes.NewReader(pngCap))
+		i, err := decode()
 		if err != nil {
 			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
@@ -552,6 +618,12 @@ func (rq *wrpReq) captureScreenshot() {
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIP image: %s, Size: %s, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH, time.Since(st).Milliseconds())
 	case "png":
+		if tall != nil { // png sends the screenshot as it is: one PNG
+			var b bytes.Buffer
+			if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&b, tall); err == nil {
+				pngCap = b.Bytes()
+			}
+		}
 		pngBuf := bytes.NewBuffer(pngCap)
 		wrpCach.addImg(imgPath, *pngBuf)
 		cfg, _, _ := image.DecodeConfig(pngBuf)
@@ -560,7 +632,7 @@ func (rq *wrpReq) captureScreenshot() {
 		iH = cfg.Height
 		log.Printf("%s Got PNG image: %s, Size: %s, Res: %dx%d\n", rq.r.RemoteAddr, imgPath, sSize, iW, iH)
 	case "gif":
-		i, err := png.Decode(bytes.NewReader(pngCap))
+		i, err := decode()
 		if err != nil {
 			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
@@ -580,7 +652,7 @@ func (rq *wrpReq) captureScreenshot() {
 		iH = i.Bounds().Max.Y
 		log.Printf("%s Encoded GIF image: %s, Size: %s, Colors: %d, Res: %dx%d, Time: %vms\n", rq.r.RemoteAddr, imgPath, sSize, rq.nColors, iW, iH, time.Since(st).Milliseconds())
 	case "jpg":
-		i, err := png.Decode(bytes.NewReader(pngCap))
+		i, err := decode()
 		if err != nil {
 			log.Printf("%s Failed to decode PNG screenshot: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to decode page PNG screenshot:<BR>%s<BR>\n", err)
