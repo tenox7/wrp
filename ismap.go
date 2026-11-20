@@ -24,6 +24,7 @@ import (
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/tenox7/gip"
@@ -109,6 +110,11 @@ func chromedpStart() error {
 		chromedp.Flag("hide-scrollbars", false),
 		chromedp.Flag("enable-automation", false),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
+		// Chrome draws only as much of the page as its tile memory holds
+		// (512 MB). A whole tall page in one picture (slices, or -height 0)
+		// needs more: virtuallyfun.com, 75000 px tall, came back black
+		// below the part that fit, or all black but its fixed background.
+		chromedp.Flag("force-gpu-mem-available-mb", "4096"),
 	)
 	if *userAgent == "jnrbsn" {
 		if ua := fetchJnrbsnUserAgent(); ua != "" {
@@ -152,7 +158,7 @@ func (rq *wrpReq) action() chromedp.Action {
 	// Mouse Click
 	if rq.mouseX > 0 && rq.mouseY > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", rq.r.RemoteAddr, rq.mouseX, rq.mouseY)
-		return chromedp.MouseClickXY(float64(rq.mouseX)/float64(rq.zoom), float64(rq.mouseY)/float64(rq.zoom))
+		return waitNav(chromedp.MouseClickXY(float64(rq.mouseX)/float64(rq.zoom), float64(rq.mouseY)/float64(rq.zoom)))
 	}
 	// Buttons
 	if len(rq.buttons) > 0 {
@@ -165,9 +171,9 @@ func (rq *wrpReq) action() chromedp.Action {
 		case "Re":
 			return chromedp.Reload()
 		case "Bs":
-			return chromedp.KeyEvent("\b")
+			return waitNav(chromedp.KeyEvent("\b"))
 		case "Rt":
-			return chromedp.KeyEvent("\r")
+			return waitNav(chromedp.KeyEvent("\r"))
 		case "<":
 			return chromedp.KeyEvent("\u0302")
 		case "^":
@@ -187,11 +193,81 @@ func (rq *wrpReq) action() chromedp.Action {
 	// Keys
 	if len(rq.keys) > 0 {
 		log.Printf("%s Sending Keys: %#v\n", rq.r.RemoteAddr, rq.keys)
-		return chromedp.KeyEvent(rq.keys)
+		return waitNav(chromedp.KeyEvent(rq.keys))
 	}
 	// Navigate to URL
 	log.Printf("%s Processing Navigate Request for %s\n", rq.r.RemoteAddr, rq.url)
 	return chromedp.Navigate(rq.url)
+}
+
+// waitNav runs a (a click, keys), and when that starts a new page in the tab
+// (a link, Return in a form), waits until the new page has loaded, at most
+// *delay. The capture measures the page first: a page that had not come yet
+// measured 10 px, and the picture was a thin strip. A click on the page itself
+// costs a quarter of a second: that long a new page may take to be asked for.
+func waitNav(a chromedp.Action) chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		tree, err := page.GetFrameTree().Do(ctx)
+		if err != nil {
+			return a.Do(ctx)
+		}
+		top := tree.Frame.ID
+		started := make(chan struct{}, 1)
+		done := make(chan struct{}, 1)
+		lctx, lcancel := context.WithCancel(ctx)
+		defer lcancel()
+		chromedp.ListenTarget(lctx, func(ev interface{}) {
+			var ch chan struct{}
+			switch e := ev.(type) {
+			case *page.EventFrameRequestedNavigation:
+				if e.FrameID == top {
+					ch = started
+				}
+			case *page.EventFrameStartedLoading:
+				if e.FrameID == top {
+					ch = started
+				}
+			case *page.EventLoadEventFired:
+				ch = done
+			case *page.EventNavigatedWithinDocument: // an #anchor, no load
+				if e.FrameID == top {
+					ch = done
+				}
+			}
+			if ch != nil {
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			}
+		})
+		if err := a.Do(ctx); err != nil {
+			return err
+		}
+		select {
+		case <-started:
+		case <-time.After(250 * time.Millisecond):
+			return nil // the same page: the capture waits for it to render
+		case <-ctx.Done():
+			return nil
+		}
+		for end := time.Now().Add(*delay); time.Now().Before(end); {
+			select {
+			case <-done:
+				return nil
+			case <-ctx.Done():
+				return nil
+			case <-time.After(100 * time.Millisecond):
+			}
+			dlTrack.Lock()
+			dl := dlTrack.ev != nil
+			dlTrack.Unlock()
+			if dl {
+				return nil // a download, not a page: navigate() waits for it
+			}
+		}
+		return nil
+	}
 }
 
 // Go one page back in the tab's history. chromedp.NavigateBack waits for a
@@ -267,6 +343,13 @@ func ctxErr(err error, w io.Writer) {
 	fmt.Fprintln(w, "Created new context, try again")
 }
 
+// waitForRender waits until the page has loaded and the pictures in the
+// viewport have come, at most *delay (5 s at most). The pictures out of view
+// don't count: the lazy ones load only when they come into view. A quiet
+// network (networkAlmostIdle) counts as loaded, for pages that never end
+// loading, but it does not end the wait for the pictures: Chrome tells it once,
+// soon after a new page has loaded, and the pictures that a taller viewport
+// has just shown were still on their way (empty boxes on a whole page).
 func waitForRender() chromedp.ActionFunc {
 	return func(ctx context.Context) error {
 		timeout := *delay
@@ -284,18 +367,26 @@ func waitForRender() chromedp.ActionFunc {
 				}
 			}
 		})
+		// two frames at the new size: then the viewport is that size, and
+		// the lazy pictures in it have started to load
+		fctx, fcancel := context.WithTimeout(ctx, time.Second)
+		chromedp.Evaluate(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`, nil,
+			func(p *runtime.EvaluateParams) *runtime.EvaluateParams { return p.WithAwaitPromise(true) }).Do(fctx)
+		fcancel()
+		idle := false
 		deadline := time.Now().Add(timeout)
 		for time.Now().Before(deadline) {
 			select {
 			case <-ch:
-				return nil
+				idle = true
 			default:
 			}
 			var ready bool
-			if err := chromedp.Evaluate(
-				`document.readyState === "complete" && Array.from(document.images).every(i => i.complete)`,
-				&ready,
-			).Do(ctx); err != nil {
+			if err := chromedp.Evaluate(fmt.Sprintf(`(%v || document.readyState === "complete") &&
+				Array.from(document.images).every(i => {
+					const r = i.getBoundingClientRect();
+					return i.complete || r.bottom <= 0 || r.top >= innerHeight;
+				})`, idle), &ready).Do(ctx); err != nil {
 				return nil
 			}
 			if ready {

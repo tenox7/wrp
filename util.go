@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/draw"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MaxHalford/halfgone"
@@ -51,17 +53,126 @@ func gifPalette(i image.Image, n int64) image.Image {
 		i = halfgone.FloydSteinbergDitherer{}.Apply(halfgone.ImageToGray(i))
 	default:
 		q := quantize.MedianCutQuantizer{}
-		p := q.Quantize(make([]color.Color, 0, int(n)), i)
-		bounds := i.Bounds()
-		quantized := image.NewPaletted(bounds, p)
-		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				quantized.Set(x, y, i.At(x, y))
-			}
-		}
-		i = quantized
+		p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
+		i = toPalette(i, p)
 	}
 	return i
+}
+
+// palSamplePixels: median cut looks at all of a screen, but only at some rows
+// of a whole page kept for slices. A page 75000 px tall has 59 million pixels:
+// the palette took seconds and a gigabyte of memory, and every 30th row gives
+// nearly the same one.
+const palSamplePixels = 1 << 21
+
+func palSample(i image.Image) image.Image {
+	b := i.Bounds()
+	px := b.Dx() * b.Dy()
+	if px <= palSamplePixels {
+		return i
+	}
+	k := (px + palSamplePixels - 1) / palSamplePixels
+	o := image.NewRGBA(image.Rect(0, 0, b.Dx(), (b.Dy()+k-1)/k))
+	for y := 0; y*k < b.Dy(); y++ {
+		draw.Draw(o, image.Rect(0, y, b.Dx(), y+1), i, image.Pt(b.Min.X, b.Min.Y+y*k), draw.Src)
+	}
+	return o
+}
+
+// toPalette does what image.Paletted's Set does for each pixel (the nearest
+// color, as color.Palette.Index finds it), with the same result, but fast. A
+// page has few colors, so each part remembers the ones it has found, and the
+// parts run in parallel. With Set, a page 75000 px tall took 40 seconds.
+func toPalette(i image.Image, p color.Palette) *image.Paletted {
+	b := i.Bounds()
+	o := image.NewPaletted(b, p)
+	pal := make([][4]uint32, len(p))
+	for k, c := range p {
+		r, g, bl, a := c.RGBA()
+		pal[k] = [4]uint32{r, g, bl, a}
+	}
+	n := runtime.GOMAXPROCS(0)
+	if n > b.Dy() {
+		n = b.Dy()
+	}
+	var wg sync.WaitGroup
+	for w := 0; w < n; w++ {
+		y0, y1 := b.Min.Y+b.Dy()*w/n, b.Min.Y+b.Dy()*(w+1)/n
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mapRows(o, i, pal, y0, y1)
+		}()
+	}
+	wg.Wait()
+	return o
+}
+
+type palMemo struct {
+	key uint32 // the pixel's 4 bytes
+	idx uint8
+	set bool
+}
+
+// mapRows maps rows y0 to y1-1 of i into o
+func mapRows(o *image.Paletted, i image.Image, pal [][4]uint32, y0, y1 int) {
+	b := i.Bounds()
+	var memo [1 << 12]palMemo
+	idx := func(p []uint8, nrgba bool) uint8 {
+		key := uint32(p[0])<<24 | uint32(p[1])<<16 | uint32(p[2])<<8 | uint32(p[3])
+		m := &memo[(key*2654435761)>>20]
+		if !m.set || m.key != key {
+			var r, g, bl, a uint32
+			if nrgba {
+				r, g, bl, a = color.NRGBA{p[0], p[1], p[2], p[3]}.RGBA()
+			} else {
+				r, g, bl, a = color.RGBA{p[0], p[1], p[2], p[3]}.RGBA()
+			}
+			*m = palMemo{key, nearest(pal, r, g, bl, a), true}
+		}
+		return m.idx
+	}
+	for y := y0; y < y1; y++ {
+		d := o.Pix[o.PixOffset(b.Min.X, y):]
+		switch s := i.(type) {
+		case *image.RGBA:
+			r := s.Pix[s.PixOffset(b.Min.X, y):]
+			for x := 0; x < b.Dx(); x++ {
+				d[x] = idx(r[4*x:4*x+4], false)
+			}
+		case *image.NRGBA:
+			r := s.Pix[s.PixOffset(b.Min.X, y):]
+			for x := 0; x < b.Dx(); x++ {
+				d[x] = idx(r[4*x:4*x+4], true)
+			}
+		default:
+			for x := b.Min.X; x < b.Max.X; x++ {
+				o.Set(x, y, i.At(x, y))
+			}
+		}
+	}
+}
+
+// nearest is color.Palette.Index for a color given as r, g, b, a
+func nearest(pal [][4]uint32, r, g, b, a uint32) uint8 {
+	ret, best := 0, uint32(1<<32-1)
+	for k, v := range pal {
+		sum := sqDiff(r, v[0]) + sqDiff(g, v[1]) + sqDiff(b, v[2]) + sqDiff(a, v[3])
+		if sum == 0 {
+			return uint8(k)
+		}
+		if sum < best {
+			ret, best = k, sum
+		}
+	}
+	return uint8(ret)
+}
+
+// sqDiff is image/color's: the squared difference, shifted so that 4 of them
+// fit in a uint32
+func sqDiff(x, y uint32) uint32 {
+	d := x - y
+	return (d * d) >> 2
 }
 
 func asciify(s []byte) []byte {
