@@ -11,7 +11,7 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 - Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse web.
 - HTTP proxy mode which offers more seamless, but also limited use. Semi compatible with https://.
 - Dedicated client, [Archaic](https://github.com/tenox7/archaic) web browser, a tiny native WRP client for vintage computers.
-- VNC server, `-vnc :5901`, a live interactive browser for any VNC viewer. No password, so firewall the port.
+- VNC server, `-vnc :5901`, a live interactive browser for any VNC viewer.
 
 ### Rende modes
 
