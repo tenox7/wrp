@@ -116,14 +116,6 @@ func chromedpStart() error {
 		// below the part that fit, or all black but its fixed background.
 		chromedp.Flag("force-gpu-mem-available-mb", "4096"),
 	)
-	if *userAgent == "jnrbsn" {
-		if ua := fetchJnrbsnUserAgent(); ua != "" {
-			*userAgent = ua
-		}
-	}
-	if *userAgent != "" {
-		opts = append(opts, chromedp.UserAgent(*userAgent))
-	}
 	if *browserPath == "" {
 		*browserPath = findBrowser()
 	}
@@ -150,6 +142,8 @@ func chromedpStart() error {
 		}
 		return err
 	}
+	uaInit(brCtx())
+	uaApply(brCtx())
 	return nil
 }
 

@@ -42,7 +42,7 @@ var (
 	defDither   = flag.String("d", bwPics, "Dither of 2 color GIFs: all, pics (only photos: text stays sharp), none")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay       = flag.Duration("s", 5*time.Second, "Timeout for waiting for the page to render before screenshot")
-	userAgent   = flag.String("ua", "jnrbsn", "override chrome user agent (jnrbsn=fetch from API, empty=default)")
+	userAgent   = flag.String("ua", "", "user agent (empty=browser's own without Headless, jnrbsn=fetch from API, or your own)")
 	browserPath = flag.String("b", "", "browser executable path (e.g., /Applications/Brave Browser.app/Contents/MacOS/Brave Browser)")
 	searchEng   = flag.String("se", "https://duckduckgo.com/search?q=", "Search engine string")
 	userDataDir = flag.String("profile", "", "Chrome user data dir for persistent cookies/sessions")

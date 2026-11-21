@@ -121,6 +121,11 @@ document.addEventListener('keydown',function(ev){
 window.addEventListener('resize',place,true);
 })()`
 
+// The script runs in its own isolated world: it shares the page's DOM but not
+// its JavaScript, so the page cannot see window.__wrpSel. In the page's world
+// that one global was enough for Google search to show a captcha.
+const selWorld = "wrp"
+
 // Install on the tab behind ctx: on every document it loads from now on, and on
 // the one it already has.
 func selPopupInstall(ctx context.Context) {
@@ -128,10 +133,9 @@ func selPopupInstall(ctx context.Context) {
 		return
 	}
 	err := vncRun(ctx, vncTabTO, chromedp.ActionFunc(func(cx context.Context) error {
-		if _, err := page.AddScriptToEvaluateOnNewDocument(selPopupJS).Do(cx); err != nil {
-			return err
-		}
-		return chromedp.Evaluate(selPopupJS, nil).Do(cx)
+		_, err := page.AddScriptToEvaluateOnNewDocument(selPopupJS).
+			WithWorldName(selWorld).WithRunImmediately(true).Do(cx)
+		return err
 	}))
 	if err != nil {
 		log.Printf("select dropdown support unavailable on this tab: %v", err)

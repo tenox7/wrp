@@ -17,6 +17,7 @@ import (
 
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -180,13 +181,13 @@ func runCase(t *testing.T, ctx context.Context, inFrame bool) caseResult {
 	time.Sleep(500 * time.Millisecond)
 
 	var raw json.RawMessage
-	probe := `(()=>{const W=` + scope + `;const b=W.__wrpSel&&W.__wrpSel.box();
+	probe := `(()=>{const W=window;const b=W.__wrpSel&&W.__wrpSel.box();
 	 if(!b)return{rows:-1};
 	 const s=W.__wrpSel.sel(),r=s.getBoundingClientRect(),g=b.getBoundingClientRect();
 	 return{rows:b.children.length,dx:Math.round(g.left-r.left),dy:Math.round(g.top-r.bottom),
 	  w:Math.round(g.width),h:Math.round(g.height),top:Math.round(g.top),
 	  scrollable:b.scrollHeight>b.clientHeight+1}})()`
-	if err := chromedp.Run(ctx, chromedp.Evaluate(probe, &raw)); err != nil {
+	if err := selEval(ctx, inFrame, probe, &raw); err != nil {
 		t.Fatalf("probe: %v", err)
 	}
 	var out caseResult
@@ -204,21 +205,21 @@ func runCase(t *testing.T, ctx context.Context, inFrame bool) caseResult {
 	// labels are in the list, so ask the script which row belongs to it.
 	out.Pick = 2
 	var ry []float64
-	row := `(()=>{const W=` + scope + `;const e=W.__wrpSel.row(2);
+	row := `(()=>{const W=window;const e=W.__wrpSel.row(2);
 	 e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();
 	 return[r.x+8+` + frameOff(inFrame, "x") + `,r.y+r.height/2+` + frameOff(inFrame, "y") + `]})()`
-	if err := chromedp.Run(ctx, chromedp.Evaluate(row, &ry)); err != nil || len(ry) != 2 {
+	if err := selEval(ctx, inFrame, row, &ry); err != nil || len(ry) != 2 {
 		t.Fatalf("row rect: %v", err)
 	}
 	clickAt(ctx, ry[0], ry[1])
 	time.Sleep(500 * time.Millisecond)
 
 	var res json.RawMessage
-	chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const W=`+scope+`,D=W.document;
+	selEval(ctx, inFrame, `(()=>{const W=window,D=W.document;
 	 const s=D.getElementById('s');
 	 return{value:s.value,want:s.options[2].value||s.options[2].textContent,
 	  stillOpen:!!(W.__wrpSel&&W.__wrpSel.box()),
-	  echo:(D.getElementById('out')||{}).textContent||''}})()`, &res))
+	  echo:(D.getElementById('out')||{}).textContent||''}})()`, &res)
 	var f struct {
 		Value, Want, Echo string
 		StillOpen         bool
@@ -229,6 +230,31 @@ func runCase(t *testing.T, ctx context.Context, inFrame bool) caseResult {
 		t.Errorf("page change handler saw %q, expected CHANGED:%s", f.Echo, f.Value)
 	}
 	return out
+}
+
+// selEval evaluates js where the select script runs: its isolated world, in
+// the page or in its first subframe. Each frame has its own copy of the world.
+func selEval(ctx context.Context, inFrame bool, js string, res interface{}) error {
+	return chromedp.Run(ctx, chromedp.ActionFunc(func(cx context.Context) error {
+		t, err := page.GetFrameTree().Do(cx)
+		if err != nil {
+			return err
+		}
+		f := t.Frame
+		if inFrame {
+			if len(t.ChildFrames) == 0 {
+				return fmt.Errorf("no subframe")
+			}
+			f = t.ChildFrames[0].Frame
+		}
+		id, err := page.CreateIsolatedWorld(f.ID).WithWorldName(selWorld).Do(cx)
+		if err != nil {
+			return err
+		}
+		return chromedp.Evaluate(js, res, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+			return p.WithContextID(id)
+		}).Do(cx)
+	}))
 }
 
 func frameOff(inFrame bool, axis string) string {

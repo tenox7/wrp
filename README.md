@@ -194,7 +194,7 @@ Click `St` to re-capture the screenshot. You may want to increase the page delay
 
 ### Websites are blocking headless browsers
 
-This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP tries to obtain some current valid User Agent from https://github.com/jnrbsn/user-agents rather than using the internal "HeadlessChrome". You can override this to your own, for example:
+This is a well known issue. WRP has some provisions to work around it, but it's a cat and mouse game. By default WRP sends the browser's own User Agent without "Headless", with client hints to match. `-ua jnrbsn` uses a current one from https://github.com/jnrbsn/user-agents. You can also use your own, for example:
 
 ```shell
 $ wrp -ua="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
