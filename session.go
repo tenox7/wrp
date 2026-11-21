@@ -34,6 +34,7 @@ type sessUI struct {
 	Zoom    float64 `json:"zoom"`
 	ImgType string  `json:"imgtype"`
 	Mode    string  `json:"mode"`
+	Dither  string  `json:"dither"`
 }
 
 // Vnc framebuffer, height includes the tab and nav bars
@@ -120,6 +121,9 @@ func sessLoad() {
 	if !sessSet["m"] && (u.Mode == "ismap" || u.Mode == "html") {
 		*wrpMode = u.Mode
 	}
+	if !sessSet["d"] && bwMode(u.Dither, "") != "" {
+		*defDither = u.Dither
+	}
 	if !sessSet["q"] && u.JpgQual >= 1 && u.JpgQual <= 100 {
 		*defJpgQual = u.JpgQual
 	}
@@ -155,7 +159,7 @@ func sessSaveUI(rq *wrpReq) {
 		return
 	}
 	sessMu.Lock()
-	sess.UI = sessUI{rq.width, rq.height, rq.nColors, rq.jQual, rq.maxSize, rq.zoom, rq.imgType, rq.wrpMode}
+	sess.UI = sessUI{rq.width, rq.height, rq.nColors, rq.jQual, rq.maxSize, rq.zoom, rq.imgType, rq.wrpMode, rq.dither}
 	sessMu.Unlock()
 	sessDirty.Store(true)
 }

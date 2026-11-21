@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MaxHalford/halfgone"
 	"github.com/ericpauley/go-quantize/quantize"
 )
 
@@ -47,10 +46,12 @@ func printMyIPs(b string) {
 	log.Printf("Listen address: %v", m)
 }
 
-func gifPalette(i image.Image, n int64) image.Image {
+// gifPalette makes the picture one of n colors. For 2 colors (black and
+// white), dither says what is dithered: see bw.go.
+func gifPalette(i image.Image, n int64, dither string) image.Image {
 	switch n {
 	case 2:
-		i = halfgone.FloydSteinbergDitherer{}.Apply(halfgone.ImageToGray(i))
+		i = toBW(i, dither)
 	default:
 		q := quantize.MedianCutQuantizer{}
 		p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))

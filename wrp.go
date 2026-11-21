@@ -39,6 +39,7 @@ var (
 	defImgSize  = flag.Int64("is", 200, "html mode default image size")
 	defJpgQual  = flag.Int64("q", 75, "Jpeg image quality, default 75%") // TODO: this should be form dropdown when jpeg is selected as image type
 	fgeom       = flag.String("g", "1152x600x216", "Geometry: width x height x colors, height can be 0 for unlimited")
+	defDither   = flag.String("d", bwPics, "Dither of 2 color GIFs: all, pics (only photos: text stays sharp), none")
 	htmFnam     = flag.String("ui", "wrp.html", "HTML template file for the UI")
 	delay       = flag.Duration("s", 5*time.Second, "Timeout for waiting for the page to render before screenshot")
 	userAgent   = flag.String("ua", "jnrbsn", "override chrome user agent (jnrbsn=fetch from API, empty=default)")
@@ -144,6 +145,7 @@ type uiData struct {
 	URL        string
 	BgColor    string
 	NColors    int64
+	Dither     string
 	JQual      int64
 	Width      int64
 	Height     int64
@@ -179,6 +181,7 @@ type wrpReq struct {
 	height  int64
 	zoom    float64
 	nColors int64
+	dither  string // d=: what is dithered in a 2 color picture (bw.go)
 	jQual   int64
 	mouseX  int64
 	mouseY  int64
@@ -234,6 +237,7 @@ func (rq *wrpReq) parseForm() {
 	if rq.nColors < 2 || rq.nColors > 256 {
 		rq.nColors = defGeom.c
 	}
+	rq.dither = bwMode(rq.r.FormValue("d"), *defDither)
 	rq.jQual, _ = strconv.ParseInt(rq.r.FormValue("q"), 10, 64)
 	if rq.jQual < 1 || rq.jQual > 100 {
 		rq.jQual = *defJpgQual
@@ -265,6 +269,7 @@ func (rq *wrpReq) printUI(p uiParams) {
 		Width:      rq.width,
 		Height:     rq.height,
 		NColors:    rq.nColors,
+		Dither:     rq.dither,
 		JQual:      rq.jQual,
 		Zoom:       rq.zoom,
 		MaxSize:    rq.maxSize,
@@ -302,6 +307,7 @@ func proxyServer(w http.ResponseWriter, r *http.Request) {
 		width:   defGeom.w,
 		height:  defGeom.h,
 		nColors: defGeom.c,
+		dither:  *defDither,
 		zoom:    1.0,
 		imgType: *defType,
 		wrpMode: *wrpMode,
@@ -442,6 +448,9 @@ func main() {
 		log.Fatalf("Unable to parse -g geometry flag / %s", err)
 	}
 	sessLoad()
+	if bwMode(*defDither, "") == "" {
+		log.Fatalf("Unable to parse -d dither flag %q: all, pics or none", *defDither)
+	}
 
 	if err := chromedpStart(); err != nil {
 		brFatalf("Unable to start the browser: %v", err)

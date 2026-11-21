@@ -89,7 +89,7 @@ func (i *imageStore) clear() {
 	i.img = make(map[string]imageContainer)
 }
 
-func fetchImage(id, imgURL, imgType string, maxSize, imgOpt int) (int, int, int, error) {
+func fetchImage(id, imgURL, imgType string, maxSize, imgOpt int, dither string) (int, int, int, error) {
 	log.Printf("Downloading IMGZ URL=%q for ID=%q", imgURL, id)
 	var in []byte
 	var err error
@@ -129,7 +129,7 @@ func fetchImage(id, imgURL, imgType string, maxSize, imgOpt int) (int, int, int,
 	default:
 		return 0, 0, 0, fmt.Errorf("unsupported image URL scheme: %q", imgURL)
 	}
-	out, w, h, err := smallImg(in, imgType, maxSize, imgOpt)
+	out, w, h, err := smallImg(in, imgType, maxSize, imgOpt, dither)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("Error scaling down %q: %v", imgURL, err)
 	}
@@ -168,7 +168,7 @@ func isSVG(src []byte) bool {
 	return strings.HasPrefix(s, "<svg") || strings.HasPrefix(s, "<?xml")
 }
 
-func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, int, int, error) {
+func smallImg(src []byte, imgType string, maxSize, imgOpt int, dither string) ([]byte, int, int, error) {
 	t := http.DetectContentType(src)
 	var err error
 	var img image.Image
@@ -198,7 +198,7 @@ func smallImg(src []byte, imgType string, maxSize, imgOpt int) ([]byte, int, int
 	case "png":
 		err = png.Encode(&outBuf, img)
 	case "gif":
-		err = gif.Encode(&outBuf, gifPalette(img, int64(imgOpt)), &gif.Options{})
+		err = gif.Encode(&outBuf, gifPalette(img, int64(imgOpt), dither), &gif.Options{})
 	case "jpg":
 		err = jpeg.Encode(&outBuf, img, &jpeg.Options{Quality: imgOpt})
 	}
@@ -326,7 +326,7 @@ func simplifyDOM(doc *goquery.Document, rq *wrpReq) int {
 		wg.Add(1)
 		go func(j imgJob) {
 			defer wg.Done()
-			size, w, h, err := fetchImage(j.seq, j.abs, rq.imgType, int(rq.maxSize), imgOpt)
+			size, w, h, err := fetchImage(j.seq, j.abs, rq.imgType, int(rq.maxSize), imgOpt, rq.dither)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

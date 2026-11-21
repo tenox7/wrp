@@ -54,6 +54,14 @@
                 <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
                 <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
             </SELECT>
+            {{ if eq .NColors 2 }}
+            D <SELECT NAME="d">
+                <OPTION DISABLED>Dith</OPTION>
+                <OPTION VALUE="all" {{ if eq .Dither "all"}}SELECTED{{end}}>All</OPTION>
+                <OPTION VALUE="pics" {{ if eq .Dither "pics"}}SELECTED{{end}}>Pics</OPTION>
+                <OPTION VALUE="none" {{ if eq .Dither "none"}}SELECTED{{end}}>None</OPTION>
+            </SELECT>
+            {{ end }}
             {{ end }}
             {{ if eq .ImgType "jpg" }}
             Q <INPUT TYPE="TEXT" NAME="q" VALUE="{{.JQual}}" SIZE="2">%

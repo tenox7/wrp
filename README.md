@@ -40,6 +40,7 @@ Different modes have different uses. ISMAP mode will be better for flashy modern
 * WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` (or flag `-g 1152x0x216`. However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
 * **Slices** (`sl=1`), for clients that scroll the page themselves, such as [Archaic](https://github.com/tenox7/archaic): WRP renders the whole page once, as one tall image, and keeps it. The `IMG` tag has the whole page's height. The client gets only the rows it shows, with `/img/ID.gif?y=Y&h=H`, so it does not need the whole image in memory. Clicks on the image map are page coordinates. **Up** and **Dn** are left out. A browser that gets the image without `y` and `h` gets the whole page.
 * **ABM** pictures, for black and white clients with a slow CPU, such as Archaic on an Atari ST: a client that sends `Accept: image/x-abm` gets the slices of a 2 color page (`t=gif`, `c=2`) as ABM, not GIF. ABM is 1 bit a pixel, packed with a byte LZ. A 10 MHz 68010 decodes it about 50 times faster than the GIF (551 x 310 pixels: 0.15 s, GIF: 7.5 s), and it is about 11% smaller. Other clients get the GIF. The format is in `abm.go`.
+* **Black and white pictures** (GIF with **C** set to `2`): the **D** menu (`d=`, or the flag `-d`) says what WRP dithers. `pics`, the default: for reading. Only photos are dithered. Text, lines and flat colors are sharp, black or white, and light gray text and thin gray lines stay, as black. `all`: Floyd-Steinberg on all of the page, as WRP did before. It is good for photos, but text in a color, gray text, and all that is on a colored background become dots, and are hard to read. `none`: no dither at all, photos are sharp too. On 171 slices of 551 x 310 pixels from 12 web pages, `pics` pictures are 20% smaller than `all` as ABM (9% as GIF), and `none` pictures 32% (18% as GIF). Both are also made about 10 times faster.
 * Do not use client browser history-back, instead use **Bk** button in the app.
 * You can re-capture screenshot without reloading page by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
 * You can also reload page and re-capture screenshot with **Re** (Reload).
@@ -84,6 +85,8 @@ used with PNG and lots of memory on a client side.
 `T` Image type PNG / GIF / JPEG
 
 `C` Colors, for GIF images only
+
+`D` Dither, for GIF images with 2 colors only: All, Pics (only photos, so text stays sharp: the default) or None
 
 `K` Keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 
@@ -155,6 +158,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -t   image type gif, png or jpg (default gif)
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
+-d   dither of 2 color GIFs: all, pics (only photos) or none (default pics)
 -q   Jpeg image quality, default 75%
 -h   headless mode, hide browser window on the server (default true)
 -n   do not free maps and images after use (default false)
@@ -200,7 +204,7 @@ Use `-profile ~/.wrp-chrome` to persist cookies/logins between runs. Log in once
 
 ### Saving and restoring the session
 
-With `-profile` WRP also remembers the session in `wrp-session.json` inside the profile dir and restores it on the next run: image geometry, zoom, image type, colors, quality and mode for the ISMAP/HTML UI, the VNC framebuffer size and zoom, plus the open tabs, which are reopened where you left off. Flags given on the command line always win, for example `-g 1024x768x256` overrides the saved geometry and `-vncpage` skips reopening tabs.
+With `-profile` WRP also remembers the session in `wrp-session.json` inside the profile dir and restores it on the next run: image geometry, zoom, image type, colors, dither, quality and mode for the ISMAP/HTML UI, the VNC framebuffer size and zoom, plus the open tabs, which are reopened where you left off. Flags given on the command line always win, for example `-g 1024x768x256` overrides the saved geometry and `-vncpage` skips reopening tabs.
 
 ### Why isn't there a Docker image for armv6
 

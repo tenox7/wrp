@@ -590,7 +590,7 @@ func (rq *wrpReq) captureScreenshot() {
 		}
 		st := time.Now()
 		if rq.imgType == "gif" {
-			i = paletted(gifPalette(i, rq.nColors))
+			i = paletted(gifPalette(i, rq.nColors, rq.dither))
 		}
 		wrpCach.addFull(imgPath, i, rq.imgType, int(rq.jQual))
 		iW = i.Bounds().Dx()
@@ -640,7 +640,7 @@ func (rq *wrpReq) captureScreenshot() {
 		}
 		st := time.Now()
 		var gifBuf bytes.Buffer
-		err = gif.Encode(&gifBuf, gifPalette(i, rq.nColors), &gif.Options{})
+		err = gif.Encode(&gifBuf, gifPalette(i, rq.nColors, rq.dither), &gif.Options{})
 		if err != nil {
 			log.Printf("%s Failed to encode GIF: %s\n", rq.r.RemoteAddr, err)
 			fmt.Fprintf(rq.w, "<BR>Unable to encode GIF:<BR>%s<BR>\n", err)

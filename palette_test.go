@@ -63,7 +63,7 @@ func TestGifPaletteSame(t *testing.T) {
 		for _, n := range []int{4, 16, 256} {
 			i := palTestImage(300, 200, nrgba)
 			want := oldGifPalette(i, n)
-			got, ok := gifPalette(i, int64(n)).(*image.Paletted)
+			got, ok := gifPalette(i, int64(n), bwAll).(*image.Paletted)
 			if !ok {
 				t.Fatalf("nrgba %v n %d: not a paletted picture", nrgba, n)
 			}
@@ -86,7 +86,7 @@ func TestGifPaletteTall(t *testing.T) {
 	if s := palSample(i); s.Bounds().Dx()*s.Bounds().Dy() > palSamplePixels {
 		t.Fatalf("sample: %v", s.Bounds())
 	}
-	got := gifPalette(i, 256).(*image.Paletted)
+	got := gifPalette(i, 256, bwAll).(*image.Paletted)
 	for _, pt := range []image.Point{{0, 0}, {399, 5999}, {123, 2500}, {7, 4100}} {
 		want := got.Palette.Index(i.At(pt.X, pt.Y))
 		if int(got.ColorIndexAt(pt.X, pt.Y)) != want {
@@ -99,6 +99,6 @@ func BenchmarkGifPaletteTall(b *testing.B) {
 	i := palTestImage(792, 20000, false)
 	b.ResetTimer()
 	for k := 0; k < b.N; k++ {
-		gifPalette(i, 256)
+		gifPalette(i, 256, bwAll)
 	}
 }
