@@ -782,13 +782,25 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 			return
 		}
 	}
+	// a black and white picture for a client that takes ABM (see abm.go)
+	typ := f.typ
 	var buf bytes.Buffer
-	if err := encodeImg(&buf, i, f.typ, f.jq); err != nil {
+	var err error
+	if p, ok := i.(*image.Paletted); ok && typ == "gif" && len(p.Palette) == 2 && abmWanted(r) {
+		typ = "abm"
+		err = encodeABM(&buf, p)
+	} else {
+		err = encodeImg(&buf, i, typ, f.jq)
+	}
+	if err != nil {
 		http.Error(w, "Unable to encode "+r.URL.Path+": "+err.Error(), http.StatusInternalServerError)
 		log.Printf("%s Unable to encode %s: %s\n", r.RemoteAddr, r.URL.Path, err)
 		return
 	}
-	switch f.typ {
+	switch typ {
+	case "abm":
+		w.Header().Set("Content-Type", abmType)
+		w.Header().Set("Vary", "Accept")
 	case "png":
 		w.Header().Set("Content-Type", "image/png")
 	case "jpg":
@@ -801,7 +813,7 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 	w.Header().Set("Expires", "-1")
 	w.Header().Set("Pragma", "no-cache")
 	w.Write(buf.Bytes())
-	log.Printf("%s Slice %s y=%v h=%v: %dx%d, %d bytes, %vms\n", r.RemoteAddr, r.URL.Path, q.Get("y"), q.Get("h"), i.Bounds().Dx(), i.Bounds().Dy(), buf.Len(), time.Since(st).Milliseconds())
+	log.Printf("%s Slice %s y=%v h=%v: %dx%d, %s, %d bytes, %vms\n", r.RemoteAddr, r.URL.Path, q.Get("y"), q.Get("h"), i.Bounds().Dx(), i.Bounds().Dy(), typ, buf.Len(), time.Since(st).Milliseconds())
 }
 
 // Rows y up to y+h of a picture, as a picture of its own that starts at
