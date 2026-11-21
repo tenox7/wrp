@@ -1,6 +1,6 @@
 # WRP - Web Rendering Proxy
 
-A browser-in-browser proxy server that allows to use historical / vintage web browsers on the modern web.
+A browser-in-browser proxy server that allows you to use historical / vintage web browsers on the modern web.
 
 ![Internet Explorer 1.5 doing Gmail](wrp.png)
 
@@ -8,22 +8,22 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 ### Access Types
 
-- Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse web.
-- HTTP proxy mode which offers more seamless, but also limited use. Semi compatible with https://.
+- Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse the web.
+- HTTP proxy mode which offers more seamless, but also limited use. Semi-compatible with https://.
 - Dedicated client, [Archaic](https://github.com/tenox7/archaic) web browser, a tiny native WRP client for vintage computers.
 - VNC server, `-vnc :5901`, a live interactive browser for any VNC viewer.
 
-### Rende modes
+### Render modes
 
-- ISMAP "graphical" mode, renders web page in to a GIF/PNG/JPG image with clickable imagemap.
+- ISMAP "graphical" mode, renders the web page into a GIF/PNG/JPG image with clickable imagemap.
 - Simple HTML mode converts pages into simplified HTML for old browsers.
 
-Different modes have different uses. ISMAP mode will be better for flashy modern web. Simple HTML mode will be better for reading articles or documentation.
+Different modes have different uses. ISMAP mode will be better for the flashy modern web. Simple HTML mode will be better for reading articles or documentation.
 
 ## Usage Instructions
 
-* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium / Brave Browser is required to be preinstalled. Do not run WRP on an old machine like Windows XP or 98.
-* Make sure you have disabled firewall or open port WRP is listening on (by default 8080).
+* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium / Brave Browser is required to be preinstalled. Do not run WRP on an old machine like Windows XP or 98.
+* Make sure you have disabled the firewall or opened the port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server or set your proxy address there. 
 * Type a search string or a full http/https URL and click **Go**.
 * Select whether you want to use graphical (ISMAP) or simple HTML mode.
@@ -39,17 +39,17 @@ Different modes have different uses. ISMAP mode will be better for flashy modern
 
 * Adjust your screen **W**idth/**H**eight/**S**cale/**C**olors to fit in your old browser.
 * Scroll web page by clicking on the in-image scroll bar on the right.
-* WRP also allows **a single tall image without the vertical scrollbar** and use client scrolling. To enable this, simply height **H** to `0` (or flag `-g 1152x0x216`. However this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and long time to process, especially for GIFs.
-* **Slices** (`sl=1`), for clients that scroll the page themselves, such as [Archaic](https://github.com/tenox7/archaic): WRP renders the whole page once, as one tall image, and keeps it. The `IMG` tag has the whole page's height. The client gets only the rows it shows, with `/img/ID.gif?y=Y&h=H`, so it does not need the whole image in memory. Clicks on the image map are page coordinates. **Up** and **Dn** are left out. A browser that gets the image without `y` and `h` gets the whole page.
-* **ABM** pictures, for black and white clients with a slow CPU, such as Archaic on an Atari ST: a client that sends `Accept: image/x-abm` gets the slices of a 2 color page (`t=gif`, `c=2`) as ABM, not GIF. ABM is 1 bit a pixel, packed with a byte LZ. A 10 MHz 68010 decodes it about 50 times faster than the GIF (551 x 310 pixels: 0.15 s, GIF: 7.5 s), and it is about 11% smaller. Other clients get the GIF. The format is in `abm.go`.
-* **Black and white pictures** (GIF with **C** set to `2`): the **D** menu (`d=`, or the flag `-d`) says what WRP dithers. `pics`, the default: for reading. Only photos are dithered. Text, lines and flat colors are sharp, black or white, and light gray text and thin gray lines stay, as black. `all`: Floyd-Steinberg on all of the page, as WRP did before. It is good for photos, but text in a color, gray text, and all that is on a colored background become dots, and are hard to read. `none`: no dither at all, photos are sharp too. On 171 slices of 551 x 310 pixels from 12 web pages, `pics` pictures are 20% smaller than `all` as ABM (9% as GIF), and `none` pictures 32% (18% as GIF). Both are also made about 10 times faster.
-* Do not use client browser history-back, instead use **Bk** button in the app.
-* You can re-capture screenshot without reloading page by using **St** (Stop). This is useful if page didn't render fully before screenshot is taken.
-* You can also reload page and re-capture screenshot with **Re** (Reload).
-* To send keystrokes, fill **K** input box and press **Go**. There also are buttons for backspace, enter and arrow keys.
+* WRP also allows **a single tall image without the vertical scrollbar**, with client scrolling. To enable this, simply set height **H** to `0` (or flag `-g 1152x0x216`). However, this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and a long time to process, especially for GIFs.
+* **Slices** (`sl=1`): WRP renders the page once and sends only the rows the client asks for. For clients that scroll themselves, like [Archaic](https://github.com/tenox7/archaic).
+* **ABM** (`Accept: image/x-abm`): fast 1-bit images for black and white clients with a slow CPU. See `abm.go`.
+* **D**ither for 2-color GIFs: `pics` (default) dithers only photos so text stays sharp, `all` dithers everything, `none` nothing.
+* Do not use client browser history-back, instead use the **Bk** button in the app.
+* You can re-capture the screenshot without reloading the page by using **St** (Stop). This is useful if the page didn't render fully before the screenshot was taken.
+* You can also reload the page and re-capture the screenshot with **Re** (Reload).
+* To send keystrokes, fill the **K** input box and press **Go**. There are also buttons for backspace, enter and arrow keys.
 * The default image type is `GIP` - an ultra fast, optimized, parallel encoded GIF type.
 * If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to compress/uncompress.
-* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast encoding algorithm optimized mostly for text. Images have rather wonky color colors. If you want better color representation switch to 256 color mode.
+* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast encoding algorithm optimized mostly for text. Images have rather wonky colors. If you want better color representation switch to 256 color mode.
 
 ### Simple HTML mode
 
@@ -58,13 +58,13 @@ Different modes have different uses. ISMAP mode will be better for flashy modern
 
 ## UI explanation
 
-The first unnamed input box is either search (google) or URL starting with http/https
+The first unnamed input box is either a search (Google) or a URL starting with http/https
 
-`Go` Navigate to the url or perform search
+`Go` Navigate to the url or perform a search
 
 `Bk` History Back
 
-`St` Stop, also re-capture screenshot without refreshing page, for example if page
+`St` Stop, also re-capture the screenshot without refreshing the page, for example if the page
 render takes a long time or it updates / changes periodically
 
 `Re` Remote Reload / Refresh
@@ -73,12 +73,12 @@ render takes a long time or it updates / changes periodically
 
 `Dn` Page Down (not shown with slices, `sl=1`)
 
-`W` is width in pixels, adjust it to get rid of horizontal scroll bar
+`W` is width in pixels, adjust it to get rid of the horizontal scroll bar
 
-`H` is height in pixels, adjust it to get rid of vertical scroll bar.
+`H` is height in pixels, adjust it to get rid of the vertical scroll bar.
 It can also be set to 0 to produce one very tall image and use
 client scroll. This 0 size is experimental, buggy and should be
-used with PNG and lots of memory on a client side.
+used with PNG and lots of memory on the client side.
 
 `Z` Zoom or scale
 
@@ -88,7 +88,7 @@ used with PNG and lots of memory on a client side.
 
 `C` Colors, for GIF images only
 
-`D` Dither, for GIF images with 2 colors only: All, Pics (only photos, so text stays sharp: the default) or None
+`D` Dither for 2-color GIFs: All, Pics (default) or None
 
 `K` Keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 
@@ -98,7 +98,7 @@ used with PNG and lots of memory on a client side.
 
 ### UI Customization
 
-WRP supports customizing it's own UI using HTML Template file. Download [wrp.html](wrp.html) place in the same directory with wrp binary customize it to your liking.
+WRP supports customizing its own UI using an HTML template file. Download [wrp.html](wrp.html), place it in the same directory as the wrp binary and customize it to your liking.
 
 ## Docker
 
@@ -114,7 +114,7 @@ It's possible to run WRP on AWS App Runner.
 
 First you need to upload the Docker image to ECR - [Instructions](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
 
-Create App Runner service using the uploaded image using the AWS Console or CLI.
+Create an App Runner service with the uploaded image, using the AWS Console or CLI.
 
 [AWS Console](https://console.aws.amazon.com/apprunner/home#/create)
 
@@ -161,7 +161,7 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -g   image geometry, WxHxC, height can be 0 for unlimited (default 1152x600x216)
      C (number of colors) is only used for GIF
 -d   dither of 2 color GIFs: all, pics (only photos) or none (default pics)
--q   Jpeg image quality, default 75%
+-q   JPEG image quality, default 75%
 -h   headless mode, hide browser window on the server (default true)
 -n   do not free maps and images after use (default false)
 -ui  html template file (default "wrp.html")
@@ -174,13 +174,13 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 ## Minimal Requirements
 
 * Server/Gateway requires modern hardware and operating system that is supported by [Go language](https://github.com/golang/go/wiki/MinimumRequirements) and Chrome/Chromium Browser, which must be installed.
-* Client Browser needs to support `HTML FORMs` and `ISMAP`. Typically [Mosaic 2.0](http://www.ncsa.illinois.edu/enabling/mosaic/versions) would be minimum version for forms. However ISMAP was supported since 0.6B, so if you manually enter url using `?url=...`, you can use the earlier version.
+* Client Browser needs to support `HTML FORMs` and `ISMAP`. Typically [Mosaic 2.0](http://www.ncsa.illinois.edu/enabling/mosaic/versions) would be the minimum version for forms. However ISMAP was supported since 0.6B, so if you manually enter the URL using `?url=...`, you can use the earlier version.
 
 ## FAQ
 
 ### I can't get it to run
 
-This program does not have a GUI and is run from the command line. After downloading, you may need to enable executable bit on Unix systems, for example:
+This program does not have a GUI and is run from the command line. After downloading, you may need to enable the executable bit on Unix systems, for example:
 
 ```shell
 $ cd ~/Downloads
@@ -190,7 +190,7 @@ $ ./wrp-amd64-macos
 
 ### Pages are chopped off
 
-Click `st` to re-capture screenshot. You may want to increase the page delay using `-s` flag.
+Click `St` to re-capture the screenshot. You may want to increase the page delay using `-s` flag.
 
 ### Websites are blocking headless browsers
 
@@ -219,16 +219,16 @@ It's just GIF but optimized. Avoids dithering, uses fast color palette and paral
 ## History
 
 * Version 1.0 (2014) started as a *cgi-bin* script, adaptation of `webkit2png.py` and `pcidade.py`, [blog post](https://virtuallyfun.com/2014/03/03/surfing-modern-web-with-ancient-browsers/).
-* Version 2.0 became a stand alone http-proxy server, supporting both Linux and MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
+* Version 2.0 became a standalone http-proxy server, supporting both Linux and MacOS, [another post](https://virtuallyfun.com/wordpress/2014/03/11/web-rendering-proxy-update//).
 * In 2016 thanks to [Let's Encrypt](https://en.wikipedia.org/wiki/Let%27s_Encrypt) the whole internet migrated to HTTPS/SSL/TLS and WRP largely stopped working. Python code became unmaintainable and there was no easy way to make it work on Windows, even under WSL.
 * Version 3.0 (2019) has been rewritten in [Go](https://golang.org/) using [Chromedp](https://github.com/chromedp) as browser-in-browser instead of http-proxy. The initial version was [less than 100 lines of code](https://gist.github.com/tenox7/b0f03c039b0a8b67f6c1bf47e2dd0df0).
-* Version 4.0 has been completely refactored to use mouse clicks via imagemap instead parsing a href nodes.
-* Version 4.1 added sending keystrokes in to input boxes. You can now login to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers.
-* Version 4.5 introduces rendering whole pages in to a single tall image with client scrolling.
+* Version 4.0 has been completely refactored to use mouse clicks via imagemap instead of parsing a href nodes.
+* Version 4.1 added sending keystrokes into input boxes. You can now log in to Gmail. Also now runs as a Docker container and on Cloud Run/Azure Containers.
+* Version 4.5 introduces rendering whole pages into a single tall image with client scrolling.
 * Version 4.6 adds blazing fast gif encoding by [Hill Ma](https://github.com/mahiuchun).
-* Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry PI!
-* Version 4.7 add simple html aka reader aka text mode.
-* Version 4.8 add image support to simple html mode.
+* Version 4.6.3 adds arm64 / aarch64 Docker container support - you can run it on Raspberry Pi!
+* Version 4.7 adds simple html aka reader aka text mode.
+* Version 4.8 adds image support to simple html mode.
 * Version 4.9 adds support for ultra fast, parallel encoded gif image (GIP)
 * Version 4.10 re-adds support for http proxy mode
 
@@ -236,7 +236,7 @@ It's just GIF but optimized. Avoids dithering, uses fast color palette and paral
 
 * Uses [chromedp](https://github.com/chromedp), thanks to [mvdan](https://github.com/mvdan) for dealing with my issues
 * Uses [go-quantize](https://github.com/ericpauley/go-quantize), thanks to [ericpauley](https://github.com/ericpauley) for developing the missing go quantizer
-* Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my rumblings
+* Thanks to Jason Stevens of [Fun With Virtualization](https://virtuallyfun.com/) for graciously hosting my ramblings
 * Thanks to [claunia](https://github.com/claunia/) for help with the Python/Webkit version in the past
 * Thanks to [Hill Ma](https://github.com/mahiuchun) for ultra fast gif encoding algorithm
 * Historical Python/Webkit versions and prior art can be seen in [wrp-old](https://github.com/tenox7/wrp-old) repo
