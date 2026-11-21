@@ -10,6 +10,7 @@ A browser-in-browser proxy server that allows to use historical / vintage web br
 
 - Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse web.
 - HTTP proxy mode which offers more seamless, but also limited use. Semi compatible with https://.
+- Dedicated client, [Archaic](https://github.com/tenox7/archaic) web browser, a very small native browser for very old computers, such as the Atari ST with Idris, the AT&T UNIX PC (3B1) and SunOS 4 with SunView. It shows the WRP form and the page image in its own window, scrolls the page itself with slices, and gets fast 1-bit ABM pictures on black and white screens.
 
 ### Rende modes
 
