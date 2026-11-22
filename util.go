@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/color/palette"
 	"image/draw"
 	"log"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/tenox7/gip"
 )
 
 func printMyIPs(b string) {
@@ -47,17 +49,67 @@ func printMyIPs(b string) {
 }
 
 // gifPalette makes the picture one of n colors. For 2 colors (black and
-// white), dither says what is dithered: see bw.go.
+// white), dither says what is dithered: see bw.go. 216 colors are the web
+// colors, as GIP makes them: see webColors.
 func gifPalette(i image.Image, n int64, dither string) image.Image {
 	switch n {
 	case 2:
 		i = toBW(i, dither)
+	case 216:
+		i = webColors(i)
 	default:
 		q := quantize.MedianCutQuantizer{}
 		p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
 		i = toPalette(i, p)
 	}
 	return i
+}
+
+// webColors makes the picture one of the 216 web colors, with GIP's table:
+// red, green and blue each go to the nearest of 0, 51, 102, 153, 204 and 255,
+// with no dither. So a GIF of 216 colors is GIP's picture: the same pixels,
+// and the same size. The colors are the same on every page, so a display
+// with a colormap (8 bits) keeps them, and shares them with other programs
+// that use the web colors. Text stays sharp; light tints become white, and
+// photos get bands of color.
+func webColors(i image.Image) *image.Paletted {
+	b := i.Bounds()
+	o := image.NewPaletted(b, palette.WebSafe)
+	lut := &gip.FastGifLut
+	n := runtime.GOMAXPROCS(0)
+	if n > b.Dy() {
+		n = b.Dy()
+	}
+	var wg sync.WaitGroup
+	for w := 0; w < n; w++ {
+		y0, y1 := b.Min.Y+b.Dy()*w/n, b.Min.Y+b.Dy()*(w+1)/n
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for y := y0; y < y1; y++ {
+				d := o.Pix[o.PixOffset(b.Min.X, y):]
+				var s []uint8 // the row's bytes, as GIP reads them
+				switch p := i.(type) {
+				case *image.RGBA:
+					s = p.Pix[p.PixOffset(b.Min.X, y):]
+				case *image.NRGBA:
+					s = p.Pix[p.PixOffset(b.Min.X, y):]
+				}
+				for x := 0; x < b.Dx(); x++ {
+					var r, g, bl uint8
+					if s != nil {
+						r, g, bl = s[4*x], s[4*x+1], s[4*x+2]
+					} else {
+						rr, gg, bb, _ := i.At(b.Min.X+x, y).RGBA()
+						r, g, bl = uint8(rr>>8), uint8(gg>>8), uint8(bb>>8)
+					}
+					d[x] = 36*lut[r] + 6*lut[g] + lut[bl]
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	return o
 }
 
 // palSamplePixels: median cut looks at all of a screen, but only at some rows

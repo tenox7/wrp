@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/gif"
 	"math/rand"
 	"testing"
 
 	"github.com/ericpauley/go-quantize/quantize"
+	"github.com/tenox7/gip"
 )
 
 // A screen-like picture: flat areas, text-like specks and a photo-like part
@@ -100,5 +104,41 @@ func BenchmarkGifPaletteTall(b *testing.B) {
 	b.ResetTimer()
 	for k := 0; k < b.N; k++ {
 		gifPalette(i, 256, bwAll)
+	}
+}
+
+// 216 colors: the web colors, the same pixels as GIP's, on every page
+func TestGifPaletteWeb(t *testing.T) {
+	for _, nrgba := range []bool{false, true} {
+		i := palTestImage(300, 200, nrgba)
+		got, ok := gifPalette(i, 216, bwAll).(*image.Paletted)
+		if !ok {
+			t.Fatalf("nrgba %v: not a paletted picture", nrgba)
+		}
+		if len(got.Palette) != len(palette.WebSafe) {
+			t.Fatalf("nrgba %v: %d colors, want the 216 web colors", nrgba, len(got.Palette))
+		}
+		for k, c := range palette.WebSafe {
+			if got.Palette[k] != c {
+				t.Fatalf("nrgba %v: color %d is %v, want %v", nrgba, k, got.Palette[k], c)
+			}
+		}
+		var buf bytes.Buffer
+		if err := gip.Encode(&buf, i, nil); err != nil {
+			t.Fatal(err)
+		}
+		g, err := gif.Decode(&buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := g.(*image.Paletted)
+		for y := 0; y < 200; y++ {
+			for x := 0; x < 300; x++ {
+				if got.ColorIndexAt(x, y) != want.ColorIndexAt(x, y) {
+					t.Fatalf("nrgba %v: pixel %d,%d is %d, GIP's %d", nrgba, x, y,
+						got.ColorIndexAt(x, y), want.ColorIndexAt(x, y))
+				}
+			}
+		}
 	}
 }
