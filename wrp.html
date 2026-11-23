@@ -45,23 +45,25 @@
                 <OPTION VALUE="jpg" {{ if eq .ImgType "jpg"}}SELECTED{{end}}>JPG</OPTION>
             </SELECT>
             {{ if eq .ImgType "gif" }}
+            {{/* C: colors and a letter for the dither: d all, n none, p only
+                 photos (2 colors). The first of each number is its default:
+                 an old client that keeps only the number chooses it */}}
             C <SELECT NAME="c">
                 <OPTION DISABLED>Ncol</OPTION>
-                <OPTION VALUE="256" {{ if eq .NColors 256}}SELECTED{{end}}>256</OPTION>
-                <OPTION VALUE="216" {{ if eq .NColors 216}}SELECTED{{end}}>216</OPTION>
-                <OPTION VALUE="128" {{ if eq .NColors 128}}SELECTED{{end}}>128</OPTION>
-                <OPTION VALUE="64" {{ if eq .NColors 64}}SELECTED{{end}}>64</OPTION>
-                <OPTION VALUE="16" {{ if eq .NColors 16}}SELECTED{{end}}>16</OPTION>
-                <OPTION VALUE="2" {{ if eq .NColors 2}}SELECTED{{end}}>2</OPTION>
+                <OPTION VALUE="256d" {{ if eq .Colors "256d"}}SELECTED{{end}}>256d</OPTION>
+                <OPTION VALUE="256n" {{ if eq .Colors "256n"}}SELECTED{{end}}>256n</OPTION>
+                <OPTION VALUE="216n" {{ if eq .Colors "216n"}}SELECTED{{end}}>216n</OPTION>
+                <OPTION VALUE="216d" {{ if eq .Colors "216d"}}SELECTED{{end}}>216d</OPTION>
+                <OPTION VALUE="128d" {{ if eq .Colors "128d"}}SELECTED{{end}}>128d</OPTION>
+                <OPTION VALUE="128n" {{ if eq .Colors "128n"}}SELECTED{{end}}>128n</OPTION>
+                <OPTION VALUE="64d" {{ if eq .Colors "64d"}}SELECTED{{end}}>64d</OPTION>
+                <OPTION VALUE="64n" {{ if eq .Colors "64n"}}SELECTED{{end}}>64n</OPTION>
+                <OPTION VALUE="16d" {{ if eq .Colors "16d"}}SELECTED{{end}}>16d</OPTION>
+                <OPTION VALUE="16n" {{ if eq .Colors "16n"}}SELECTED{{end}}>16n</OPTION>
+                <OPTION VALUE="2p" {{ if eq .Colors "2p"}}SELECTED{{end}}>2p</OPTION>
+                <OPTION VALUE="2d" {{ if eq .Colors "2d"}}SELECTED{{end}}>2d</OPTION>
+                <OPTION VALUE="2n" {{ if eq .Colors "2n"}}SELECTED{{end}}>2n</OPTION>
             </SELECT>
-            {{ if eq .NColors 2 }}
-            D <SELECT NAME="d">
-                <OPTION DISABLED>Dith</OPTION>
-                <OPTION VALUE="all" {{ if eq .Dither "all"}}SELECTED{{end}}>All</OPTION>
-                <OPTION VALUE="pics" {{ if eq .Dither "pics"}}SELECTED{{end}}>Pics</OPTION>
-                <OPTION VALUE="none" {{ if eq .Dither "none"}}SELECTED{{end}}>None</OPTION>
-            </SELECT>
-            {{ end }}
             {{ end }}
             {{ if eq .ImgType "jpg" }}
             Q <INPUT TYPE="TEXT" NAME="q" VALUE="{{.JQual}}" SIZE="2">%
@@ -86,7 +88,7 @@
         {{end}}
         {{.TeXT}}
 		<FONT SIZE="-2">
-		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.NColors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
+		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
 		<A HREF="/shutdown/">Shutdown WRP</A> |
         {{ if eq .WrpMode "ismap" }}
 		<A HREF="/">Page Height: {{.PageHeight}}</A> |

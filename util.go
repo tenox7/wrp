@@ -48,21 +48,26 @@ func printMyIPs(b string) {
 	log.Printf("Listen address: %v", m)
 }
 
-// gifPalette makes the picture one of n colors. For 2 colors (black and
-// white), dither says what is dithered: see bw.go. 216 colors are the web
-// colors, as GIP makes them: see webColors.
+// gifPalette makes the picture one of n colors, and dither (the C menu's
+// letter, see colorChoice) says what is dithered. 2 colors are black and
+// white: see bw.go. 216 colors are the web colors: with no dither as GIP makes
+// them (see webColors), or dithered. Other numbers get the page's own colors
+// (median cut): dithered (see ditherPalette), or the nearest color.
 func gifPalette(i image.Image, n int64, dither string) image.Image {
-	switch n {
-	case 2:
-		i = toBW(i, dither)
-	case 216:
-		i = webColors(i)
-	default:
-		q := quantize.MedianCutQuantizer{}
-		p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
-		i = toPalette(i, p)
+	switch {
+	case n == 2:
+		return toBW(i, dither)
+	case n == 216 && dither != bwAll:
+		return webColors(i)
+	case n == 216:
+		return ditherPalette(i, palette.WebSafe)
 	}
-	return i
+	q := quantize.MedianCutQuantizer{}
+	p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
+	if dither == bwNone {
+		return toPalette(i, p)
+	}
+	return ditherPalette(i, p)
 }
 
 // webColors makes the picture one of the 216 web colors, with GIP's table:
@@ -204,6 +209,111 @@ func mapRows(o *image.Paletted, i image.Image, pal [][4]uint32, y0, y1 int) {
 			}
 		}
 	}
+}
+
+// ditherRowsMin: a band of fewer rows is not cut in two. Each band starts with
+// no error from above, so a screen stays one band, as draw.FloydSteinberg
+// does it, and only a whole page kept for slices is cut.
+const ditherRowsMin = 256
+
+// ditherBands is how many bands ditherPalette cuts h rows into
+func ditherBands(h int) int {
+	n := runtime.GOMAXPROCS(0)
+	if n > h/ditherRowsMin {
+		n = h / ditherRowsMin
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// ditherPalette makes the picture one of the colors of p, with Floyd-Steinberg
+// dither: each pixel gives the error of its color to the next ones, so photos
+// and shades keep their tones. A flat area in one of p's colors stays flat, so
+// text on it stays sharp. Each band of rows is what draw.FloydSteinberg makes
+// of it, but fast: each band remembers the colors it has found, and the bands
+// run in parallel. With draw.FloydSteinberg, a page 20000 px tall took 4 s.
+func ditherPalette(i image.Image, p color.Palette) *image.Paletted {
+	b := i.Bounds()
+	o := image.NewPaletted(b, p)
+	pal := make([][4]uint32, len(p))
+	for k, c := range p {
+		r, g, bl, a := c.RGBA()
+		pal[k] = [4]uint32{r, g, bl, a}
+	}
+	n := ditherBands(b.Dy())
+	var wg sync.WaitGroup
+	for w := 0; w < n; w++ {
+		y0, y1 := b.Min.Y+b.Dy()*w/n, b.Min.Y+b.Dy()*(w+1)/n
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ditherRows(o, i, pal, y0, y1)
+		}()
+	}
+	wg.Wait()
+	return o
+}
+
+type ditherMemo struct {
+	key uint64 // the color with its error, 16 bits for each of r, g, b, a
+	idx uint8
+	set bool
+}
+
+// ditherRows dithers rows y0 to y1-1 of i into o, with no error from above
+// y0. It is draw.FloydSteinberg's loop: the same colors, errors and rounding.
+func ditherRows(o *image.Paletted, i image.Image, pal [][4]uint32, y0, y1 int) {
+	b := i.Bounds()
+	w := b.Dx()
+	cur, nxt := make([][4]int32, w+2), make([][4]int32, w+2)
+	memo := make([]ditherMemo, 1<<14)
+	px := func(x, y int) (r, g, b, a uint32) { return i.At(x, y).RGBA() }
+	switch s := i.(type) {
+	case *image.RGBA:
+		px = func(x, y int) (r, g, b, a uint32) { return s.RGBAAt(x, y).RGBA() }
+	case *image.NRGBA:
+		px = func(x, y int) (r, g, b, a uint32) { return s.NRGBAAt(x, y).RGBA() }
+	}
+	for y := y0; y < y1; y++ {
+		d := o.Pix[o.PixOffset(b.Min.X, y):]
+		for x := 0; x < w; x++ {
+			r, g, bl, a := px(b.Min.X+x, y)
+			e := [4]int32{
+				clamp16(int32(r) + cur[x+1][0]/16),
+				clamp16(int32(g) + cur[x+1][1]/16),
+				clamp16(int32(bl) + cur[x+1][2]/16),
+				clamp16(int32(a) + cur[x+1][3]/16),
+			}
+			key := uint64(e[0])<<48 | uint64(e[1])<<32 | uint64(e[2])<<16 | uint64(e[3])
+			m := &memo[(key*0x9e3779b97f4a7c15)>>50]
+			if !m.set || m.key != key {
+				*m = ditherMemo{key, nearest(pal, uint32(e[0]), uint32(e[1]), uint32(e[2]), uint32(e[3])), true}
+			}
+			k := m.idx
+			d[x] = k
+			for c := 0; c < 4; c++ {
+				q := e[c] - int32(pal[k][c])
+				nxt[x][c] += q * 3
+				nxt[x+1][c] += q * 5
+				nxt[x+2][c] += q
+				cur[x+2][c] += q * 7
+			}
+		}
+		cur, nxt = nxt, cur
+		clear(nxt)
+	}
+}
+
+func clamp16(v int32) int32 {
+	if v < 0 {
+		return 0
+	}
+	if v > 0xffff {
+		return 0xffff
+	}
+	return v
 }
 
 // nearest is color.Palette.Index for a color given as r, g, b, a

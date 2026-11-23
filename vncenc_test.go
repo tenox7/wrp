@@ -314,7 +314,7 @@ func TestPaletteBounds(t *testing.T) {
 func BenchmarkColormapOld(b *testing.B) {
 	img := testFrame(1152, 600)
 	for i := 0; i < b.N; i++ {
-		gifPalette(img, 216, bwAll) // median cut plus Palette.Index per pixel
+		gifPalette(img, 216, bwNone) // median cut plus Palette.Index per pixel
 	}
 }
 

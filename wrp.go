@@ -145,6 +145,7 @@ type uiData struct {
 	URL        string
 	BgColor    string
 	NColors    int64
+	Colors     string // the C menu's choice: NColors and a letter for Dither
 	Dither     string
 	JQual      int64
 	Width      int64
@@ -181,7 +182,7 @@ type wrpReq struct {
 	height  int64
 	zoom    float64
 	nColors int64
-	dither  string // d=: what is dithered in a 2 color picture (bw.go)
+	dither  string // what is dithered: the letter in c= (colorChoice)
 	jQual   int64
 	mouseX  int64
 	mouseY  int64
@@ -233,11 +234,7 @@ func (rq *wrpReq) parseForm() {
 	default:
 		rq.imgType = *defType
 	}
-	rq.nColors, _ = strconv.ParseInt(rq.r.FormValue("c"), 10, 64)
-	if rq.nColors < 2 || rq.nColors > 256 {
-		rq.nColors = defGeom.c
-	}
-	rq.dither = bwMode(rq.r.FormValue("d"), *defDither)
+	rq.nColors, rq.dither = colorChoice(rq.r.FormValue("c"), rq.r.FormValue("d"))
 	rq.jQual, _ = strconv.ParseInt(rq.r.FormValue("q"), 10, 64)
 	if rq.jQual < 1 || rq.jQual > 100 {
 		rq.jQual = *defJpgQual
@@ -269,6 +266,7 @@ func (rq *wrpReq) printUI(p uiParams) {
 		Width:      rq.width,
 		Height:     rq.height,
 		NColors:    rq.nColors,
+		Colors:     colorVal(rq.nColors, rq.dither),
 		Dither:     rq.dither,
 		JQual:      rq.jQual,
 		Zoom:       rq.zoom,

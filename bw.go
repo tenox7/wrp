@@ -27,6 +27,7 @@ import (
 	"image"
 	"image/color"
 	"runtime"
+	"strconv"
 	"sync"
 
 	"github.com/MaxHalford/halfgone"
@@ -45,6 +46,45 @@ func bwMode(s, def string) string {
 		return s
 	}
 	return def
+}
+
+// colorLetter: the letters of the C menu (c=) for the dither choices
+var colorLetter = map[byte]string{'d': bwAll, 'n': bwNone, 'p': bwPics}
+
+// colorChoice reads the C menu (c=): a number of colors, and a letter for
+// the dither: d dithers all of the picture, n nothing, and p only its photos
+// (2 colors only, see above). With no letter (an old client), each number has
+// its own: 216 n (the web colors, sharp), 2 the d= field or else -d, and the
+// others d. A c= that is not a number from 2 to 256 is -g's.
+func colorChoice(c, d string) (int64, string) {
+	m := ""
+	if k := len(c) - 1; k > 0 && colorLetter[c[k]] != "" {
+		c, m = c[:k], colorLetter[c[k]]
+	}
+	n, err := strconv.ParseInt(c, 10, 64)
+	if err != nil || n < 2 || n > 256 {
+		n, m = defGeom.c, ""
+	}
+	switch {
+	case n == 2 && m == "":
+		m = bwMode(d, *defDither)
+	case n == 216 && m != bwAll:
+		m = bwNone
+	case n != 2 && n != 216 && m != bwNone:
+		m = bwAll
+	}
+	return n, m
+}
+
+// colorVal is the C menu's value for n colors and dither m
+func colorVal(n int64, m string) string {
+	v := strconv.FormatInt(n, 10)
+	for l, s := range colorLetter {
+		if s == m {
+			return v + string(l)
+		}
+	}
+	return v
 }
 
 const (

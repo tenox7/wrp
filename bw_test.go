@@ -289,37 +289,76 @@ func TestBWAll(t *testing.T) {
 	}
 }
 
-// d= in a request, the -d default, and the D menu: only for 2 color GIFs
-func TestDitherOption(t *testing.T) {
-	old, oldTmpl := *defDither, htmlTmpl
-	defer func() { *defDither, htmlTmpl = old, oldTmpl }()
+// c= in a request with its dither letter, d= and -d for 2 colors with no
+// letter, and the C menu: its lines, the one chosen, and no D menu
+func TestColorOption(t *testing.T) {
+	old, oldC, oldTmpl := *defDither, defGeom.c, htmlTmpl
+	defer func() { *defDither, defGeom.c, htmlTmpl = old, oldC, oldTmpl }()
+	defGeom.c = 216
 	var err error
 	if htmlTmpl, err = template.New("wrp.html").Parse(wrpTemplate("wrp.html")); err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range []struct{ def, query, want, menu string }{
-		{bwAll, "/?t=gif&c=2", bwAll, `VALUE="all" SELECTED`},
-		{bwAll, "/?t=gif&c=2&d=pics", bwPics, `VALUE="pics" SELECTED`},
-		{bwPics, "/?t=gif&c=2", bwPics, `VALUE="pics" SELECTED`},
-		{bwPics, "/?t=gif&c=2&d=none", bwNone, `VALUE="none" SELECTED`},
-		{bwPics, "/?t=gif&c=2&d=x", bwPics, `VALUE="pics" SELECTED`},
-		{bwAll, "/?t=gif&c=16&d=pics", bwPics, ""},
-		{bwAll, "/?t=png&d=pics", bwPics, ""},
+	lines := `"256d" "256n" "216n" "216d" "128d" "128n" "64d" "64n" "16d" "16n" "2p" "2d" "2n"`
+	for _, c := range []struct {
+		def, query string
+		n          int64
+		want, menu string
+	}{
+		{bwAll, "/?t=gif&c=2", 2, bwAll, "2d"},
+		{bwAll, "/?t=gif&c=2&d=pics", 2, bwPics, "2p"},
+		{bwPics, "/?t=gif&c=2", 2, bwPics, "2p"},
+		{bwPics, "/?t=gif&c=2&d=none", 2, bwNone, "2n"},
+		{bwPics, "/?t=gif&c=2&d=x", 2, bwPics, "2p"},
+		{bwPics, "/?t=gif&c=2d", 2, bwAll, "2d"},
+		{bwPics, "/?t=gif&c=2n&d=all", 2, bwNone, "2n"},
+		{bwAll, "/?t=gif&c=2p", 2, bwPics, "2p"},
+		{bwPics, "/?t=gif&c=256", 256, bwAll, "256d"},
+		{bwPics, "/?t=gif&c=256n", 256, bwNone, "256n"},
+		{bwPics, "/?t=gif&c=256p", 256, bwAll, "256d"},
+		{bwPics, "/?t=gif&c=216", 216, bwNone, "216n"},
+		{bwPics, "/?t=gif&c=216d", 216, bwAll, "216d"},
+		{bwPics, "/?t=gif&c=216p", 216, bwNone, "216n"},
+		{bwPics, "/?t=gif&c=16&d=none", 16, bwAll, "16d"},
+		{bwPics, "/?t=gif&c=100n", 100, bwNone, ""},
+		{bwPics, "/?t=gif&c=x", 216, bwNone, "216n"},
+		{bwPics, "/?t=gif&c=999d", 216, bwNone, "216n"},
+		{bwPics, "/?t=png&c=128n", 128, bwNone, ""},
 	} {
 		*defDither = c.def
 		rr := httptest.NewRecorder()
 		rq := wrpReq{r: httptest.NewRequest("GET", c.query, nil), w: rr}
 		rq.parseForm()
-		if rq.dither != c.want {
-			t.Errorf("-d %s, %s: dither %q, want %q", c.def, c.query, rq.dither, c.want)
+		if rq.nColors != c.n || rq.dither != c.want {
+			t.Errorf("-d %s, %s: %d colors, dither %q, want %d, %q", c.def, c.query, rq.nColors, rq.dither, c.n, c.want)
+		}
+		if v := colorVal(rq.nColors, rq.dither); c.menu != "" && v != c.menu {
+			t.Errorf("-d %s, %s: the C menu's value is %q, want %q", c.def, c.query, v, c.menu)
 		}
 		rq.printUI(uiParams{})
 		body := rr.Body.String()
-		if has := strings.Contains(body, `NAME="d"`); has != (c.menu != "") {
-			t.Errorf("-d %s, %s: D menu shown: %v", c.def, c.query, has)
+		if strings.Contains(body, `NAME="d"`) {
+			t.Errorf("-d %s, %s: a D menu", c.def, c.query)
 		}
-		if c.menu != "" && !strings.Contains(body, c.menu) {
-			t.Errorf("-d %s, %s: the D menu has no %s", c.def, c.query, c.menu)
+		gif := strings.Contains(c.query, "t=gif")
+		if has := strings.Contains(body, `NAME="c"`); has != gif {
+			t.Errorf("-d %s, %s: C menu shown: %v", c.def, c.query, has)
+		}
+		if !gif {
+			continue
+		}
+		menu := body[strings.Index(body, `NAME="c"`):]
+		menu = menu[:strings.Index(menu, "</SELECT>")]
+		var got []string
+		for _, f := range strings.Split(menu, `<OPTION VALUE=`)[1:] {
+			got = append(got, strings.Fields(f)[0])
+		}
+		if g := strings.Join(got, " "); g != lines {
+			t.Errorf("-d %s, %s: the C menu has %s, want %s", c.def, c.query, g, lines)
+		}
+		n := strings.Count(menu, "SELECTED>")
+		if c.menu == "" && n != 0 || c.menu != "" && (n != 1 || !strings.Contains(menu, `VALUE="`+c.menu+`" SELECTED`)) {
+			t.Errorf("-d %s, %s: the C menu has %d chosen, want %q", c.def, c.query, n, c.menu)
 		}
 	}
 }

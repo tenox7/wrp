@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/color/palette"
+	"image/draw"
 	"image/gif"
 	"math/rand"
 	"testing"
@@ -62,12 +64,13 @@ func oldGifPalette(i image.Image, n int) *image.Paletted {
 	return o
 }
 
-func TestGifPaletteSame(t *testing.T) {
+// n (no dither): the nearest color of the palette for each pixel, as Set does
+func TestToPaletteSame(t *testing.T) {
 	for _, nrgba := range []bool{false, true} {
 		for _, n := range []int{4, 16, 256} {
 			i := palTestImage(300, 200, nrgba)
 			want := oldGifPalette(i, n)
-			got, ok := gifPalette(i, int64(n), bwAll).(*image.Paletted)
+			got, ok := gifPalette(i, int64(n), bwNone).(*image.Paletted)
 			if !ok {
 				t.Fatalf("nrgba %v n %d: not a paletted picture", nrgba, n)
 			}
@@ -83,20 +86,96 @@ func TestGifPaletteSame(t *testing.T) {
 	}
 }
 
-// A whole page: the palette comes from some rows, every pixel still gets
-// the nearest color of that palette.
+// checkBands: each band of ditherPalette's rows is what draw.FloydSteinberg
+// makes of it
+func checkBands(t *testing.T, name string, i image.Image, got *image.Paletted) {
+	b := i.Bounds()
+	n := ditherBands(b.Dy())
+	for w := 0; w < n; w++ {
+		y0, y1 := b.Min.Y+b.Dy()*w/n, b.Min.Y+b.Dy()*(w+1)/n
+		r := image.Rect(b.Min.X, y0, b.Max.X, y1)
+		want := image.NewPaletted(r, got.Palette)
+		draw.FloydSteinberg.Draw(want, r, i, r.Min)
+		for y := y0; y < y1; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if got.ColorIndexAt(x, y) != want.ColorIndexAt(x, y) {
+					t.Fatalf("%s: band %d of %d, pixel %d,%d is %d, draw.FloydSteinberg's %d",
+						name, w, n, x, y, got.ColorIndexAt(x, y), want.ColorIndexAt(x, y))
+				}
+			}
+		}
+	}
+}
+
+// Colors other than 2 and 216: median cut, then Floyd-Steinberg
+func TestGifPaletteDither(t *testing.T) {
+	for _, nrgba := range []bool{false, true} {
+		for _, n := range []int{4, 16, 128, 256} {
+			i := palTestImage(300, 200, nrgba)
+			got, ok := gifPalette(i, int64(n), bwAll).(*image.Paletted)
+			if !ok {
+				t.Fatalf("nrgba %v n %d: not a paletted picture", nrgba, n)
+			}
+			p := quantize.MedianCutQuantizer{}.Quantize(make([]color.Color, 0, n), i)
+			if len(got.Palette) != len(p) {
+				t.Fatalf("nrgba %v n %d: %d colors, want %d", nrgba, n, len(got.Palette), len(p))
+			}
+			checkBands(t, fmt.Sprintf("nrgba %v n %d", nrgba, n), i, got)
+		}
+		got := gifPalette(i0(nrgba), 216, bwAll).(*image.Paletted)
+		if len(got.Palette) != len(palette.WebSafe) {
+			t.Fatalf("nrgba %v 216d: %d colors, want the 216 web colors", nrgba, len(got.Palette))
+		}
+		checkBands(t, fmt.Sprintf("nrgba %v 216d", nrgba), i0(nrgba), got)
+	}
+}
+
+func i0(nrgba bool) image.Image { return palTestImage(300, 200, nrgba) }
+
+// A flat area in a color of the palette stays flat: no dots in it. A gray
+// that is not in the palette becomes dots of its neighbors, as light as it.
+func TestDitherFlat(t *testing.T) {
+	i := image.NewRGBA(image.Rect(0, 0, 200, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 200; x++ {
+			c := color.RGBA{240, 240, 240, 255}
+			if x >= 100 {
+				c = color.RGBA{128, 128, 128, 255}
+			}
+			i.SetRGBA(x, y, c)
+		}
+	}
+	p := color.Palette{color.Black, color.RGBA{240, 240, 240, 255}, color.White}
+	o := ditherPalette(i, p)
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 90; x++ {
+			if o.ColorIndexAt(x, y) != 1 {
+				t.Fatalf("flat area: pixel %d,%d is %d, want 1", x, y, o.ColorIndexAt(x, y))
+			}
+		}
+	}
+	var sum, cnt int
+	for y := 0; y < 100; y++ {
+		for x := 110; x < 200; x++ {
+			r, _, _, _ := p[o.ColorIndexAt(x, y)].RGBA()
+			sum += int(r >> 8)
+			cnt++
+		}
+	}
+	if m := sum / cnt; m < 120 || m > 136 {
+		t.Fatalf("gray 128 dithered: mean %d", m)
+	}
+}
+
+// A whole page: the palette comes from some rows, and the page is dithered
+// in bands, each as draw.FloydSteinberg does it.
 func TestGifPaletteTall(t *testing.T) {
-	i := palTestImage(400, 6000, false)
+	i := palTestImage(400, 3000, false)
 	if s := palSample(i); s.Bounds().Dx()*s.Bounds().Dy() > palSamplePixels {
 		t.Fatalf("sample: %v", s.Bounds())
 	}
 	got := gifPalette(i, 256, bwAll).(*image.Paletted)
-	for _, pt := range []image.Point{{0, 0}, {399, 5999}, {123, 2500}, {7, 4100}} {
-		want := got.Palette.Index(i.At(pt.X, pt.Y))
-		if int(got.ColorIndexAt(pt.X, pt.Y)) != want {
-			t.Errorf("%v: index %d, want %d", pt, got.ColorIndexAt(pt.X, pt.Y), want)
-		}
-	}
+	checkBands(t, "tall", i, got)
 }
 
 func BenchmarkGifPaletteTall(b *testing.B) {
@@ -111,7 +190,7 @@ func BenchmarkGifPaletteTall(b *testing.B) {
 func TestGifPaletteWeb(t *testing.T) {
 	for _, nrgba := range []bool{false, true} {
 		i := palTestImage(300, 200, nrgba)
-		got, ok := gifPalette(i, 216, bwAll).(*image.Paletted)
+		got, ok := gifPalette(i, 216, bwNone).(*image.Paletted)
 		if !ok {
 			t.Fatalf("nrgba %v: not a paletted picture", nrgba)
 		}

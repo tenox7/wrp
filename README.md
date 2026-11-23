@@ -42,14 +42,14 @@ Different modes have different uses. ISMAP mode will be better for the flashy mo
 * WRP also allows **a single tall image without the vertical scrollbar**, with client scrolling. To enable this, simply set height **H** to `0` (or flag `-g 1152x0x216`). However, this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and a long time to process, especially for GIFs.
 * **Slices** (`sl=1`): WRP renders the page once and sends only the rows the client asks for. For clients that scroll themselves, like [Archaic](https://github.com/tenox7/archaic).
 * **ABM** (`Accept: image/x-abm`): fast 1-bit images for black and white clients with a slow CPU. See `abm.go`.
-* **D**ither for 2-color GIFs: `pics` (default) dithers only photos so text stays sharp, `all` dithers everything, `none` nothing.
+* **C**olors for GIFs come with a letter for the dither: `d` dithers everything, `n` nothing, and for 2 colors `p` (default) dithers only photos so text stays sharp. 216 is not dithered by default (`216n`), the others are (`256d`).
 * Do not use client browser history-back, instead use the **Bk** button in the app.
 * You can re-capture the screenshot without reloading the page by using **St** (Stop). This is useful if the page didn't render fully before the screenshot was taken.
 * You can also reload the page and re-capture the screenshot with **Re** (Reload).
 * To send keystrokes, fill the **K** input box and press **Go**. There are also buttons for backspace, enter and arrow keys.
 * The default image type is `GIP` - an ultra fast, optimized, parallel encoded GIF type.
 * If your browser supports it, prefer PNG over GIF/JPG. PNG is much faster, whereas GIF/JPG requires a lot of additional processing on both client and server to compress/uncompress.
-* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast encoding algorithm optimized mostly for text. Images have rather wonky colors. If you want better color representation switch to 256 color mode.
+* GIF images are by default encoded with 216 colors, "web safe" palette. This uses an ultra fast encoding algorithm optimized mostly for text. Images have rather wonky colors. If you want better color representation switch to 256 color mode (`256d`).
 
 ### Simple HTML mode
 
@@ -86,9 +86,7 @@ used with PNG and lots of memory on the client side.
 
 `T` Image type PNG / GIF / JPEG
 
-`C` Colors, for GIF images only
-
-`D` Dither for 2-color GIFs: All, Pics (default) or None
+`C` Colors and dither, for GIF images only: `d` dither, `n` no dither, `p` only photos (2 colors)
 
 `K` Keystroke input, you can type some letters in it and when you click Go it will be typed in the remote browser.
 
