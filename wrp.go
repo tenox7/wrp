@@ -50,6 +50,7 @@ var (
 	vncAddr     = flag.String("vnc", "", "Enable interactive VNC server on address:port, eg :5900")
 	vncFPS      = flag.Int("vncfps", 25, "VNC max frames per second, 0 for unlimited")
 	vncPage     = flag.String("vncpage", "about:blank", "VNC start page, also used by home button and new tabs")
+	archaicRel  = flag.String("archaic", "https://api.github.com/repos/tenox7/archaic/releases/latest", "Archaic's GitHub release (API address), for Archaic's updates and downloads; empty turns them off")
 )
 
 var (
@@ -485,6 +486,9 @@ func main() {
 	http.HandleFunc("/proxy.pac", pacServer)
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/dl/", dlServer)
+	http.HandleFunc("/archaic-update", archaicServer)
+	http.HandleFunc("/archaic-download", archaicDownload)
+	http.HandleFunc("/archaic-download/", archaicDownload)
 	http.HandleFunc("/favicon.ico", http.NotFound)
 
 	log.Printf("Default Img Type: %v, Geometry: %+v", *defType, defGeom)

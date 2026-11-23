@@ -11,6 +11,7 @@ A browser-in-browser proxy server that allows you to use historical / vintage we
 - Browser-in-browser, navigate to the address of WRP and use the built-in web form to browse the web.
 - HTTP proxy mode which offers more seamless, but also limited use. Semi-compatible with https://.
 - Dedicated client, [Archaic](https://github.com/tenox7/archaic) web browser, a tiny native WRP client for vintage computers.
+  Get it from WRP with curl or wget: `/archaic-download` lists the files.
 - VNC server, `-vnc :5901`, a live interactive browser for any VNC viewer.
 
 ### Render modes
@@ -167,6 +168,9 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -s   delay/sleep after page is rendered before screenshot is taken (default 2s)
 -b   browser executable path (e.g., for Brave Browser)
 -profile  Chrome user-data dir, persists cookies/logins and the session between runs
+-archaic  GitHub release (API address) for Archaic's self-updates at /archaic-update
+          and downloads at /archaic-download, empty turns them off
+          (default: the latest release of tenox7/archaic)
 ```
 
 ## Minimal Requirements
