@@ -62,8 +62,19 @@ func gifPalette(i image.Image, n int64, dither string) image.Image {
 	case n == 216:
 		return ditherPalette(i, palette.WebSafe)
 	}
+	return toColors(i, medianCut(i, n), dither)
+}
+
+// medianCut gives the picture's own n colors, from some of its rows (see
+// palSample)
+func medianCut(i image.Image, n int64) color.Palette {
 	q := quantize.MedianCutQuantizer{}
-	p := q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
+	return q.Quantize(make([]color.Color, 0, int(n)), palSample(i))
+}
+
+// toColors makes the picture one of the colors of p: dithered, or with
+// dither bwNone each pixel the nearest color
+func toColors(i image.Image, p color.Palette, dither string) *image.Paletted {
 	if dither == bwNone {
 		return toPalette(i, p)
 	}

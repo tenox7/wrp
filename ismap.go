@@ -33,9 +33,11 @@ import (
 
 type cachedImg struct {
 	buf bytes.Buffer
-	// Slice mode (sl=1): the whole page, kept decoded (for GIF already
-	// dithered or quantized) and encoded in slices on request
+	// Slice mode (sl=1): the whole page, kept decoded and encoded in slices
+	// on request. A GIF page is made its colors band by band, as the slices
+	// need it (conv, see pageconv.go).
 	full image.Image
+	conv *pageConv
 	typ  string
 	jq   int
 }
@@ -62,11 +64,17 @@ func (c *wrpCache) addFull(path string, full image.Image, typ string, jq int) {
 	c.imgs[path] = cachedImg{full: full, typ: typ, jq: jq}
 }
 
+func (c *wrpCache) addConv(path string, conv *pageConv, jq int) {
+	c.Lock()
+	defer c.Unlock()
+	c.imgs[path] = cachedImg{conv: conv, typ: "gif", jq: jq}
+}
+
 func (c *wrpCache) getFull(path string) (cachedImg, bool) {
 	c.Lock()
 	defer c.Unlock()
 	e, ok := c.imgs[path]
-	if !ok || e.full == nil {
+	if !ok || (e.full == nil && e.conv == nil) {
 		return cachedImg{}, false
 	}
 	return e, true
@@ -98,7 +106,20 @@ func (c *wrpCache) getMap(path string) (wrpReq, bool) {
 	return e.req, true
 }
 
+// stopConvs stops the backgrounds of the kept pages (see pageconv.go), so that
+// the browser has the CPUs for the next page. Their slices still come.
+func (c *wrpCache) stopConvs() {
+	c.Lock()
+	defer c.Unlock()
+	for _, e := range c.imgs {
+		if e.conv != nil {
+			e.conv.close()
+		}
+	}
+}
+
 func (c *wrpCache) clear() {
+	c.stopConvs()
 	c.Lock()
 	defer c.Unlock()
 	c.imgs = make(map[string]cachedImg)
@@ -363,6 +384,7 @@ func navigateBack() chromedp.ActionFunc {
 
 // Navigate to the desired URL, returns the downloaded file if one was triggered.
 func (rq *wrpReq) navigate() *dlFile {
+	wrpCach.stopConvs() // the browser gets the CPUs
 	resetDownloadState()
 	ctxErr(chromedp.Run(brCtx(), rq.action()), rq.w)
 	return waitForDownload()
@@ -589,10 +611,14 @@ func (rq *wrpReq) captureScreenshot() {
 			return
 		}
 		st := time.Now()
-		if rq.imgType == "gif" {
-			i = paletted(gifPalette(i, rq.nColors, rq.dither))
+		if rq.imgType == "gif" { // made its colors as the slices need it
+			c := newPageConv(i, rq.nColors, rq.dither)
+			c.name = rq.r.RemoteAddr + " " + imgPath
+			wrpCach.addConv(imgPath, c, int(rq.jQual))
+			go c.background()
+		} else {
+			wrpCach.addFull(imgPath, i, rq.imgType, int(rq.jQual))
 		}
-		wrpCach.addFull(imgPath, i, rq.imgType, int(rq.jQual))
 		iW = i.Bounds().Dx()
 		iH = i.Bounds().Dy()
 		sSize = "slices"
@@ -770,13 +796,22 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 	st := time.Now()
 	i := f.full
 	q := r.URL.Query()
-	if q.Has("y") || q.Has("h") {
+	if q.Has("y") || q.Has("h") || f.conv != nil {
 		y, _ := strconv.Atoi(q.Get("y"))
-		h := i.Bounds().Dy()
+		var h int
+		if f.conv != nil {
+			h = f.conv.h
+		} else {
+			h = i.Bounds().Dy()
+		}
 		if q.Has("h") {
 			h, _ = strconv.Atoi(q.Get("h"))
 		}
-		i = cut(i, y, h)
+		if f.conv != nil {
+			i = f.conv.rows(y, h)
+		} else {
+			i = cut(i, y, h)
+		}
 		if i == nil {
 			http.Error(w, "No such rows in "+r.URL.Path, http.StatusNotFound)
 			log.Printf("%s No rows y=%v h=%v in %s\n", r.RemoteAddr, q.Get("y"), q.Get("h"), r.URL.Path)
@@ -797,6 +832,9 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 		http.Error(w, "Unable to encode "+r.URL.Path+": "+err.Error(), http.StatusInternalServerError)
 		log.Printf("%s Unable to encode %s: %s\n", r.RemoteAddr, r.URL.Path, err)
 		return
+	}
+	if f.conv != nil {
+		f.conv.start() // after the first slice, the background may take the CPUs
 	}
 	switch typ {
 	case "abm":
