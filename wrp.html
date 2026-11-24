@@ -89,6 +89,7 @@
         {{.TeXT}}
 		<FONT SIZE="-2">
 		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
+		{{if .NewVersion}}<A HREF="/?url={{urlquery .NewPage}}&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Update available: WRP {{.NewVersion}}</A> |{{end}}
 		<A HREF="/shutdown/">Shutdown WRP</A> |
         {{ if eq .WrpMode "ismap" }}
 		<A HREF="/">Page Height: {{.PageHeight}}</A> |

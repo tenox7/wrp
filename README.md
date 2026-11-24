@@ -171,6 +171,9 @@ Unfortunately Google Cloud Run forces you to use HTTPS, which likely won't work 
 -archaic  GitHub release (API address) for Archaic's self-updates at /archaic-update
           and downloads at /archaic-download, empty turns them off
           (default: the latest release of tenox7/archaic)
+-vercheck GitHub release (API address) of WRP: at start and once a day, WRP checks for
+          a newer WRP, and says so in its log and on its page. It does not update itself.
+          Empty turns the check off (default: the latest release of tenox7/wrp)
 ```
 
 ## Minimal Requirements

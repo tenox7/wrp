@@ -51,6 +51,7 @@ var (
 	vncFPS      = flag.Int("vncfps", 25, "VNC max frames per second, 0 for unlimited")
 	vncPage     = flag.String("vncpage", "about:blank", "VNC start page, also used by home button and new tabs")
 	archaicRel  = flag.String("archaic", "https://api.github.com/repos/tenox7/archaic/releases/latest", "Archaic's GitHub release (API address), for Archaic's updates and downloads; empty turns them off")
+	verCheck    = flag.String("vercheck", "https://api.github.com/repos/tenox7/wrp/releases/latest", "WRP's GitHub release (API address): WRP says when a newer WRP is out, and does not update itself; empty turns the check off")
 )
 
 var (
@@ -142,6 +143,8 @@ type geom struct {
 // Data for html template
 type uiData struct {
 	Version    string
+	NewVersion string // a newer WRP's version, or ""
+	NewPage    string // its release page
 	WrpMode    string
 	URL        string
 	BgColor    string
@@ -259,8 +262,11 @@ func (rq *wrpReq) printUI(p uiParams) {
 	if p.bgColor == "" {
 		p.bgColor = *bgColor
 	}
+	newVer, newPage := verNewer()
 	data := uiData{
 		Version:    version,
+		NewVersion: newVer,
+		NewPage:    newPage,
 		WrpMode:    rq.wrpMode,
 		URL:        rq.url,
 		BgColor:    p.bgColor,
@@ -437,6 +443,9 @@ func main() {
 	log.Printf("Web Rendering Proxy Version %s (%v)\n", version, runtime.GOARCH)
 	log.Printf("Using embedded ca-certs from github.com/breml/rootcerts")
 	log.Printf("Args: %q", os.Args)
+	if *verCheck != "" {
+		go verChecker()
+	}
 	if len(os.Getenv("PORT")) > 0 {
 		*addr = ":" + os.Getenv(("PORT"))
 	}
