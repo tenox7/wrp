@@ -299,7 +299,7 @@ func TestColorOption(t *testing.T) {
 	if htmlTmpl, err = template.New("wrp.html").Parse(wrpTemplate("wrp.html")); err != nil {
 		t.Fatal(err)
 	}
-	lines := `"256d" "256n" "216n" "216d" "128d" "128n" "64d" "64n" "16d" "16n" "2p" "2d" "2n"`
+	lines := `"256d" "256n" "216n" "216d" "128d" "128n" "16d" "16n" "2p" "2d" "2n"`
 	for _, c := range []struct {
 		def, query string
 		n          int64

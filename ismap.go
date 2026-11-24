@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/input"
@@ -186,7 +187,7 @@ func (rq *wrpReq) action() chromedp.Action {
 	}
 	// Keys
 	if len(rq.keys) > 0 {
-		log.Printf("%s Sending Keys: %#v\n", rq.r.RemoteAddr, rq.keys)
+		log.Printf("%s Sending Keys: %d\n", rq.r.RemoteAddr, utf8.RuneCountInString(rq.keys)) // not the keys: they may be a password
 		return waitNav(chromedp.KeyEvent(rq.keys))
 	}
 	// Navigate to URL
@@ -538,9 +539,14 @@ func (rq *wrpReq) captureScreenshot() {
 	if capH == 0 && h > 0 {
 		height = h + 30
 	}
+	var foc focusInfo // for the form's kb: what has the keyboard
 	chromedp.Run(
 		bc, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
 		waitForRender(),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			foc = focusNow(ctx)
+			return nil
+		}),
 	)
 	// Capture screenshot. Chrome can't take a viewport taller than maxCapH
 	// device px in one: captureTall takes it in parts and joins them (tall).
@@ -680,6 +686,7 @@ func (rq *wrpReq) captureScreenshot() {
 			mapURL:     mapPath,
 			imgWidth:   iW,
 			imgHeight:  iH,
+			focus:      foc.Kind,
 		})
 	}
 	log.Printf("%s Done with capture for %s\n", rq.r.RemoteAddr, rq.url)
@@ -701,7 +708,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s ISMAP n=%d, err=%s\n", r.RemoteAddr, n, err)
 		return
 	}
-	log.Printf("%s WrpReq from ISMAP: %+v\n", r.RemoteAddr, rq)
+	log.Printf("%s WrpReq from ISMAP: %+v\n", r.RemoteAddr, rq.logged())
 	if len(rq.url) < 4 {
 		rq.printUI(uiParams{})
 		return

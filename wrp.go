@@ -165,6 +165,7 @@ type uiData struct {
 	PageHeight string
 	TeXT       string
 	Slices     bool
+	Focus      string // what has the keyboard on the page: text, password, none (keys.go)
 }
 
 // Parameters for HTML print function
@@ -177,6 +178,7 @@ type uiParams struct {
 	imgWidth   int
 	imgHeight  int
 	text       string
+	focus      string // focusInfo.Kind, or "" for none
 }
 
 // WRP Request
@@ -250,7 +252,7 @@ func (rq *wrpReq) parseForm() {
 	if rq.maxSize == 0 {
 		rq.maxSize = *defImgSize
 	}
-	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq)
+	log.Printf("%s WrpReq from UI Form: %+v\n", rq.r.RemoteAddr, rq.logged())
 	sessSaveUI(rq)
 }
 
@@ -287,6 +289,10 @@ func (rq *wrpReq) printUI(p uiParams) {
 		PageHeight: p.pageHeight,
 		TeXT:       p.text,
 		Slices:     rq.slices,
+		Focus:      p.focus,
+	}
+	if data.Focus == "" {
+		data.Focus = "none"
 	}
 	err := htmlTmpl.Execute(rq.w, data)
 	if err != nil {
@@ -490,6 +496,7 @@ func main() {
 
 	http.HandleFunc("/", pageServer)
 	http.HandleFunc("/map/", mapServer)
+	http.HandleFunc("/keys", keysServer)
 	http.HandleFunc("/img/", imgServerMap)
 	http.HandleFunc(imgZpfx, imgServerTxt)
 	http.HandleFunc("/proxy.pac", pacServer)

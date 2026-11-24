@@ -56,8 +56,6 @@
                 <OPTION VALUE="216d" {{ if eq .Colors "216d"}}SELECTED{{end}}>216d</OPTION>
                 <OPTION VALUE="128d" {{ if eq .Colors "128d"}}SELECTED{{end}}>128d</OPTION>
                 <OPTION VALUE="128n" {{ if eq .Colors "128n"}}SELECTED{{end}}>128n</OPTION>
-                <OPTION VALUE="64d" {{ if eq .Colors "64d"}}SELECTED{{end}}>64d</OPTION>
-                <OPTION VALUE="64n" {{ if eq .Colors "64n"}}SELECTED{{end}}>64n</OPTION>
                 <OPTION VALUE="16d" {{ if eq .Colors "16d"}}SELECTED{{end}}>16d</OPTION>
                 <OPTION VALUE="16n" {{ if eq .Colors "16n"}}SELECTED{{end}}>16n</OPTION>
                 <OPTION VALUE="2p" {{ if eq .Colors "2p"}}SELECTED{{end}}>2p</OPTION>
@@ -71,7 +69,11 @@
             {{ if eq .WrpMode "ismap" }}
             K <INPUT TYPE="TEXT" NAME="k" VALUE="" SIZE="4">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Bs">
-            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Rt"><!--
+            <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="Rt">
+            {{/* kb: what has the keyboard on the page (text, password,
+                 none), for clients that send keys as they are typed, to
+                 /keys (keys.go). Other browsers send it back: not used */}}
+            <INPUT TYPE="HIDDEN" NAME="kb" VALUE="{{.Focus}}"><!--
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="All">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="&lt;">
             <INPUT TYPE="SUBMIT" NAME="Fn" VALUE="^">

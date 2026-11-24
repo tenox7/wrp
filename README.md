@@ -43,6 +43,7 @@ Different modes have different uses. ISMAP mode will be better for the flashy mo
 * WRP also allows **a single tall image without the vertical scrollbar**, with client scrolling. To enable this, simply set height **H** to `0` (or flag `-g 1152x0x216`). However, this should not be used with old and low spec clients. Such tall images will be very large, take a lot of memory and a long time to process, especially for GIFs.
 * **Slices** (`sl=1`): WRP renders the page once and sends only the rows the client asks for. For clients that scroll themselves, like [Archaic](https://github.com/tenox7/archaic).
 * **ABM** (`Accept: image/x-abm`): fast 1-bit images for black and white clients with a slow CPU. See `abm.go`.
+* **Keys as you type** (`/keys`): a client with its own window, like [Archaic](https://github.com/tenox7/archaic), sends keys as they are typed, and WRP types them into the page with no new image. The form's hidden `kb` says what has the keyboard (`text`, `password` or `none`). WRP logs only how many keys came. See `keys.go`.
 * **C**olors for GIFs come with a letter for the dither: `d` dithers everything, `n` nothing, and for 2 colors `p` (default) dithers only photos so text stays sharp. 216 is not dithered by default (`216n`), the others are (`256d`).
 * Do not use client browser history-back, instead use the **Bk** button in the app.
 * You can re-capture the screenshot without reloading the page by using **St** (Stop). This is useful if the page didn't render fully before the screenshot was taken.
