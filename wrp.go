@@ -29,7 +29,7 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-const version = "4.14.0"
+const version = "4.14.1"
 
 var (
 	addr        = flag.String("l", ":8080", "Listen address:port, default :8080")
