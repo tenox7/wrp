@@ -151,7 +151,7 @@ func chromedpStart() error {
 		opts = append(opts, chromedp.UserDataDir(*userDataDir))
 	}
 	actx, acncl = chromedp.NewExecAllocator(context.Background(), opts...)
-	setBrRoot(chromedp.NewContext(actx))
+	setBrRoot(chromedp.NewContext(actx, chromedp.WithErrorf(cdpErrorf)))
 	// Start the browser here rather than on the first request that needs it.
 	// A context whose browser failed to start cannot be used again: chromedp
 	// allocates once per context and closes the same channel on the way out,
@@ -167,6 +167,18 @@ func chromedpStart() error {
 	uaInit(brCtx())
 	uaApply(brCtx())
 	return nil
+}
+
+// cdpErrorf logs chromedp's errors, as chromedp does, but not the CDP events
+// it does not know. The browser is newer than chromedp v0.15.1, and chromedp
+// only drops such an event: it is no error. One was "unhandled node event
+// *dom.EventAdoptedStyleSheetsModified", from Akamai's bot check (see
+// botCheck). The log names chromedp's line, not this one.
+func cdpErrorf(format string, v ...any) {
+	if strings.HasPrefix(format, "unhandled ") {
+		return
+	}
+	log.Output(2, fmt.Sprintf("ERROR: "+format, v...))
 }
 
 // Determine what action to take
@@ -382,11 +394,62 @@ func navigateBack() chromedp.ActionFunc {
 	}
 }
 
+// botCheck tells what the page is: "check" for Akamai's bot check (Bot
+// Manager, on the Daily Mail and others), "loading" before the page's load
+// event, "page" after it. The check is an empty page with a hidden box and a
+// script: the script proves the browser to Akamai and then reloads the page,
+// less than 2 s later. The page from the reload can be a check again
+// (dailymail.co.uk goes to dailymail.com, and that is checked too). A box
+// that shows (a button to hold down) is for the user: no wait for it.
+const botCheck = `(() => {
+	const c = document.getElementById("sec-if-cpt-container");
+	if (c && getComputedStyle(c).display === "none") return "check";
+	return document.readyState === "complete" ? "page" : "loading";
+})()`
+
+// waitBotCheck waits while the page is a bot check (see botCheck), until the
+// page after it has loaded, at most 10 seconds. A picture of the check was
+// empty (it measured 10 px): the page "stopped rendering". The log had chromedp's
+// "unhandled node event *dom.EventAdoptedStyleSheetsModified", from the
+// check's script (see cdpErrorf).
+func (rq *wrpReq) waitBotCheck() chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		st := time.Now()
+		seen := false
+		for time.Since(st) < 10*time.Second {
+			var s string
+			ectx, cancel := context.WithTimeout(ctx, time.Second)
+			err := chromedp.Evaluate(botCheck, &s).Do(ectx)
+			cancel()
+			switch {
+			case !seen && (err != nil || s != "check"):
+				return nil
+			case seen && err == nil && s == "page":
+				log.Printf("%s Bot check: the page came after %vms\n", rq.r.RemoteAddr, time.Since(st).Milliseconds())
+				return nil
+			case !seen:
+				log.Printf("%s Bot check: waiting for the page\n", rq.r.RemoteAddr)
+				seen = true
+			}
+			select { // an error here: the page is changing, ask again
+			case <-ctx.Done():
+				return nil
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+		log.Printf("%s Bot check: no page after %v\n", rq.r.RemoteAddr, time.Since(st).Round(time.Second))
+		return nil
+	}
+}
+
 // Navigate to the desired URL, returns the downloaded file if one was triggered.
+// A bot check (see botCheck) is waited for after the action, and before it too:
+// St (Stop) would stop a check that is still running, and a click would go to
+// its empty page.
 func (rq *wrpReq) navigate() *dlFile {
 	wrpCach.stopConvs() // the browser gets the CPUs
 	resetDownloadState()
-	ctxErr(chromedp.Run(brCtx(), rq.action()), rq.w)
+	ctxErr(chromedp.Run(brCtx(), rq.waitBotCheck(), rq.action(), rq.waitBotCheck()), rq.w)
 	return waitForDownload()
 }
 

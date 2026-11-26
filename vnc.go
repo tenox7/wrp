@@ -1865,7 +1865,7 @@ func vncCheckBrowser() {
 		return // another goroutine got here first
 	}
 	log.Printf("VNC: lost the browser (%v), starting a new one", root.Err())
-	nctx, ncncl := chromedp.NewContext(actx)
+	nctx, ncncl := chromedp.NewContext(actx, chromedp.WithErrorf(cdpErrorf))
 	setBrRoot(nctx, ncncl)
 	if err := vncRun(nctx, vncTabTO, vncNav("about:blank")); err != nil {
 		// cancel it: a context whose browser never started panics the
