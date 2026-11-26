@@ -1,6 +1,6 @@
 // WRP ABM pictures: black and white, 1 bit a pixel, for clients that ask
-// for them (Accept: image/x-abm), such as Archaic on a black and white
-// display. A 10 MHz 68010 needs 7.5 seconds to decode the GIF of one
+// for them (Accept: image/x-abm, see picfmt.go), such as Archaic on a black
+// and white display. A 10 MHz 68010 needs 7.5 seconds to decode the GIF of one
 // screen: GIF has a code for every few pixels. ABM is the display's own
 // bytes, packed with a byte LZ: the same computer decodes it in 0.15
 // seconds, and it is about 11% smaller than the GIF.
@@ -28,21 +28,9 @@ import (
 	"errors"
 	"image"
 	"io"
-	"net/http"
-	"strings"
 )
 
 const abmType = "image/x-abm"
-
-// Does the client take ABM pictures?
-func abmWanted(r *http.Request) bool {
-	for _, t := range strings.Split(r.Header.Get("Accept"), ",") {
-		if t, _, _ = strings.Cut(strings.TrimSpace(t), ";"); t == abmType {
-			return true
-		}
-	}
-	return false
-}
 
 // The picture as ABM's rows: 1 bit a pixel, 1 = black, or nil if it has
 // more than black and white
@@ -205,17 +193,25 @@ func abmPack(d []byte, bpl int) []byte {
 	return o
 }
 
-// encodeABM writes a black and white picture as ABM
-func encodeABM(w io.Writer, p *image.Paletted) error {
-	bits, bpl := abmBits(p)
-	wd, ht := p.Rect.Dx(), p.Rect.Dy()
-	if bits == nil || wd <= 0 || ht <= 0 || wd > 0xffff || ht > 0xffff {
-		return errors.New("abm: not a black and white picture")
+// writeABM writes an ABM file: the header, then the packed rows. pack is
+// how they are packed: '1' (abmPack) or '3' (abm3Pack, see abm3.go).
+func writeABM(w io.Writer, pack byte, wd, ht int, rows []byte) error {
+	if wd <= 0 || ht <= 0 || wd > 0xffff || ht > 0xffff {
+		return errors.New("abm: a picture of this size does not fit")
 	}
-	h := []byte{'A', 'B', 'M', '1', byte(wd >> 8), byte(wd), byte(ht >> 8), byte(ht), 1, 0}
+	h := []byte{'A', 'B', 'M', pack, byte(wd >> 8), byte(wd), byte(ht >> 8), byte(ht), 1, 0}
 	if _, err := w.Write(h); err != nil {
 		return err
 	}
-	_, err := w.Write(abmPack(bits, bpl))
+	_, err := w.Write(rows)
 	return err
+}
+
+// encodeABM writes a black and white picture as ABM
+func encodeABM(w io.Writer, p *image.Paletted) error {
+	bits, bpl := abmBits(p)
+	if bits == nil {
+		return errors.New("abm: not a black and white picture")
+	}
+	return writeABM(w, '1', p.Rect.Dx(), p.Rect.Dy(), abmPack(bits, bpl))
 }

@@ -764,6 +764,7 @@ func mapServer(w http.ResponseWriter, r *http.Request) {
 // TODO: merge this with html mode IMGZ
 func imgServerMap(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s IMG Request for %s\n", r.RemoteAddr, r.URL.Path)
+	logNote(r)
 	if f, ok := wrpCach.getFull(r.URL.Path); ok {
 		sliceServer(w, r, f)
 		return
@@ -818,16 +819,8 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 			return
 		}
 	}
-	// a black and white picture for a client that takes ABM (see abm.go)
-	typ := f.typ
-	var buf bytes.Buffer
-	var err error
-	if p, ok := i.(*image.Paletted); ok && typ == "gif" && len(p.Palette) == 2 && abmWanted(r) {
-		typ = "abm"
-		err = encodeABM(&buf, p)
-	} else {
-		err = encodeImg(&buf, i, typ, f.jq)
-	}
+	// the picture as the client takes it (see picfmt.go)
+	what, err := sendSlice(w, r, i, f.typ, f.jq)
 	if err != nil {
 		http.Error(w, "Unable to encode "+r.URL.Path+": "+err.Error(), http.StatusInternalServerError)
 		log.Printf("%s Unable to encode %s: %s\n", r.RemoteAddr, r.URL.Path, err)
@@ -836,23 +829,7 @@ func sliceServer(w http.ResponseWriter, r *http.Request, f cachedImg) {
 	if f.conv != nil {
 		f.conv.start() // after the first slice, the background may take the CPUs
 	}
-	switch typ {
-	case "abm":
-		w.Header().Set("Content-Type", abmType)
-		w.Header().Set("Vary", "Accept")
-	case "png":
-		w.Header().Set("Content-Type", "image/png")
-	case "jpg":
-		w.Header().Set("Content-Type", "image/jpeg")
-	default:
-		w.Header().Set("Content-Type", "image/gif")
-	}
-	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
-	w.Header().Set("Cache-Control", "max-age=0")
-	w.Header().Set("Expires", "-1")
-	w.Header().Set("Pragma", "no-cache")
-	w.Write(buf.Bytes())
-	log.Printf("%s Slice %s y=%v h=%v: %dx%d, %s, %d bytes, %vms\n", r.RemoteAddr, r.URL.Path, q.Get("y"), q.Get("h"), i.Bounds().Dx(), i.Bounds().Dy(), typ, buf.Len(), time.Since(st).Milliseconds())
+	log.Printf("%s Slice %s y=%v h=%v: %dx%d, %s, %vms\n", r.RemoteAddr, r.URL.Path, q.Get("y"), q.Get("h"), i.Bounds().Dx(), i.Bounds().Dy(), what, time.Since(st).Milliseconds())
 }
 
 // Rows y up to y+h of a picture, as a picture of its own that starts at

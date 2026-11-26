@@ -503,6 +503,7 @@ func main() {
 	http.HandleFunc("/shutdown/", haltServer)
 	http.HandleFunc("/dl/", dlServer)
 	http.HandleFunc("/archaic-update", archaicServer)
+	http.HandleFunc("/archaic-test", picTestServer)
 	http.HandleFunc("/archaic-download", archaicDownload)
 	http.HandleFunc("/archaic-download/", archaicDownload)
 	http.HandleFunc("/favicon.ico", http.NotFound)
