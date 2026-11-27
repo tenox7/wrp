@@ -153,6 +153,53 @@ func TestArchaicUpdate(t *testing.T) {
 	}
 }
 
+// The 3B1's file is archaic-3b1 (its old name unixpc still works), and
+// the Atari's are archaic-tos.prg and archaic-mint.prg
+func TestArchaicNames(t *testing.T) {
+	old, b3, tos := archaicProg("0.14", "unixpc"), archaicProg("0.15", "3b1"), archaicProg("0.14", "tos")
+	newFakeGitHub(t, map[string][]byte{"archaic-3b1": old, "archaic-tos.prg": tos,
+		"archaic-mint.prg": archaicProg("0.14", "tos")}) // the wrong file
+	for _, p := range []string{"unixpc", "3b1"} {
+		code, body, _ := archaicAsk(t, "p="+p+"&v=0.13")
+		if code != 200 || !strings.Contains(body, "version 0.14\nfile archaic-3b1\n") ||
+			!strings.Contains(body, "get archaic-update?p="+p+"&f=0.14\n") {
+			t.Errorf("p=%s: %d %q", p, code, body)
+		}
+		if code, body, _ := archaicAsk(t, "p="+p+"&f=0.14"); code != 200 || body != string(old) {
+			t.Errorf("p=%s, the file: %d, %d bytes", p, code, len(body))
+		}
+	}
+	if _, body, _ := archaicAsk(t, "p=tos&v=0.13"); !strings.Contains(body, "version 0.14\nfile archaic-tos.prg\n") {
+		t.Errorf("p=tos: %q", body)
+	}
+	if _, body, _ := archaicAsk(t, "p=mint&v=0.13"); !strings.Contains(body, "archaic-mint.prg in release v0.9 is for tos") {
+		t.Errorf("p=mint: %q", body)
+	}
+	for _, p := range []string{"/archaic-download/archaic-tos.prg", "/archaic-download/tos", "/archaic-download/archaic-tos"} {
+		code, body, h := archaicDl(t, p)
+		if code != 200 || body != string(tos) || h.Get("Content-Disposition") != `attachment; filename="archaic-tos.prg"` {
+			t.Errorf("%s: %d, %d bytes, %q", p, code, len(body), h.Get("Content-Disposition"))
+		}
+	}
+	for _, p := range []string{"/archaic-download/unixpc", "/archaic-download/archaic-3b1"} {
+		if code, body, _ := archaicDl(t, p); code != 200 || body != string(old) {
+			t.Errorf("%s: %d, %d bytes", p, code, len(body))
+		}
+	}
+	if _, body, _ := archaicDl(t, "/archaic-download"); !strings.Contains(body, "archaic-tos.prg") ||
+		!strings.Contains(body, "archaic-3b1 ") {
+		t.Errorf("the list: %q", body)
+	}
+
+	// a new build for the 3B1 carries its new name
+	newFakeGitHub(t, map[string][]byte{"archaic-3b1": b3})
+	for _, p := range []string{"unixpc", "3b1"} {
+		if _, body, _ := archaicAsk(t, "p="+p+"&v=0.14"); !strings.Contains(body, "version 0.15\nfile archaic-3b1\n") {
+			t.Errorf("new build, p=%s: %q", p, body)
+		}
+	}
+}
+
 // A new upload of a file in the release is a new file, after the release
 // info is asked again
 func TestArchaicNewUpload(t *testing.T) {

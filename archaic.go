@@ -4,21 +4,24 @@
 //
 // Archaic asks for the newest Archaic for its system:
 //
-//	GET /archaic-update?p=unixpc&v=0.8
+//	GET /archaic-update?p=3b1&v=0.8
 //
 // and WRP answers in plain text, a line each:
 //
 //	archaic-update 1
 //	version 0.9
-//	file archaic-unixpc
+//	file archaic-3b1
 //	size 67027
 //	crc 1f2e3d4c
-//	get archaic-update?p=unixpc&f=0.9
+//	get archaic-update?p=3b1&f=0.9
 //
 // With no file to offer, a "note" line says why, and there is no version.
 // Archaic compares the version with its own, and gets the file from the
 // "get" address (relative to the question): the bytes of the release's
-// file archaic-SYSTEM, with their size and CRC-32 (IEEE) as above.
+// file archaic-SYSTEM (or archaic-SYSTEM.prg, a program for the Atari),
+// with their size and CRC-32 (IEEE) as above. A system's old name (in
+// archaicOldSys) is the same system: Archaic 0.14 and older on the 3B1
+// ask for unixpc, and get archaic-3b1.
 //
 // Archaic's programs carry "@(#)Archaic VERSION" and "@(#)Archaic for
 // SYSTEM". The version is read from the file itself, not from the
@@ -167,26 +170,25 @@ func archaicMarks(b []byte) (ver, sys string) {
 
 // Archaic's file for system sys, checked, for an update
 func archaicFor(sys string) (*archaicFile, error) {
-	name := "archaic-" + sys
-	f, tag, err := archaicAssetFile(name)
+	f, tag, err := archaicAssetFile(sys)
 	if err != nil {
 		return nil, err
 	}
-	if f.sys != sys {
+	if archaicSysName(f.sys) != archaicSysName(sys) {
 		if f.sys == "" {
-			return nil, fmt.Errorf("%s in release %s: an older build, with no update marks", name, tag)
+			return nil, fmt.Errorf("%s in release %s: an older build, with no update marks", f.name, tag)
 		}
-		return nil, fmt.Errorf("%s in release %s is for %s", name, tag, f.sys)
+		return nil, fmt.Errorf("%s in release %s is for %s", f.name, tag, f.sys)
 	}
 	if f.version == "" {
-		return nil, fmt.Errorf("%s in release %s: no version in it", name, tag)
+		return nil, fmt.Errorf("%s in release %s: no version in it", f.name, tag)
 	}
 	return f, nil
 }
 
-// The release's file name, with its size and SHA-256 checked: from the
-// cache, or from GitHub. Also the release's tag.
-func archaicAssetFile(name string) (*archaicFile, string, error) {
+// The release's file for system sys, with its size and SHA-256 checked:
+// from the cache, or from GitHub. Also the release's tag.
+func archaicAssetFile(sys string) (*archaicFile, string, error) {
 	u := &archaicUpd
 	u.Lock()
 	defer u.Unlock()
@@ -196,14 +198,15 @@ func archaicAssetFile(name string) (*archaicFile, string, error) {
 	}
 	var a *archaicAsset
 	for i := range rel.Assets {
-		if rel.Assets[i].Name == name {
+		if archaicAssetSys(rel.Assets[i].Name) == archaicSysName(sys) {
 			a = &rel.Assets[i]
 			break
 		}
 	}
 	if a == nil {
-		return nil, rel.Tag, fmt.Errorf("no %s in release %s", name, rel.Tag)
+		return nil, rel.Tag, fmt.Errorf("no archaic-%s in release %s", archaicSysName(sys), rel.Tag)
 	}
+	name := a.Name
 	key := a.URL + " " + a.Updated
 	if f := u.files[name]; f != nil && f.key == key {
 		if f.err == nil {
@@ -260,6 +263,31 @@ func archaicLoad(rel *archaicRelease, a *archaicAsset) (*archaicFile, error) {
 	f := &archaicFile{name: name, version: ver, sys: sys, data: data, crc: crc32.ChecksumIEEE(data)}
 	log.Printf("Archaic: got %s %q from release %s, %d bytes, crc %08x", name, ver, rel.Tag, len(data), f.crc)
 	return f, nil
+}
+
+// the systems' old names, and their new ones
+var archaicOldSys = map[string]string{"unixpc": "3b1"}
+
+// a system's name now, for its old name too
+func archaicSysName(s string) string {
+	if n, ok := archaicOldSys[s]; ok {
+		return n
+	}
+	return s
+}
+
+// the system of a release's file: archaic-NAME, or archaic-NAME.prg (a
+// program for the Atari). "" for other files.
+func archaicAssetSys(name string) string {
+	s, ok := strings.CutPrefix(name, "archaic-")
+	if !ok {
+		return ""
+	}
+	s = strings.TrimSuffix(s, ".prg")
+	if !archaicSysOK(s) {
+		return ""
+	}
+	return archaicSysName(s)
 }
 
 // a system's name: what Archaic's file name has after "archaic-"
@@ -330,16 +358,16 @@ func archaicDownload(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(name, "archaic-") {
 		name = "archaic-" + name
 	}
-	sys := strings.TrimPrefix(name, "archaic-")
+	sys := strings.TrimSuffix(strings.TrimPrefix(name, "archaic-"), ".prg")
 	var f *archaicFile
 	err := fmt.Errorf("updates and downloads are off in this WRP")
 	if *archaicRel != "" {
 		err = fmt.Errorf("no system name %q", sys)
 		if archaicSysOK(sys) {
 			var tag string
-			f, tag, err = archaicAssetFile(name)
-			if err == nil && f.sys != "" && f.sys != sys {
-				err = fmt.Errorf("%s in release %s is for %s", name, tag, f.sys)
+			f, tag, err = archaicAssetFile(sys)
+			if err == nil && f.sys != "" && archaicSysName(f.sys) != archaicSysName(sys) {
+				err = fmt.Errorf("%s in release %s is for %s", f.name, tag, f.sys)
 			}
 		}
 	}
@@ -376,7 +404,7 @@ func archaicList(w http.ResponseWriter, r *http.Request) {
 	}
 	var names []string
 	for _, a := range rel.Assets {
-		if s, ok := strings.CutPrefix(a.Name, "archaic-"); ok && archaicSysOK(s) {
+		if archaicAssetSys(a.Name) != "" {
 			names = append(names, fmt.Sprintf("%-16s %8d bytes  http://%s/archaic-download/%s\n", a.Name, a.Size, host, a.Name))
 		}
 	}
