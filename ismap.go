@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -186,7 +187,18 @@ func (rq *wrpReq) action() chromedp.Action {
 	// Mouse Click
 	if rq.mouseX > 0 && rq.mouseY > 0 {
 		log.Printf("%s Mouse Click %d,%d\n", rq.r.RemoteAddr, rq.mouseX, rq.mouseY)
-		return waitNav(chromedp.MouseClickXY(float64(rq.mouseX)/float64(rq.zoom), float64(rq.mouseY)/float64(rq.zoom)))
+		x, y := float64(rq.mouseX)/rq.zoom, float64(rq.mouseY)/rq.zoom
+		if !rq.full() {
+			return waitNav(chromedp.MouseClickXY(x, y))
+		}
+		// a whole page is in a viewport as tall as the screen (fullHeight)
+		return waitNav(chromedp.ActionFunc(func(ctx context.Context) error {
+			var top float64
+			if err := wrpEval(ctx, fmt.Sprintf(clickJS, y), &top); err != nil {
+				log.Printf("%s Not scrolled to the click: %v\n", rq.r.RemoteAddr, err)
+			}
+			return chromedp.MouseClickXY(x, y-top).Do(ctx)
+		}))
 	}
 	// Buttons
 	if len(rq.buttons) > 0 {
@@ -524,32 +536,16 @@ func waitForRender() chromedp.ActionFunc {
 	}
 }
 
-// https://github.com/chromedp/chromedp/issues/979
-func chromedpCaptureScreenshot(res *[]byte, h int64) chromedp.Action {
-	if res == nil {
-		panic("res cannot be nil") // TODO: do not panic here, return error
-	}
-	if h == 0 {
-		return chromedp.CaptureScreenshot(res)
-	}
-
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		var err error
-		*res, err = page.CaptureScreenshot().Do(ctx)
-		return err
-	})
-}
-
 // maxCapH: Chrome makes a screenshot at most 16384 device px tall (its
 // largest surface). In a taller one, the rows past that show the top of
 // the page again.
 const maxCapH = 16384
 
-// captureTall takes a viewport taller than maxCapH device px (w x h CSS px at
-// zoom) in clipped parts of at most maxCapH device px, and joins them into one
-// picture of the type png.Decode gives for one screenshot (RGBA). The parts
-// wait as PNG and are decoded one at a time, so the memory is that of one
-// screenshot.
+// captureTall takes the top w x h CSS px of the page at zoom, also the part
+// below the viewport (see fullHeight), in clipped parts of at most maxCapH
+// device px, and joins them into one picture of the type png.Decode gives for
+// one screenshot (RGBA). The parts wait as PNG and are decoded one at a time,
+// so the memory is that of one screenshot.
 func captureTall(ctx context.Context, w, h int64, zoom float64) (image.Image, error) {
 	// a part is a whole number of device px, so the parts join exactly
 	ph := int64(maxCapH / zoom)
@@ -563,7 +559,7 @@ func captureTall(ctx context.Context, w, h int64, zoom float64) (image.Image, er
 		var b []byte
 		err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 			var err error
-			b, err = page.CaptureScreenshot().WithFromSurface(true).
+			b, err = page.CaptureScreenshot().WithFromSurface(true).WithCaptureBeyondViewport(true).
 				WithClip(&page.Viewport{Y: float64(y), Width: float64(w), Height: float64(n), Scale: 1}).
 				Do(ctx)
 			return err
@@ -579,6 +575,9 @@ func captureTall(ctx context.Context, w, h int64, zoom float64) (image.Image, er
 		pw = max(pw, cfg.Width)
 		sum += cfg.Height
 	}
+	if len(parts) == 1 {
+		return png.Decode(bytes.NewReader(parts[0]))
+	}
 	o := image.NewRGBA(image.Rect(0, 0, pw, sum))
 	y := 0
 	for _, b := range parts {
@@ -592,6 +591,125 @@ func captureTall(ctx context.Context, w, h int64, zoom float64) (image.Image, er
 	return o, nil
 }
 
+// wrpEval runs js in the main frame in WRP's own world, the one selPopupJS
+// has: the page's scripts see what it does to the DOM, and nothing else. It
+// waits for a promise. The value goes to res, when res is not nil.
+func wrpEval(ctx context.Context, js string, res any) error {
+	tree, err := page.GetFrameTree().Do(ctx)
+	if err != nil {
+		return err
+	}
+	// the world of that name in the frame: Chrome makes it once a page
+	id, err := page.CreateIsolatedWorld(tree.Frame.ID).WithWorldName(selWorld).Do(ctx)
+	if err != nil {
+		return err
+	}
+	v, exc, err := runtime.Evaluate(js).WithContextID(id).
+		WithReturnByValue(true).WithAwaitPromise(true).Do(ctx)
+	if err != nil {
+		return err
+	}
+	if exc != nil {
+		return exc
+	}
+	if res != nil && v != nil && len(v.Value) > 0 {
+		return json.Unmarshal(v.Value, res)
+	}
+	return nil
+}
+
+// pageModeJS tells WRP's world in the page what the capture is (%v: full).
+// A whole page has no scrollbar (SetScrollbarsHidden), and selPopupJS's list
+// may go down to the end of the page (__wrpFull). A fixed height shows the
+// scrollbar always, also on a short page; a page that sets overflow on html or
+// body keeps its own.
+const pageModeJS = `(function(full){
+var d=document.documentElement,b=document.body;
+window.__wrpFull=full;
+if(!d)return;
+if(full){if(window.__wrpSb){d.style.overflowY='';window.__wrpSb=false}return}
+function o(e){return e?getComputedStyle(e).overflowY:'visible'}
+if(o(d)==='visible'&&o(b)==='visible'){d.style.overflowY='scroll';window.__wrpSb=true}})(%v)`
+
+// fullJS: a whole page in a viewport as tall as the screen (see fullHeight).
+// The page is scrolled down a screen a frame, so its lazy pictures (Chrome's,
+// and the page's own on scroll) come, and back to its top. Then it waits for
+// the pictures, until %d ms (-s) are over. The value is the bottom of its
+// html, its flow: a short page ends above the bottom of the screen.
+const fullJS = `new Promise(function(r){
+var end=Date.now()+%d,d=document.documentElement,s=document.scrollingElement||d,y=0;
+function frames(f){requestAnimationFrame(function(){requestAnimationFrame(f)})}
+function go(t){scrollTo({top:t,left:0,behavior:'instant'})}
+function pass(){if(y<s.scrollHeight&&Date.now()<end){go(y);y+=innerHeight;frames(pass);return}go(0);wait()}
+function wait(){if(Date.now()<end&&!Array.from(document.images).every(function(i){
+ return i.complete||!i.getClientRects().length})){setTimeout(wait,100);return}
+ frames(function(){r(Math.ceil(d.getBoundingClientRect().bottom))})}
+pass()})`
+
+// clickJS: a click at y (CSS px) of a whole page picture: the page is scrolled
+// to have it in the middle of the screen. The value is how far it scrolled.
+const clickJS = `new Promise(function(r){scrollTo({top:Math.max(0,%g-innerHeight/2),left:0,behavior:'instant'});` +
+	`requestAnimationFrame(function(){requestAnimationFrame(function(){r(scrollY)})})})`
+
+// full: a picture of the whole page (h=0, or slices), not of the screen
+func (rq *wrpReq) full() bool {
+	return rq.height == 0 || rq.slices
+}
+
+// screenH: the height of the screen a whole page is shown on (CSS px). It is
+// the form's h, also with slices, or with h=0 3/4 of the width (4:3).
+func (rq *wrpReq) screenH() int64 {
+	if rq.height > 0 {
+		return max(10, int64(float64(rq.height)/rq.zoom))
+	}
+	return max(10, int64(float64(rq.width)/rq.zoom)*3/4)
+}
+
+// contentH: the height of the page (CSS px), at least the viewport's
+func contentH(ctx context.Context) (int64, error) {
+	var c int64
+	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		_, _, _, _, _, s, err := page.GetLayoutMetrics().Do(ctx)
+		if err == nil {
+			c = int64(math.Ceil(s.Height))
+		}
+		return err
+	}))
+	return c, err
+}
+
+// fullHeight: the height of a whole page (CSS px) that grew past a viewport
+// as tall as itself. A 100vh part grows with the viewport, so such a page
+// never fits, and the picture cut off its end. Its pictures also came late,
+// or never: the 100vh part had pushed them below the viewport. The page now
+// stays in a viewport as tall as the screen (sh), so its 100vh is a screen,
+// and captureTall takes the page below the viewport too. h: its height in a
+// 10 px viewport.
+func fullHeight(ctx context.Context, w, sh, h int64, zoom float64) (int64, error) {
+	var flow int64
+	err := chromedp.Run(ctx,
+		emulation.SetDeviceMetricsOverride(w, sh, zoom, false),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			fctx, cancel := context.WithTimeout(ctx, *delay+2*time.Second)
+			defer cancel()
+			return wrpEval(fctx, fmt.Sprintf(fullJS, delay.Milliseconds()), &flow)
+		}),
+	)
+	if err != nil {
+		return max(sh, h+30), err
+	}
+	c, err := contentH(ctx)
+	if err != nil {
+		return max(sh, h+30), err
+	}
+	if c > sh {
+		return c, nil // the page goes on below the screen
+	}
+	// the page fits in the screen: a short one ends where its content does,
+	// a 100vh one fills the screen
+	return min(sh, max(h+30, flow)), nil
+}
+
 // Capture Screenshot using CDP
 func (rq *wrpReq) captureScreenshot() {
 	vncSuspend() // borrow the viewport from the vnc screencast
@@ -599,9 +717,20 @@ func (rq *wrpReq) captureScreenshot() {
 	wrpCach.clear()
 	var h int64
 	var pngCap []byte
+	full := rq.full() // slices too: the client asks for the slices it shows
+	w := int64(float64(rq.width) / rq.zoom)
 	bc := brCtx() // pin the tab for the whole capture
 	chromedp.Run(bc,
-		emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), 10, rq.zoom, false),
+		// the whole page has no scrollbar: there is nothing to scroll. Set
+		// before the page is measured, so it is measured at its full width.
+		emulation.SetScrollbarsHidden(full),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			if err := wrpEval(ctx, fmt.Sprintf(pageModeJS, full), nil); err != nil {
+				log.Printf("%s Page mode not set: %v\n", rq.r.RemoteAddr, err)
+			}
+			return nil
+		}),
+		emulation.SetDeviceMetricsOverride(w, 10, rq.zoom, false),
 		chromedp.Location(&rq.url),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, _, _, _, _, s, err := page.GetLayoutMetrics().Do(ctx)
@@ -616,32 +745,47 @@ func (rq *wrpReq) captureScreenshot() {
 	}
 	log.Printf("%s Landed on: %s, Height: %v\n", rq.r.RemoteAddr, rq.url, h)
 	sessSaveURL(rq.url)
-	capH := rq.height
-	if rq.slices {
-		capH = 0 // the whole page: the client asks for the slices it shows
-	}
 	height := int64(float64(rq.height) / rq.zoom)
-	if capH == 0 && h > 0 {
-		height = h + 30
+	if full && h > 0 {
+		height = h + 30 // the whole page in the viewport: its lazy pictures come
 	}
 	var foc focusInfo // for the form's kb: what has the keyboard
 	chromedp.Run(
-		bc, emulation.SetDeviceMetricsOverride(int64(float64(rq.width)/rq.zoom), height, rq.zoom, false),
+		bc, emulation.SetDeviceMetricsOverride(w, height, rq.zoom, false),
 		waitForRender(),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			foc = focusNow(ctx)
 			return nil
 		}),
 	)
+	// a whole page that fits its viewport is taken as it is
+	var c int64
+	if full {
+		c, _ = contentH(bc)
+	}
+	if c > height {
+		sh := rq.screenH()
+		var err error
+		if height, err = fullHeight(bc, w, sh, h, rq.zoom); err != nil {
+			log.Printf("%s Whole page not measured: %v\n", rq.r.RemoteAddr, err)
+		}
+		log.Printf("%s Page grew past its viewport (%d px): %d px in a %d px viewport\n", rq.r.RemoteAddr, c, height, sh)
+		h = height
+	}
 	// Capture screenshot. Chrome can't take a viewport taller than maxCapH
 	// device px in one: captureTall takes it in parts and joins them (tall).
+	// It takes a whole page from below the viewport too.
 	var tall image.Image
-	if float64(height)*rq.zoom > maxCapH {
+	if full || float64(height)*rq.zoom > maxCapH {
 		var err error
-		tall, err = captureTall(bc, int64(float64(rq.width)/rq.zoom), height, rq.zoom)
+		tall, err = captureTall(bc, w, height, rq.zoom)
 		ctxErr(err, rq.w)
 	} else {
-		ctxErr(chromedp.Run(bc, chromedpCaptureScreenshot(&pngCap, capH)), rq.w)
+		ctxErr(chromedp.Run(bc, chromedp.ActionFunc(func(ctx context.Context) error {
+			var err error
+			pngCap, err = page.CaptureScreenshot().Do(ctx)
+			return err
+		})), rq.w)
 	}
 	decode := func() (image.Image, error) {
 		if tall != nil {

@@ -21,8 +21,9 @@ const selPopupJS = `(function(){
 if(window.__wrpSel)return;
 window.__wrpSel={box:function(){return box},sel:function(){return sel},
  row:function(i){return items[i]}};
-// the room the select has bounds the list long before MAXH does, except under
-// an ISMAP capture, which stretches the viewport to the whole page: there the
+// the room the select has bounds the list long before MAXH does, except in a
+// picture of the whole page (WRP sets __wrpFull in this world of the top frame):
+// there the room goes down to the end of the page, not of the screen, and the
 // list is drawn in full rather than stuck behind a scrollbar nothing can reach
 var MAXH=2000,box=null,sel=null,items=[],hi=-1;
 function kill(){if(box&&box.parentNode)box.parentNode.removeChild(box);box=null;sel=null;items=[];hi=-1}
@@ -40,12 +41,13 @@ function pick(i){var s=sel;
 // the box lives in: the containing block could be the viewport, a positioned
 // ancestor or a transformed one, and WRP's own page zoom scales every length we
 // set, so the offset from setting left/top is measured rather than reasoned
-// about. Runs again on resize - an ISMAP capture stretches the viewport to the
-// whole page between the click and the screenshot, and a list that closed
-// itself there would never make it into the picture.
+// about. Runs again on resize - an ISMAP capture changes the viewport between
+// the click and the screenshot, and a list that closed itself there would never
+// make it into the picture.
 function place(){
  if(!box||!sel)return;
  var w=sel.ownerDocument.defaultView,r=sel.getBoundingClientRect(),st=box.style;
+ var bot=w===window&&window.__wrpFull?Math.max(w.innerHeight,(w.document.scrollingElement||w.document.documentElement).scrollHeight-w.scrollY):w.innerHeight;
  st.left='0px';st.top='0px';
  var g0=box.getBoundingClientRect();
  st.left='100px';
@@ -54,9 +56,9 @@ function place(){
  var ky=(box.getBoundingClientRect().top-g0.top)/100||1;
  st.top='0px';
  st.minWidth=(Math.max(r.width,80)/kx)+'px';st.maxWidth=(w.innerWidth*0.95/kx)+'px';
- st.maxHeight=(Math.min(MAXH,Math.max(64,Math.max(w.innerHeight-r.bottom,r.top)-6))/ky)+'px';
+ st.maxHeight=(Math.min(MAXH,Math.max(64,Math.max(bot-r.bottom,r.top)-6))/ky)+'px';
  var g=box.getBoundingClientRect(),h=g.height,bw=g.width,y=r.bottom;
- if(y+h>w.innerHeight)y=r.top-h>=0?r.top-h:Math.max(0,w.innerHeight-h);
+ if(y+h>bot)y=r.top-h>=0?r.top-h:Math.max(0,bot-h);
  var x=Math.max(0,Math.min(r.left,w.innerWidth-bw-2));
  st.left=((x-g.left)/kx)+'px';st.top=((y-g.top)/ky)+'px'}
 function open(s){

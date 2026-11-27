@@ -869,6 +869,7 @@ func vncCastStart() {
 	bc := brCtx()
 	var loc string
 	err := vncRun(bc, vncTabTO,
+		emulation.SetScrollbarsHidden(false), // a whole page capture hid them
 		emulation.SetDeviceMetricsOverride(int64(w), int64(h), 1, false),
 		chromedp.Location(&loc),
 		page.StartScreencast().
