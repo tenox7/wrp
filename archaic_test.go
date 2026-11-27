@@ -154,11 +154,21 @@ func TestArchaicUpdate(t *testing.T) {
 }
 
 // The 3B1's file is archaic-3b1 (its old name unixpc still works), and
-// the Atari's are archaic-tos.prg and archaic-mint.prg
+// the Atari's are archaic-tos.prg and archaic-mint.prg, Windows NT's
+// archaic-ntx86.exe ...
 func TestArchaicNames(t *testing.T) {
-	old, b3, tos := archaicProg("0.14", "unixpc"), archaicProg("0.15", "3b1"), archaicProg("0.14", "tos")
-	newFakeGitHub(t, map[string][]byte{"archaic-3b1": old, "archaic-tos.prg": tos,
+	old, b3, tos, nt := archaicProg("0.14", "unixpc"), archaicProg("0.15", "3b1"), archaicProg("0.14", "tos"), archaicProg("0.14", "ntx86")
+	newFakeGitHub(t, map[string][]byte{"archaic-3b1": old, "archaic-tos.prg": tos, "archaic-ntx86.exe": nt,
 		"archaic-mint.prg": archaicProg("0.14", "tos")}) // the wrong file
+	if code, body, _ := archaicAsk(t, "p=ntx86&v=0.13"); code != 200 || !strings.Contains(body, "version 0.14\nfile archaic-ntx86.exe\n") {
+		t.Errorf("p=ntx86: %d %q", code, body)
+	}
+	for _, p := range []string{"/archaic-download/archaic-ntx86.exe", "/archaic-download/ntx86"} {
+		if code, body, h := archaicDl(t, p); code != 200 || body != string(nt) ||
+			h.Get("Content-Disposition") != `attachment; filename="archaic-ntx86.exe"` {
+			t.Errorf("%s: %d, %d bytes", p, code, len(body))
+		}
+	}
 	for _, p := range []string{"unixpc", "3b1"} {
 		code, body, _ := archaicAsk(t, "p="+p+"&v=0.13")
 		if code != 200 || !strings.Contains(body, "version 0.14\nfile archaic-3b1\n") ||

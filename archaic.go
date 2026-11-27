@@ -18,7 +18,8 @@
 // With no file to offer, a "note" line says why, and there is no version.
 // Archaic compares the version with its own, and gets the file from the
 // "get" address (relative to the question): the bytes of the release's
-// file archaic-SYSTEM (or archaic-SYSTEM.prg, a program for the Atari),
+// file archaic-SYSTEM (or archaic-SYSTEM.prg on the Atari, archaic-SYSTEM.exe
+// on Windows NT),
 // with their size and CRC-32 (IEEE) as above. A system's old name (in
 // archaicOldSys) is the same system: Archaic 0.14 and older on the 3B1
 // ask for unixpc, and get archaic-3b1.
@@ -276,18 +277,29 @@ func archaicSysName(s string) string {
 	return s
 }
 
-// the system of a release's file: archaic-NAME, or archaic-NAME.prg (a
-// program for the Atari). "" for other files.
+// the system of a release's file: archaic-NAME, archaic-NAME.prg (a
+// program for the Atari) or archaic-NAME.exe (Windows NT). "" for other
+// files.
 func archaicAssetSys(name string) string {
 	s, ok := strings.CutPrefix(name, "archaic-")
 	if !ok {
 		return ""
 	}
-	s = strings.TrimSuffix(s, ".prg")
+	s = archaicNoExt(s)
 	if !archaicSysOK(s) {
 		return ""
 	}
 	return archaicSysName(s)
+}
+
+// a file name with no .prg or .exe
+func archaicNoExt(s string) string {
+	for _, e := range []string{".prg", ".exe"} {
+		if t, ok := strings.CutSuffix(s, e); ok {
+			return t
+		}
+	}
+	return s
 }
 
 // a system's name: what Archaic's file name has after "archaic-"
@@ -358,7 +370,7 @@ func archaicDownload(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(name, "archaic-") {
 		name = "archaic-" + name
 	}
-	sys := strings.TrimSuffix(strings.TrimPrefix(name, "archaic-"), ".prg")
+	sys := archaicNoExt(strings.TrimPrefix(name, "archaic-"))
 	var f *archaicFile
 	err := fmt.Errorf("updates and downloads are off in this WRP")
 	if *archaicRel != "" {
