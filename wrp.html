@@ -47,13 +47,14 @@
             {{ if eq .ImgType "gif" }}
             {{/* C: colors and a letter for the dither: d all, n none, p only
                  photos (2 colors). The first of each number is its default:
-                 an old client that keeps only the number chooses it */}}
+                 an old client that keeps only the number chooses it. 216n
+                 is first: a browser chooses it when no line is SELECTED */}}
             C <SELECT NAME="c">
                 <OPTION DISABLED>Ncol</OPTION>
-                <OPTION VALUE="256d" {{ if eq .Colors "256d"}}SELECTED{{end}}>256d</OPTION>
-                <OPTION VALUE="256n" {{ if eq .Colors "256n"}}SELECTED{{end}}>256n</OPTION>
                 <OPTION VALUE="216n" {{ if eq .Colors "216n"}}SELECTED{{end}}>216n</OPTION>
                 <OPTION VALUE="216d" {{ if eq .Colors "216d"}}SELECTED{{end}}>216d</OPTION>
+                <OPTION VALUE="256d" {{ if eq .Colors "256d"}}SELECTED{{end}}>256d</OPTION>
+                <OPTION VALUE="256n" {{ if eq .Colors "256n"}}SELECTED{{end}}>256n</OPTION>
                 <OPTION VALUE="128d" {{ if eq .Colors "128d"}}SELECTED{{end}}>128d</OPTION>
                 <OPTION VALUE="128n" {{ if eq .Colors "128n"}}SELECTED{{end}}>128n</OPTION>
                 <OPTION VALUE="16d" {{ if eq .Colors "16d"}}SELECTED{{end}}>16d</OPTION>
