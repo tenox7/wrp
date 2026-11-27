@@ -83,10 +83,10 @@ func TestVersionCheck(t *testing.T) {
 		}
 		body := page()
 		link := `<A HREF="/?url=` + url.QueryEscape("https://github.com/tenox7/wrp/releases/tag/"+c.show) + `&w=`
-		if c.show == "" && strings.Contains(body, "Update available") {
+		if c.show == "" && strings.Contains(body, ">Update: WRP") {
 			t.Errorf("tag %q, HTTP %d: the page shows an update", c.tag, c.code)
 		}
-		if c.show != "" && !(strings.Contains(body, `">Update available: WRP 99.1.0</A> |`) && strings.Contains(body, link)) {
+		if c.show != "" && !(strings.Contains(body, `">Update: WRP 99.1.0</A> |`) && strings.Contains(body, link)) {
 			t.Errorf("tag %q, HTTP %d: the page does not show the update, with %s", c.tag, c.code, link)
 		}
 		if strings.Contains(body, "<b>") {

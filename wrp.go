@@ -166,6 +166,7 @@ type uiData struct {
 	TeXT       string
 	Slices     bool
 	Focus      string // what has the keyboard on the page: text, password, none (keys.go)
+	Archaic    bool   // the client is Archaic: no ad for it
 }
 
 // Parameters for HTML print function
@@ -290,6 +291,7 @@ func (rq *wrpReq) printUI(p uiParams) {
 		TeXT:       p.text,
 		Slices:     rq.slices,
 		Focus:      p.focus,
+		Archaic:    strings.HasPrefix(rq.r.UserAgent(), "Archaic/"),
 	}
 	if data.Focus == "" {
 		data.Focus = "none"

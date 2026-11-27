@@ -91,12 +91,13 @@
         {{end}}
         {{.TeXT}}
 		<FONT SIZE="-2">
-		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Web Rendering Proxy {{.Version}}</A> |
-		{{if .NewVersion}}<A HREF="/?url={{urlquery .NewPage}}&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Update available: WRP {{.NewVersion}}</A> |{{end}}
-		<A HREF="/shutdown/">Shutdown WRP</A> |
+		<A HREF="/?url=https://github.com/tenox7/wrp/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">WRP {{.Version}}</A> |
+		{{if .NewVersion}}<A HREF="/?url={{urlquery .NewPage}}&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Update: WRP {{.NewVersion}}</A> |{{end}}
+		{{if not .Archaic}}<A HREF="/?url=https://github.com/tenox7/archaic/&w={{.Width}}&h={{.Height}}&s={{printf "%.1f" .Zoom}}&c={{.Colors}}&t={{.ImgType}}">Try Archaic, a WRP browser for old computers</A> |{{end}}
+		<A HREF="/shutdown/">Shutdown</A> |
         {{ if eq .WrpMode "ismap" }}
-		<A HREF="/">Page Height: {{.PageHeight}}</A> |
-		<A HREF="/">Img Size: {{.ImgSize}}</A>
+		<A HREF="/">Height: {{.PageHeight}}</A> |
+		<A HREF="/">Size: {{.ImgSize}}</A>
         {{end}}
     </FONT>
     </BODY>
