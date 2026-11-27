@@ -369,6 +369,7 @@ func findBrowser() string {
 			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 			"/Applications/Chromium.app/Contents/MacOS/Chromium",
 			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+			"/Applications/Brave Origin.app/Contents/MacOS/Brave Origin",
 			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
 			"/Applications/Brave Browser Beta.app/Contents/MacOS/Brave Browser Beta",
@@ -402,6 +403,7 @@ func findBrowser() string {
 			"/usr/bin/brave-browser",
 			"/usr/bin/brave-browser-stable",
 			"/usr/bin/brave",
+			"/usr/bin/brave-origin",
 			"/usr/bin/microsoft-edge",
 			"/usr/bin/vivaldi",
 			"/snap/bin/chromium",
@@ -419,7 +421,7 @@ func findBrowser() string {
 			return p
 		}
 	}
-	for _, n := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser", "brave", "microsoft-edge", "vivaldi", "chrome"} {
+	for _, n := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser", "brave", "brave-origin", "microsoft-edge", "vivaldi", "chrome"} {
 		if p, err := exec.LookPath(n); err == nil {
 			return p
 		}

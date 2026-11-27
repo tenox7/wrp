@@ -23,7 +23,7 @@ Different modes have different uses. ISMAP mode will be better for the flashy mo
 
 ## Usage Instructions
 
-* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium / Brave Browser is required to be preinstalled. Do not run WRP on an old machine like Windows XP or 98.
+* [Download a WRP binary](https://github.com/tenox7/wrp/releases/) and run it on a machine that will become your WRP gateway/server. This should be modern hardware and OS. Google Chrome / Chromium / Brave Browser / Brave Origin is required to be preinstalled. Do not run WRP on an old machine like Windows XP or 98.
 * Make sure you have disabled the firewall or opened the port WRP is listening on (by default 8080).
 * Point your legacy browser to `http://address:port` of the WRP server or set your proxy address there. 
 * Type a search string or a full http/https URL and click **Go**.
