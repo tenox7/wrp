@@ -413,9 +413,15 @@ func navigateBack() chromedp.ActionFunc {
 // less than 2 s later. The page from the reload can be a check again
 // (dailymail.co.uk goes to dailymail.com, and that is checked too). A box
 // that shows (a button to hold down) is for the user: no wait for it.
+// Cloudflare's check ("Just a moment...", Stack Overflow) is a check too: the
+// picture was its empty page, 158 px, and the page came 2 s later. It is the
+// page with Cloudflare's script from /cdn-cgi/challenge-platform/h/. The page
+// after it has Cloudflare's scripts and _cf_chl_opt too, not that one. When
+// the check shows a box to tick, the wait ends after 10 s.
 const botCheck = `(() => {
 	const c = document.getElementById("sec-if-cpt-container");
 	if (c && getComputedStyle(c).display === "none") return "check";
+	if (Array.from(document.scripts).some(s => s.src.includes("/cdn-cgi/challenge-platform/h/"))) return "check";
 	return document.readyState === "complete" ? "page" : "loading";
 })()`
 
@@ -481,6 +487,22 @@ func ctxErr(err error, w io.Writer) {
 	fmt.Fprintln(w, "Created new context, try again")
 }
 
+// pendingJS: how many pictures the screenshot shows have not come yet. A
+// picture to the side of the viewport, or in a box that cuts it off (a
+// carousel's items to the side), does not count: a lazy one there never
+// comes, and the wait lasted until its time was over (DuckDuckGo's news, 5 s
+// and 5 s again). %s: also not a picture above or below the viewport.
+const pendingJS = `Array.from(document.images).filter(function(i){
+if(i.complete||!i.getClientRects().length)return false;
+var r=i.getBoundingClientRect();
+if(r.right<=0||r.left>=innerWidth||%s)return false;
+for(var e=i.parentElement;e&&e!==document.body&&e!==document.documentElement;e=e.parentElement){
+ var s=getComputedStyle(e);
+ if(s.overflowX==='visible'&&s.overflowY==='visible')continue;
+ var q=e.getBoundingClientRect();
+ if(r.right<=q.left||r.left>=q.right||r.bottom<=q.top||r.top>=q.bottom)return false}
+return true}).length`
+
 // waitForRender waits until the page has loaded and the pictures in the
 // viewport have come, at most *delay (5 s at most). The pictures out of view
 // don't count: the lazy ones load only when they come into view. A quiet
@@ -520,11 +542,8 @@ func waitForRender() chromedp.ActionFunc {
 			default:
 			}
 			var ready bool
-			if err := chromedp.Evaluate(fmt.Sprintf(`(%v || document.readyState === "complete") &&
-				Array.from(document.images).every(i => {
-					const r = i.getBoundingClientRect();
-					return i.complete || r.bottom <= 0 || r.top >= innerHeight;
-				})`, idle), &ready).Do(ctx); err != nil {
+			if err := chromedp.Evaluate(fmt.Sprintf(`(%v || document.readyState === "complete") && %s === 0`,
+				idle, fmt.Sprintf(pendingJS, "r.bottom<=0||r.top>=innerHeight")), &ready).Do(ctx); err != nil {
 				return nil
 			}
 			if ready {
@@ -633,17 +652,25 @@ if(o(d)==='visible'&&o(b)==='visible'){d.style.overflowY='scroll';window.__wrpSb
 
 // fullJS: a whole page in a viewport as tall as the screen (see fullHeight).
 // The page is scrolled down a screen a frame, so its lazy pictures (Chrome's,
-// and the page's own on scroll) come, and back to its top. Then it waits for
-// the pictures, until %d ms (-s) are over. The value is the bottom of its
-// html, its flow: a short page ends above the bottom of the screen.
-const fullJS = `new Promise(function(r){
-var end=Date.now()+%d,d=document.documentElement,s=document.scrollingElement||d,y=0;
+// and the page's own on scroll) come, and back to its top. The scroll ends
+// where the page ended when it began: a page with no end (Reddit) adds more
+// at every screen, and the picture was 95000 px, after 20 s. Then it waits
+// for the pictures on the page (not below its end: CNN, locked under its
+// consent box to one screen, has its pictures there, and they never come),
+// until %d ms (-s) are over. The value, for a page shorter
+// than the screen, is the bottom of the lowest thing on it: a short page ends
+// above the bottom of the screen, a box fixed on the screen (an overlay, or a
+// page locked under one) does not.
+var fullJS = `new Promise(function(r){
+var end=Date.now()+%d,s=document.scrollingElement||document.documentElement,y=0,h=s.scrollHeight;
 function frames(f){requestAnimationFrame(function(){requestAnimationFrame(f)})}
 function go(t){scrollTo({top:t,left:0,behavior:'instant'})}
-function pass(){if(y<s.scrollHeight&&Date.now()<end){go(y);y+=innerHeight;frames(pass);return}go(0);wait()}
-function wait(){if(Date.now()<end&&!Array.from(document.images).every(function(i){
- return i.complete||!i.getClientRects().length})){setTimeout(wait,100);return}
- frames(function(){r(Math.ceil(d.getBoundingClientRect().bottom))})}
+function pass(){if(y<h&&Date.now()<end){go(y);y+=innerHeight;frames(pass);return}go(0);wait()}
+function wait(){if(Date.now()<end&&` + fmt.Sprintf(pendingJS, "r.top>=(document.scrollingElement||document.documentElement).scrollHeight") + `){setTimeout(wait,100);return}
+ frames(function(){r(s.scrollHeight>innerHeight?0:low())})}
+function low(){var m=0,a=document.body?document.body.getElementsByTagName('*'):[];
+ for(var k=0;k<a.length;k++){var q=a[k].getBoundingClientRect();if(q.width&&q.height&&q.bottom>m)m=q.bottom}
+ return Math.ceil(m)}
 pass()})`
 
 // clickJS: a click at y (CSS px) of a whole page picture: the page is scrolled
@@ -679,20 +706,22 @@ func contentH(ctx context.Context) (int64, error) {
 }
 
 // fullHeight: the height of a whole page (CSS px) that grew past a viewport
-// as tall as itself. A 100vh part grows with the viewport, so such a page
-// never fits, and the picture cut off its end. Its pictures also came late,
-// or never: the 100vh part had pushed them below the viewport. The page now
+// as tall as itself, or is shorter than the screen. A 100vh part grows with
+// the viewport, so such a page never fits, and the picture cut off its end.
+// Its pictures also came late, or never: the 100vh part had pushed them below
+// the viewport. A short page with a box fixed on the screen (CNN locked under
+// its consent box, a login box) was cut to its content, 40 px. The page now
 // stays in a viewport as tall as the screen (sh), so its 100vh is a screen,
 // and captureTall takes the page below the viewport too. h: its height in a
 // 10 px viewport.
 func fullHeight(ctx context.Context, w, sh, h int64, zoom float64) (int64, error) {
-	var flow int64
+	var low int64
 	err := chromedp.Run(ctx,
 		emulation.SetDeviceMetricsOverride(w, sh, zoom, false),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			fctx, cancel := context.WithTimeout(ctx, *delay+2*time.Second)
 			defer cancel()
-			return wrpEval(fctx, fmt.Sprintf(fullJS, delay.Milliseconds()), &flow)
+			return wrpEval(fctx, fmt.Sprintf(fullJS, delay.Milliseconds()), &low)
 		}),
 	)
 	if err != nil {
@@ -706,8 +735,8 @@ func fullHeight(ctx context.Context, w, sh, h int64, zoom float64) (int64, error
 		return c, nil // the page goes on below the screen
 	}
 	// the page fits in the screen: a short one ends where its content does,
-	// a 100vh one fills the screen
-	return min(sh, max(h+30, flow)), nil
+	// a 100vh one or one with a box fixed on the screen fills the screen
+	return min(sh, max(h+30, low)), nil
 }
 
 // Capture Screenshot using CDP
@@ -758,18 +787,20 @@ func (rq *wrpReq) captureScreenshot() {
 			return nil
 		}),
 	)
-	// a whole page that fits its viewport is taken as it is
+	// a whole page that fits its viewport, and is a screen or taller, is
+	// taken as it is
 	var c int64
+	sh := rq.screenH()
 	if full {
 		c, _ = contentH(bc)
 	}
-	if c > height {
-		sh := rq.screenH()
+	if full && (c > height || height < sh) {
+		vh := height
 		var err error
 		if height, err = fullHeight(bc, w, sh, h, rq.zoom); err != nil {
 			log.Printf("%s Whole page not measured: %v\n", rq.r.RemoteAddr, err)
 		}
-		log.Printf("%s Page grew past its viewport (%d px): %d px in a %d px viewport\n", rq.r.RemoteAddr, c, height, sh)
+		log.Printf("%s Page in a %d px viewport: %d px (in a %d px one: %d px)\n", rq.r.RemoteAddr, sh, height, vh, c)
 		h = height
 	}
 	// Capture screenshot. Chrome can't take a viewport taller than maxCapH

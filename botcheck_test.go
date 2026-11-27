@@ -15,7 +15,8 @@ import (
 // A page like Akamai's bot check (see botCheck): a hidden box and a script
 // that sets a cookie and reloads the page. It comes twice, as on the Daily
 // Mail, then the real page, 3000 px tall. The picture must be the real page,
-// not the empty check (40 px). A box that shows is no check to wait for.
+// not the empty check (40 px). Cloudflare's check (/cf) too. A box that
+// shows is no check to wait for.
 //
 // WRP_BROWSER_TEST=1 go test -run TestBotCheck -v .
 func TestBotCheck(t *testing.T) {
@@ -34,6 +35,19 @@ func TestBotCheck(t *testing.T) {
 			return
 		}
 		fmt.Fprint(w, `<body style="margin:0"><div style="height:3000px;background:#08f">the page</div></body>`)
+	})
+	// Cloudflare's check: "Just a moment...", then the page after a reload
+	mux.HandleFunc("/cf", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := r.Cookie("cf"); err != nil {
+			fmt.Fprint(w, `<html><head><title>Just a moment...</title></head><body><script>window._cf_chl_opt={};
+				setTimeout(() => { document.cookie = "cf=1"; location.reload(true) }, 800)</script>
+				<script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></body></html>`)
+			return
+		}
+		// the page after the check has Cloudflare's other script and _cf_chl_opt
+		fmt.Fprint(w, `<body style="margin:0"><script>window._cf_chl_opt={}</script>
+			<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
+			<div style="height:3000px;background:#f80">the page</div></body>`)
 	})
 	mux.HandleFunc("/shown", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `<body><div id="sec-if-cpt-container" style="display: block">hold the button</div></body>`)
@@ -57,22 +71,32 @@ func TestBotCheck(t *testing.T) {
 		}
 	}
 
-	rq := req(srv.URL + "/")
-	rq.navigate()
-	rq.captureScreenshot()
-	var buf bytes.Buffer
-	for _, b := range wrpCach.imgs {
-		buf = b.buf
-	}
-	cfg, err := png.DecodeConfig(bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if cfg.Height < 3000 {
-		t.Errorf("picture %dx%d: the check page, not the page after it", cfg.Width, cfg.Height)
+	for _, p := range []string{"/", "/cf"} {
+		rq := req(srv.URL + p)
+		rq.navigate()
+		rq.captureScreenshot()
+		var buf bytes.Buffer
+		for _, b := range wrpCach.imgs {
+			buf = b.buf
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			t.Fatalf("%s: decode: %v", p, err)
+		}
+		if cfg.Height < 3000 {
+			t.Errorf("%s: picture %dx%d: the check page, not the page after it", p, cfg.Width, cfg.Height)
+		}
 	}
 
+	// the page after Cloudflare's check is no check: the next navigate
+	// does not wait 10 s on it
 	st := time.Now()
+	req(srv.URL + "/").navigate()
+	if d := time.Since(st); d > 3*time.Second {
+		t.Errorf("waited %v on the page after Cloudflare's check", d)
+	}
+
+	st = time.Now()
 	req(srv.URL + "/shown").navigate()
 	if d := time.Since(st); d > 3*time.Second {
 		t.Errorf("waited %v on a box that shows", d)
